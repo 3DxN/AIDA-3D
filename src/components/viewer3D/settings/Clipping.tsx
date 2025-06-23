@@ -59,7 +59,7 @@ export default function Clipping(props: {
 		clippingPlanes.current.x[0].constant = -values[0]
 		;[, clippingPlanes.current.x[1].constant] = values
 
-		// We're only viewing the HE substack if both top and bottom plane constants
+		// We're only viewing the H&E Substack if both top and bottom plane constants
 		// are at specific values
 		if (
 			values[0] === substack[0] &&
@@ -138,7 +138,7 @@ export default function Clipping(props: {
 					</Disclosure.Button>
 					<Disclosure.Panel className="relative">
 						<div className="mx-4 flex my-2 justify-between">
-							<div>HE substack</div>
+							<div>H&E Substack</div>
 							<Switch onChange={toggleHNEPlane} enabled={activeHNESubstack} />
 						</div>
 
