@@ -157,6 +157,7 @@ const Viewer3D = (props: {
 				}
 
 				// ...some changes...
+				// some more changes
 
 				// Setup the space for the new object
 				// This is from three-gltf-viewer
