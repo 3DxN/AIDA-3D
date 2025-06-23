@@ -44,3 +44,6 @@ tsconfig.tsbuildinfo
 
 # Cache
 .cache/*
+
+# ide
+.vs/

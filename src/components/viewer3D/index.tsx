@@ -156,6 +156,8 @@ const Viewer3D = (props: {
 					newContent.translateZ(-302)
 				}
 
+				// ...some changes...
+
 				// Setup the space for the new object
 				// This is from three-gltf-viewer
 				const box = new THREE.Box3().setFromObject(newContent)
