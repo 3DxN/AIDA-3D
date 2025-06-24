@@ -6,9 +6,8 @@ import { Disclosure } from '@headlessui/react'
 import RangeSlider from '../../interaction/RangeSlider'
 import Switch from '../../interaction/Switch'
 
-function classNames(...classes) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../../lib/utils/classNames'
+
 
 export default function Clipping(props: {
 	renderer: WebGLRenderer

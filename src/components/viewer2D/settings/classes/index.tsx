@@ -7,12 +7,10 @@ import ActiveClassControls from './ActiveClassControls'
 import FeatureClass from './FeatureClass'
 import FooterToolbar from './FooterToolbar'
 
+import classNames from '../../../../lib/utils/classNames'
+
 // Types
 import { FeatureClass as IFeatureClass } from '../../../../types/annotation'
-
-function classNames(...classes: string[]) {
-	return classes.filter(Boolean).join(' ')
-}
 
 // Manage annotation layers, make adjustments such as opacity, etc.
 const Classes = (props: { map: Map }) => {

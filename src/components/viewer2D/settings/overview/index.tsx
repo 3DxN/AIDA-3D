@@ -5,9 +5,8 @@ import OverviewMap from 'ol/control/OverviewMap'
 import TileLayer from 'ol/layer/Tile'
 import Zoomify from 'ol/source/Zoomify'
 
-function classNames(...classes: string[]) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../../../lib/utils/classNames'
+
 
 // Overview shows a high-level overview of the map, indicating the current size
 // and position of the viewport.

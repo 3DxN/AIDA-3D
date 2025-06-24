@@ -1,8 +1,6 @@
 import { Switch } from '@headlessui/react'
 
-function classNames(...classes) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../lib/utils/classNames'
 
 export default function CustomLabelExample(props: {
 	onChange: (checked: boolean) => void

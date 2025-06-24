@@ -7,14 +7,12 @@ import Layer from './Layer'
 import ActiveLayerControls from './ActiveLayerControls'
 import FooterToolbar from './FooterToolbar'
 
+import classNames from '../../../../lib/utils/classNames'
+
 // Types
 import type VectorLayer from 'ol/layer/Vector'
 import type VectorSource from 'ol/source/Vector'
 import type Geometry from 'ol/geom/Geometry'
-
-function classNames(...classes: string[]) {
-	return classes.filter(Boolean).join(' ')
-}
 
 // Manage annotation layers, make adjustments such as opacity, etc.
 const Layers = (props: { map: Map }) => {

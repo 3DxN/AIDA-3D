@@ -7,9 +7,8 @@ import * as d3 from 'd3'
 import ColorMap from './ColorMap'
 import FooterToolbar from './FooterToolbar'
 
-function classNames(...classes: string[]) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../../../lib/utils/classNames'
+
 
 function normalize(min: number, max: number) {
 	const delta = max - min

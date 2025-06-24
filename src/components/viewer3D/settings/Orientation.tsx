@@ -12,9 +12,8 @@ import {
 	Line,
 } from 'three'
 
-function classNames(...classes) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../../lib/utils/classNames'
+
 
 const Orientation = (props: {
 	content: Group

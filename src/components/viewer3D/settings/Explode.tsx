@@ -5,9 +5,8 @@ import { Camera, Scene, WebGLRenderer, Group } from 'three'
 
 import NumberField from '../../interaction/NumberField'
 
-function classNames(...classes) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../../lib/utils/classNames'
+
 
 const Explode = (props: {
 	content: Group

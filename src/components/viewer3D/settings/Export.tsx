@@ -4,9 +4,8 @@ import { Disclosure } from '@headlessui/react'
 import { WebGLRenderer, Group } from 'three'
 import { SaveIcon } from '@heroicons/react/solid'
 
-function classNames(...classes) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../../lib/utils/classNames'
+
 
 const Export = (props: { content: Group; renderer: WebGLRenderer }) => {
 	const { content, renderer, featureData } = props

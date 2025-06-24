@@ -5,9 +5,8 @@ import { Camera, Scene, WebGLRenderer, Group } from 'three'
 
 import RangeSlider from '../../interaction/RangeSlider'
 
-function classNames(...classes) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../../lib/utils/classNames'
+
 
 const allFeatures = [
 	{ name: 'Segmentation confidence', value: 'segmentationConfidence' },

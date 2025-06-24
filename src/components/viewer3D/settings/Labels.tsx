@@ -3,13 +3,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { Disclosure } from '@headlessui/react'
 import { XIcon } from '@heroicons/react/solid'
 
-import { InputAutoComplete, Item } from '../../interaction/InputAutoComplete'
-import InputCombobox from '../../interaction/InputComboBox'
 import Input from '../../interaction/Input'
 
-function classNames(...classes) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../../lib/utils/classNames'
+
 
 // Function finds common elements in array of sets
 const findCommon = (sets) => {

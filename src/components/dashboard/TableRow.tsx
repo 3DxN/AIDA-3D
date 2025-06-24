@@ -1,8 +1,6 @@
 import { useRouter } from 'next/router'
 
-function classNames(...classes: string[]) {
-	return classes.filter(Boolean).join(' ')
-}
+import classNames from '../../lib/utils/classNames'
 
 interface Node {
 	name: string

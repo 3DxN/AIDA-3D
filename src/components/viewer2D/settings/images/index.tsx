@@ -6,13 +6,12 @@ import Map from 'ol/Map'
 import Layer from './Layer'
 import ActiveLayerControls from './ActiveLayerControls'
 
+import classNames from '../../../../lib/utils/classNames'
+
 // Types
 import Zoomify from 'ol/source/Zoomify'
 import TileLayer from 'ol/layer/Tile'
 
-function classNames(...classes: string[]) {
-	return classes.filter(Boolean).join(' ')
-}
 
 // Manage images, make adjustments such as opacity, etc.
 const Images = (props: { map: Map }) => {
