@@ -134,6 +134,14 @@ const Viewer3D = (props: {
 				scene.add(gltf.scene)
 				setContent(newContent)
 
+				// Apply reflection to the geometry of each mesh
+				const reflectionMatrix = new THREE.Matrix4().makeScale(1, -1, 1);
+				newContent.traverse((object) => {
+					if (object.isMesh) {
+						object.geometry.applyMatrix4(reflectionMatrix);
+					}
+				});
+
 				// The model is orientated poorly, doesn't match up with the 2D
 				// Do some manual rotations/reflections in order to algin correctly.
 
@@ -142,19 +150,18 @@ const Viewer3D = (props: {
 				//       differently from the rest. Need to reorient it. This should be
 				//       temporary until the 3D models are all consistent.
 				if (H === '12' && V === '11') {
-					newContent.applyMatrix4(new THREE.Matrix4().makeScale(1, -1, 1))
 					newContent.rotateX(Math.PI / 2)
 					newContent.rotateZ(Math.PI / 2)
 					newContent.rotateY(Math.PI)
 					newContent.translateZ(-460)
 				} else {
-					// Reflect on y-axis
-					newContent.applyMatrix4(new THREE.Matrix4().makeScale(1, -1, 1))
+					// Rotations to correctly orient the model
 					newContent.rotateX(Math.PI / 2)
 					newContent.rotateZ(Math.PI / 2)
 					newContent.rotateY(Math.PI)
 					newContent.translateZ(-302)
 				}
+				
 
 				// Setup the space for the new object
 				// This is from three-gltf-viewer

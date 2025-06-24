@@ -11,6 +11,7 @@
 	"dependencies": {
 		"@headlessui/react": "^1.5.0",
 		"@heroicons/react": "^1.0.3",
+		"@kitware/vtk.js": "^34.1.0",
 		"@react-aria/button": "^3.3.3",
 		"@react-aria/focus": "^3.4.1",
 		"@react-aria/numberfield": "^3.0.1",
