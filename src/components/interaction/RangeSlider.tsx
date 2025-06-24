@@ -8,15 +8,24 @@ import { useNumberFormatter } from '@react-aria/i18n'
 
 import { Thumb } from './Slider'
 
-const RangeSlider = (props) => {
+const RangeSlider = (props: {
+	formatOptions?: object
+	label?: string
+	onValuesUpdate: (values: number[]) => void
+	externalValues?: number[]
+	resetToMinMax?: number[]
+	minValue?: number
+	maxValue?: number
+	// Additional props for the slider can be added here
+}) => {
 	const {
 		formatOptions,
 		label,
 		onValuesUpdate,
 		externalValues,
 		resetToMinMax,
-		minValue,
-		maxValue,
+		// minValue,
+		// maxValue,
 	} = props
 	const trackRef = useRef(null)
 

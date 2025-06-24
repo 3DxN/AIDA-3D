@@ -1,7 +1,12 @@
 import * as React from 'react'
 import { useOverlay, DismissButton, FocusScope } from 'react-aria'
 
-export function Popover(props) {
+export function Popover(props: {
+	popoverRef?: React.RefObject<HTMLDivElement>
+	isOpen: boolean
+	onClose: () => void
+	children: React.ReactNode
+}) {
 	let ref = React.useRef(null)
 	let { popoverRef = ref, isOpen, onClose, children } = props
 
