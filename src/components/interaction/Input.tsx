@@ -8,12 +8,13 @@ export default function Input(props: {
 }) {
 	const { commitInput, label, disabled, placeholder } = props
 
-	let inputRef = useRef()
+	let inputRef = useRef<HTMLInputElement>(null)
 
 	// Add key listener to commit on enter
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key === 'Enter' && !disabled && e.currentTarget?.value.length > 0) {
+			if (e.key === 'Enter' && !disabled && (e.currentTarget instanceof HTMLTextAreaElement)
+				&& e.currentTarget.value.length > 0) {
 				console.log('enter')
 				e.preventDefault()
 				commitInput(e.currentTarget?.value)
