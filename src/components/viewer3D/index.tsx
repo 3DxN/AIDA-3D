@@ -301,7 +301,7 @@ const Viewer3D = (props: {
 					</div>
 				)}
 
-				<canvas className="w-full h-full" ref={viewerRef} />
+				<canvas className="w-full h-full" ref={viewerRef} tabIndex={-1} />
 			</div>
 
 			{tile && (
