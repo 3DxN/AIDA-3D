@@ -28,6 +28,8 @@ const Tools = (props: {
 	const [selectHelper, setSelectHelper] = useState(null)
 	const selectActive = useRef(false)
 
+	
+
 	// Toggle controls
 	useEffect(() => {
 		// Check whether orbit controls should be active
@@ -42,7 +44,7 @@ const Tools = (props: {
 		}
 	}, [activeTool, orbitControls, selectHelper])
 
-	// Initialise orbit controls
+    // Initialise orbit controls
 	useEffect(() => {
 		function render() {
 			renderer.render(scene, camera)
@@ -51,6 +53,13 @@ const Tools = (props: {
 		if (renderer && scene && camera) {
 			const newControls = new OrbitControls(camera, renderer.domElement)
 			newControls.addEventListener('change', () => render()) // use if there is no animation loop
+
+			// --- ADD THESE LINES ---
+			newControls.enablePan = true;
+			newControls.enableKeys = true; // this is true by default, but let's be explicit
+			newControls.listenToKeyEvents(renderer.domElement);
+			// ------------------------
+
 			newControls.minDistance = 2
 			newControls.maxDistance = 10
 			newControls.target.set(0, 0, -0.2)
