@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react'
 import {
 	Camera,
 	Scene,
+	Mesh,
 	WebGLRenderer,
 	Group,
 	Vector2,
@@ -19,13 +20,14 @@ const Tools = (props: {
 	renderer: WebGLRenderer
 	scene: Scene
 	camera: Camera
-	setSelect3D: (select3D: boolean) => void
+	setSelect3D: Dispatch<SetStateAction<boolean>>
+	setSelected: (selected: any[]) => void
 }) => {
 	const { renderer, scene, camera, content, setSelect3D, setSelected } = props
 
 	const [activeTool, setActiveTool] = useState('Orbit')
-	const [orbitControls, setOrbitControls] = useState(null)
-	const [selectHelper, setSelectHelper] = useState(null)
+	const [orbitControls, setOrbitControls] = useState<OrbitControls | null>(null)
+	const [selectHelper, setSelectHelper] = useState<SelectionHelper | null>(null)
 	const selectActive = useRef(false)
 
 	// Toggle controls
@@ -77,7 +79,7 @@ const Tools = (props: {
 	// https://threejs.org/examples/?q=select#misc_boxselection
 	// Key addition is select first mesh intersected with ray onClick.
 	useEffect(() => {
-		function findFirstIntersection(raycaster, pointer) {
+		function findFirstIntersection(raycaster: Raycaster, pointer: Vector2) {
 			if (scene && scene.children[0]) {
 				raycaster.setFromCamera(pointer, camera)
 				const intersects = raycaster.intersectObject(scene.children[0], true)
@@ -85,6 +87,8 @@ const Tools = (props: {
 				if (intersects.length > 0) {
 					const firstMesh = intersects.find((o) => {
 						// Get the nucleus bounding sphere in world coords
+						if (!(o.object instanceof Mesh)) return false
+
 						if (o.object.geometry.boundingSphere === null)
 							o.object.geometry.computeBoundingSphere()
 						const sphere = o.object.geometry.boundingSphere.clone()
@@ -116,7 +120,7 @@ const Tools = (props: {
 			const helper = new SelectionHelper(selectionBox, renderer, 'selectBox')
 			setSelectHelper(helper)
 
-			const onPointerDown = (event) => {
+			const onPointerDown = (event: PointerEvent) => {
 				if (selectActive.current) {
 					// Indicate to the 2D viewer that we're making a new selection
 					// by toggling this prop. Bit of a hack!
@@ -131,7 +135,7 @@ const Tools = (props: {
 				}
 			}
 
-			const onPointerMove = (event) => {
+			const onPointerMove = (event: PointerEvent) => {
 				if (helper.isDown && selectActive.current) {
 					selectionBox.endPoint.set(
 						((event.clientX - rect.left) / canvas.clientWidth) * 2 - 1,
@@ -143,7 +147,7 @@ const Tools = (props: {
 				}
 			}
 
-			const onPointerUp = (event) => {
+			const onPointerUp = (event: PointerEvent) => {
 				if (selectActive.current) {
 					const pointer = new Vector2()
 					pointer.x = ((event.clientX - rect.left) / canvas.clientWidth) * 2 - 1

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react'
 
 import * as THREE from 'three'
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
@@ -6,7 +6,7 @@ import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 
-import * as checkPointInPolygon from 'robust-point-in-polygon'
+import checkPointInPolygon from 'robust-point-in-polygon'
 
 // Controls
 import Settings from './settings'
@@ -20,7 +20,7 @@ const cleanMaterial = (material: THREE.Material) => {
 
 	// dispose textures
 	for (const key of Object.keys(material)) {
-		const value = material[key]
+		const value = material[key as keyof THREE.Material]
 		if (value && typeof value === 'object' && 'minFilter' in value) {
 			value.dispose()
 		}
@@ -31,11 +31,11 @@ const Viewer3D = (props: {
 	tile: [number, number]
 	tilesUrl: string
 	polygonCoords: number[][][]
-	setSelect3D: (select3D: boolean) => void
+	setSelect3D: Dispatch<SetStateAction<boolean>>
 }) => {
 	const { tile, tilesUrl, polygonCoords, setSelect3D } = props
 
-	const [content, setContent] = useState(null)
+	const [content, setContent] = useState<THREE.Group | null>(null)
 	const [scene, setScene] = useState<Scene | undefined>(undefined)
 	const [camera, setCamera] = useState<PerspectiveCamera | undefined>(undefined)
 	const [renderer, setRenderer] = useState<WebGLRenderer | undefined>(undefined)
@@ -43,8 +43,8 @@ const Viewer3D = (props: {
 	const [featureData, setFeatureData] = useState(null)
 	const [open, setOpen] = useState(false)
 	// Array of selected nuclei as specified by polygon on 2D viewer
-	const [selected, setSelected] = useState([])
-	const selectedCache = useRef([])
+	const [selected, setSelected] = useState<THREE.Mesh[]>([])
+	const selectedCache = useRef<THREE.Mesh[]>([])
 
 	// Reference to viewer element
 	const viewerRef: { current: HTMLCanvasElement | null } = useRef(null)
@@ -98,6 +98,9 @@ const Viewer3D = (props: {
 
 	// Update tile
 	useEffect(() => {
+		// Guard so that we don't render if none of these are set
+		if (!(tile && scene && camera && renderer)) return
+
 		if (tile) {
 			// Activate visual loading indicator
 			setIsLoading(true)
@@ -114,7 +117,8 @@ const Viewer3D = (props: {
 
 				// Also need to clear the objects from memory to avoid leak.
 				scene.traverse((object) => {
-					if (!object.isMesh) return
+					// Typeguard to ensure object is a Mesh
+					if (!(object instanceof THREE.Mesh) || !object.isMesh) return
 					object.geometry.dispose()
 
 					if (object.material.isMaterial) {
@@ -209,60 +213,69 @@ const Viewer3D = (props: {
 		// Reset any previous selection
 		setSelected([])
 
-		if (polygonCoords && polygonCoords.length > 0) {
-			const selectedNuclei = []
+		if (!content || !renderer || !polygonCoords || polygonCoords.length <= 0) return
 
-			// Check if nuclei is inside polygon, if yes, set as selected
-			content.children.forEach((child, index) => {
-				if (child.isMesh && child.name.includes('nucleus')) {
-					let match = true
-					const nucleus = child
+		const selectedNuclei: THREE.Mesh[] = []
 
-					// Get the nucleus bounding sphere in world coords
-					if (nucleus.geometry.boundingSphere === null)
-						nucleus.geometry.computeBoundingSphere()
-					const sphere = nucleus.geometry.boundingSphere.clone()
-					nucleus.localToWorld(sphere.center)
-					const center = sphere.center
+		// Check if nuclei is inside polygon, if yes, set as selected
+		content.children.forEach((child, index) => {
+			if (child instanceof THREE.Mesh && child.isMesh && child.name.includes('nucleus')) {
+				let match = true
+				const nucleus = child
 
-					// Exclude the nucleus if its center point is outside the polygon
-					if (checkPointInPolygon(polygonCoords, [center.z, center.y]) > 0) {
-						match = false
-					}
+				// Get the nucleus bounding sphere in world coords
+				if (nucleus.geometry.boundingSphere === null)
+					nucleus.geometry.computeBoundingSphere()
+				const sphere = nucleus.geometry.boundingSphere.clone()
+				nucleus.localToWorld(sphere.center)
+				const center = sphere.center
 
-					// Exclude the nucleus if its center point is outside the clipping
-					// planes but include if it's bounding sphere intersects the clipping
-					// planes (this is to make sure all visible meshes can be
-					// selected). Points in space whose dot product with the plane is
-					// negative are cut away.
-					renderer.clippingPlanes.forEach((plane) => {
-						const dot = center.dot(plane.normal) + plane.constant < 0
-						const intersects = sphere.intersectsPlane(plane)
-						if (dot && !intersects) match = false
-					})
-
-					// Exclude if not visible
-					if (!nucleus.visible) match = false
-
-					if (match) selectedNuclei.push(nucleus)
+				// Exclude the nucleus if its center point is outside the polygon
+				// @ts-ignore
+				if (checkPointInPolygon(polygonCoords, [center.z, center.y]) > 0) {
+					match = false
 				}
-			})
 
-			setSelected(selectedNuclei)
-		}
+				// Exclude the nucleus if its center point is outside the clipping
+				// planes but include if it's bounding sphere intersects the clipping
+				// planes (this is to make sure all visible meshes can be
+				// selected). Points in space whose dot product with the plane is
+				// negative are cut away.
+				renderer.clippingPlanes.forEach((plane) => {
+					const dot = center.dot(plane.normal) + plane.constant < 0
+					const intersects = sphere.intersectsPlane(plane)
+					if (dot && !intersects) match = false
+				})
+
+				// Exclude if not visible
+				if (!nucleus.visible) match = false
+
+				if (match) selectedNuclei.push(nucleus)
+			}
+		})
+
+		setSelected(selectedNuclei)
+
 	}, [polygonCoords, content, renderer])
 
 	// Render selections
 	useEffect(() => {
-		if (renderer && scene && camera) {
-			// Remove highlights from previous selection and reset cache
-			selectedCache.current.forEach((nucleus) =>
-				nucleus.material.emissive.set(0x000000)
-			)
-			selectedCache.current = selected
+		if (renderer && scene && camera) {		// Remove highlights from previous selection and reset cache
+		selectedCache.current.forEach((nucleus) => {
+			const material = Array.isArray(nucleus.material) ? nucleus.material[0] : nucleus.material
+			if ('emissive' in material) {
+				(material as THREE.MeshStandardMaterial).emissive.set(0x000000)
+			}
+		})
+		selectedCache.current = selected
 
-			// Highlight current selection
-			selected.forEach((nucleus) => nucleus.material.emissive.set(0xffffff))
+		// Highlight current selection
+		selected.forEach((nucleus) => {
+			const material = Array.isArray(nucleus.material) ? nucleus.material[0] : nucleus.material
+			if ('emissive' in material) {
+				(material as THREE.MeshStandardMaterial).emissive.set(0xffffff)
+			}
+		})
 
 			renderer.render(scene, camera)
 		}
@@ -306,23 +319,20 @@ const Viewer3D = (props: {
 
 			{tile && (
 				<Toolbar
-					camera={camera}
-					scene={scene}
-					renderer={renderer}
-					content={content}
+					camera={camera!}
+					scene={scene!}
+					renderer={renderer!}
+					content={content!}
 					setSelected={setSelected}
 					setSelect3D={setSelect3D}
 				/>
 			)}
 
 			<Settings
-				renderer={renderer}
-				scene={scene}
-				camera={camera}
-				content={content}
-				tile={tile}
-				featureData={featureData}
-				selected={selected}
+				renderer={renderer!}
+				scene={scene!}
+				camera={camera!}
+				content={content!}
 			/>
 		</div>
 	)
