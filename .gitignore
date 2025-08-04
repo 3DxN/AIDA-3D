@@ -33,6 +33,7 @@ yarn-error.log*
 
 # ide
 .vscode/*
+/.vs/
 
 # local data
 /local/data/*
