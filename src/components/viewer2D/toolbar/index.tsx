@@ -225,18 +225,23 @@ const Toolbar = (props: {
 
 		polygon.on('drawend', (e) => {
 			if (selectedFeature.current) {
-				activePolygon.current = e.feature
-				const coords = e.feature.getGeometry().getCoordinates()
+				activePolygon.current = e.feature;
+				const coords = e.feature.getGeometry().getCoordinates();
 
 				// Account for tile offset
-				const featureExtent = selectedFeature.current.getGeometry()?.getExtent()
+				const featureExtent = selectedFeature.current.getGeometry()?.getExtent();
 				const polygonCoords = coords[0].map((coord) => [
 					coord[0] - featureExtent[0],
 					coord[1] - featureExtent[1],
-				])
-				setPolygonCoords(polygonCoords)
+				]);
+
+				// NEW: Check for Shift or Control key on the original browser event
+				const shouldAccumulate = e.originalEvent.shiftKey || e.originalEvent.ctrlKey;
+
+				// Pass an object instead of just the coordinates
+				setPolygonCoords({ coords: polygonCoords, accumulate: shouldAccumulate });
 			}
-		})
+		});
 		polygon.on('drawend', setClass)
 
 		map

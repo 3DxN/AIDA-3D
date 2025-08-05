@@ -206,51 +206,62 @@ const Viewer3D = (props: {
 	// xy plane and select all nuclei whose center intersects with the extruded
 	// shape.
 	useEffect(() => {
-		// Reset any previous selection
-		setSelected([])
-
-		if (polygonCoords && polygonCoords.length > 0) {
-			const selectedNuclei = []
-
-			// Check if nuclei is inside polygon, if yes, set as selected
-			content.children.forEach((child, index) => {
-				if (child.isMesh && child.name.includes('nucleus')) {
-					let match = true
-					const nucleus = child
-
-					// Get the nucleus bounding sphere in world coords
-					if (nucleus.geometry.boundingSphere === null)
-						nucleus.geometry.computeBoundingSphere()
-					const sphere = nucleus.geometry.boundingSphere.clone()
-					nucleus.localToWorld(sphere.center)
-					const center = sphere.center
-
-					// Exclude the nucleus if its center point is outside the polygon
-					if (checkPointInPolygon(polygonCoords, [center.z, center.y]) > 0) {
-						match = false
-					}
-
-					// Exclude the nucleus if its center point is outside the clipping
-					// planes but include if it's bounding sphere intersects the clipping
-					// planes (this is to make sure all visible meshes can be
-					// selected). Points in space whose dot product with the plane is
-					// negative are cut away.
-					renderer.clippingPlanes.forEach((plane) => {
-						const dot = center.dot(plane.normal) + plane.constant < 0
-						const intersects = sphere.intersectsPlane(plane)
-						if (dot && !intersects) match = false
-					})
-
-					// Exclude if not visible
-					if (!nucleus.visible) match = false
-
-					if (match) selectedNuclei.push(nucleus)
-				}
-			})
-
-			setSelected(selectedNuclei)
+		// Exit early if there are no polygon coordinates
+		if (!polygonCoords || !polygonCoords.coords || polygonCoords.coords.length === 0) {
+			// If the polygon is cleared, we should also clear the selection made by it
+			if (!select3D) { // select3D is a good proxy to know if the selection originated from 3D view
+				setSelected([]);
+			}
+			return;
 		}
-	}, [polygonCoords, content, renderer])
+
+		// NEW: Check if we should reset the selection.
+		// We only reset if the 'accumulate' flag is false.
+		if (!polygonCoords.accumulate) {
+			setSelected([]);
+		}
+
+		const selectedNuclei = [];
+
+		// Check if nuclei is inside polygon, if yes, set as selected
+		content.children.forEach((child, index) => {
+			if (child.isMesh && child.name.includes('nucleus')) {
+				let match = true;
+				const nucleus = child;
+
+				// Get the nucleus bounding sphere in world coords
+				if (nucleus.geometry.boundingSphere === null)
+					nucleus.geometry.computeBoundingSphere();
+				const sphere = nucleus.geometry.boundingSphere.clone();
+				nucleus.localToWorld(sphere.center);
+				const center = sphere.center;
+
+				// Use the coordinates from our new object
+				if (checkPointInPolygon(polygonCoords.coords, [center.z, center.y]) > 0) {
+					match = false;
+				}
+
+				// ... (the rest of the matching logic remains the same)
+				renderer.clippingPlanes.forEach((plane) => {
+					const dot = center.dot(plane.normal) + plane.constant < 0;
+					const intersects = sphere.intersectsPlane(plane);
+					if (dot && !intersects) match = false;
+				});
+
+				if (!nucleus.visible) match = false;
+
+				if (match) selectedNuclei.push(nucleus);
+			}
+		});
+
+		// NEW: Use the functional form of setSelected to add to the previous state
+		setSelected(prevSelected => {
+			const combined = [...prevSelected, ...selectedNuclei];
+			// Return a unique set of nuclei to prevent duplicates
+			return [...new Set(combined)];
+		});
+
+	}, [polygonCoords, content, renderer]);
 
 	// Render selections
 	useEffect(() => {

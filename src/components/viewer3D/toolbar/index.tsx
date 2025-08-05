@@ -144,7 +144,10 @@ const Tools = (props: {
 			}
 
 			const onPointerUp = (event) => {
-				if (selectActive.current) {
+				if(selectActive.current) {
+					// Indicate to the 2D viewer that we're making a new selection
+					setSelect3D((value) => !value)
+
 					const pointer = new Vector2()
 					pointer.x = ((event.clientX - rect.left) / canvas.clientWidth) * 2 - 1
 					pointer.y =
@@ -157,10 +160,38 @@ const Tools = (props: {
 						0.5
 					)
 
-					const allSelected = selectionBox.select()
-					if (firstIntersection) allSelected.push(firstIntersection.object)
-					for (const item of allSelected) item.material.emissive.set(0xffffff)
-					setSelected(allSelected)
+					// NEW: Check if Shift or Ctrl key is pressed
+					const shouldAccumulate = event.shiftKey || event.ctrlKey
+
+					// Pass the new flag to the select method
+					const newSelection = selectionBox.select(undefined, undefined, shouldAccumulate);
+
+					if (firstIntersection) {
+						newSelection.push(firstIntersection.object)
+					}
+
+					// NEW: Update state based on whether we are accumulating
+					if (shouldAccumulate) {
+						setSelected(prevSelected => {
+							const combined = [...prevSelected, ...newSelection]
+							const uniqueSelection = [...new Set(combined)] // Remove duplicates
+
+							// Highlight all currently selected items
+							uniqueSelection.forEach(item => item.material.emissive.set(0xffffff))
+
+							return uniqueSelection
+						})
+					} else {
+						// If not accumulating, first clear highlights from the old selection
+						setSelected(prevSelected => {
+							prevSelected.forEach(item => item.material.emissive.set(0x000000))
+							return [] // Return empty array to prepare for the new selection
+						})
+
+						// Then, highlight and set the new selection
+						newSelection.forEach(item => item.material.emissive.set(0xffffff))
+						setSelected(newSelection)
+					}
 				}
 			}
 

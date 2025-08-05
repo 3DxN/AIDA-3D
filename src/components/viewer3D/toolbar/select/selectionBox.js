@@ -35,10 +35,14 @@ class SelectionBox {
 		this.deep = deep
 	}
 
-	select(startPoint, endPoint) {
+	select(startPoint, endPoint, accumulate = false) {
 		this.startPoint = startPoint || this.startPoint
 		this.endPoint = endPoint || this.endPoint
-		this.collection = []
+
+		// This 'if' block is the new part that prevents the selection from resetting
+		if (!accumulate) {
+			this.collection = []
+		}
 
 		this.updateFrustum(this.startPoint, this.endPoint)
 		this.searchChildInFrustum(_frustum, this.scene)
