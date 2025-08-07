@@ -9,6 +9,7 @@
 		"lint": "next lint"
 	},
 	"dependencies": {
+		"@hms-dbmi/viv": "~0.17.2",
 		"@headlessui/react": "^2.0.0",
 		"@heroicons/react": "^1.0.3",
 		"@react-aria/button": "^3.3.3",
@@ -22,6 +23,7 @@
 		"body-parser": "^1.19.0",
 		"connect-history-api-fallback": "^1.6.0",
 		"d3": "^7.3.0",
+		"deck.gl": "~9.0.0",
 		"express": "^4.17.1",
 		"ip": "^1.1.5",
 		"next": "^15.4.6",
@@ -33,7 +35,8 @@
 		"react-stately": "^3.12.1",
 		"robust-point-in-polygon": "^1.0.3",
 		"three": "^0.138.3",
-		"xml2js": "^0.4.23"
+		"xml2js": "^0.4.23",
+		"zarrita": "~0.5.0"
 	},
 	"devDependencies": {
 		"@next/eslint-plugin-next": "^12.1.4",
