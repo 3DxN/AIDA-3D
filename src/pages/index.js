@@ -53,7 +53,7 @@ export default function Home() {
 							</div>
 
 							<div className="mt-4">
-								<Link href="/demo">
+								<Link href="/demo" legacyBehavior>
 									<a className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm leading-4 font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
 										<PlayIcon className="mr-2 h-4 w-4" aria-hidden="true" />
 										Try a demo
@@ -63,7 +63,7 @@ export default function Home() {
 										/>
 									</a>
 								</Link>
-								<Link href="/local">
+								<Link href="/local" legacyBehavior>
 									<a className="inline-flex items-center ml-2 px-3 py-2 border border-transparent shadow-sm leading-4 font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
 										<ServerIcon className="mr-2 h-4 w-4" aria-hidden="true" />
 										Local server
