@@ -547,7 +547,7 @@ const Toolbar = (props: {
 	return (
 		<div className="absolute left-0 top-0 z-20 flex flex-col m-1">
 			{/* File menu */}
-			<Link href="/local">
+			<Link href="/local" legacyBehavior>
 				<a className="p-2 mb-2 shadow bg-teal-600 text-white rounded-md flex justify-center text-base font-medium hover:bg-teal-500 focus:outline-none focus:ring-2 ring-inset focus:ring-teal-500">
 					<MenuIcon className="h-4 w-4" aria-hidden="true" />
 				</a>
