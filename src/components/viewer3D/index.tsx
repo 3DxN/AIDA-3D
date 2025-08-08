@@ -137,8 +137,13 @@ const Viewer3D = (props: {
 				// individual color and emissive changes.
 				newContent.traverse((object) => {
 					if (object.isMesh) {
-						// Clone the material to ensure it's unique to this mesh
-						object.material = object.material.clone();
+						// Clone the material to make it unique
+						const newMaterial = object.material.clone();
+
+						// Set the color to a darker grey
+						newMaterial.color.setHex(0x808080);
+
+						object.material = newMaterial;
 					}
 				});
 				scene.add(newContent);
