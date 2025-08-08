@@ -38,7 +38,21 @@ const Tools = (props: {
 			newControls.target.set(0, 0, -0.2)
 			newControls.update()
 
-			setOrbitControls(newControls)
+            setOrbitControls(newControls)
+            const canvas = renderer.domElement;
+
+            const preventPageZoom = (event: WheelEvent) => {
+                // Stop the browser from performing its default action (zooming the page).
+                event.preventDefault();
+            };
+
+            // The { passive: false } is important to allow preventDefault to work.
+            canvas.addEventListener('wheel', preventPageZoom, { passive: false });
+
+            // Cleanup function to remove the event listener when the component unmounts.
+            return () => {
+                canvas.removeEventListener('wheel', preventPageZoom);
+            };
 		}
 	}, [renderer, scene, camera])
 
