@@ -1,6 +1,9 @@
 import Viewer from '../components/viewer'
 import Head from 'next/head'
 
+import { ZarrStoreProvider } from '../lib/contexts/ZarrStoreContext'
+import { Viewer2DDataProvider } from '../lib/contexts/Viewer2DDataContext'
+
 import { Annotation } from '../types/annotation'
 
 // Initial default template for new annotation data
@@ -47,11 +50,16 @@ const Demo = () => {
 			<Head>
 				<title>Demo - AIDA 3D</title>
 			</Head>
-			<Viewer
-				imageUrls={imageUrls}
-				tilesUrl={tilesUrl}
-				annotationData={defaultAnnotation}
-			/>
+			
+			<ZarrStoreProvider>
+				<Viewer2DDataProvider>
+					<Viewer
+						imageUrls={imageUrls}
+						tilesUrl={tilesUrl}
+						annotationData={defaultAnnotation}
+					/>
+				</Viewer2DDataProvider>
+			</ZarrStoreProvider>
 		</>
 	)
 }
