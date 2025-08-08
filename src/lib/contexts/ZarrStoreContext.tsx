@@ -6,14 +6,14 @@ import React, {
 } from 'react'
 import * as zarrita from 'zarrita'
 
+import * as omeUtils from '../utils/ome'
+
 import { 
   ZarrStoreSuggestionType, type ZarrStoreSuggestedPath,
   type ZarrStoreContextType, type ZarrStoreState, type ZarrStoreProviderProps 
-} from '../types/store'
-import * as omeUtils from '../utils/ome-utils'
-
-import type OMEAttrs from '../types/ome'
-import type { AxisKey, IMultiscaleInfo, MultiscaleShape } from '../types/loader'
+} from '../../types/store'
+import type OMEAttrs from '../../types/metadata/ome'
+import type { AxisKey, IMultiscaleInfo, MultiscaleShape } from '../../types/metadata/loader'
 
 
 const ZarrStoreContext = createContext<ZarrStoreContextType | null>(null)
@@ -50,42 +50,44 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
   }, [])
 
   // Cellpose detection utility
-  const detectCellposeArray = useCallback(async (): Promise<zarrita.Array<any> | null> => {
-    if (!state.store) return null;
+  const detectCellposeArray = useCallback(
+    async (): Promise<zarrita.Array<zarrita.Uint32> | null> => {
+      if (!state.store) return null;
 
-    try {
-      console.log('🔍 Searching for Cellpose data at labels/Cellpose...')
+      try {
+        console.log('🔍 Searching for Cellpose data at labels/Cellpose...')
 
-      // Create a temporary root from the base `store` to search from the top level.
-      const rootGroup = zarrita.root(state.store)
-      const cellposeGroup = await zarrita.open(rootGroup.resolve('labels/Cellpose'))
+        // Create a temporary root from the base `store` to search from the top level.
+        const rootGroup = zarrita.root(state.store)
+        const cellposeGroup = await zarrita.open(rootGroup.resolve('labels/Cellpose'))
 
-      if (cellposeGroup instanceof zarrita.Group) {
-        // Drill into OME multiscales metadata
-        const multiscales = (cellposeGroup.attrs?.ome as OMEAttrs)?.multiscales
-        if (multiscales && multiscales[0]?.datasets?.[0]?.path) {
-          // Always use the first dataset (highest resolution)
-          const array = await zarrita.open(
-            cellposeGroup.resolve(multiscales[0].datasets[0].path)
-          )
-          if (array instanceof zarrita.Array) {
-            console.log('✅ Cellpose array found:', array)
-            return array
+        if (cellposeGroup instanceof zarrita.Group) {
+          // Drill into OME multiscales metadata
+          const multiscales = (cellposeGroup.attrs?.ome as OMEAttrs)?.multiscales
+          if (multiscales && multiscales[0]?.datasets?.[0]?.path) {
+            // Always use the first dataset (highest resolution)
+            const array = await zarrita.open(
+              cellposeGroup.resolve(multiscales[0].datasets[0].path)
+            )
+            if (array instanceof zarrita.Array) {
+              console.log('✅ Cellpose array found:', array)
+              return array as zarrita.Array<zarrita.Uint32>
+            }
           }
         }
+        // If it's already an array, just return it
+        if (cellposeGroup instanceof zarrita.Array) {
+          console.log('✅ Cellpose array found (direct array):', cellposeGroup)
+          return cellposeGroup as zarrita.Array<zarrita.Uint32>
+        }
+        // If not found, return null
+        return null
+      } catch (error) {
+        console.log(`❌ No Cellpose data at labels/Cellpose:`, error)
+        return null
       }
-      // If it's already an array, just return it
-      if (cellposeGroup instanceof zarrita.Array) {
-        console.log('✅ Cellpose array found (direct array):', cellposeGroup)
-        return cellposeGroup
-      }
-      // If not found, return null
-      return null
-    } catch (error) {
-      console.log(`❌ No Cellpose data at labels/Cellpose:`, error)
-      return null
-    }
-  }, [state.store])
+    }, [state.store]
+  )
 
   // Load Cellpose data when multiscale image is ready
   const refreshCellposeData = useCallback(async () => {

@@ -7,10 +7,12 @@ import React, {
 import * as zarrita from 'zarrita'
 
 import { useZarrStore } from './ZarrStoreContext'
+
+import type { VivViewState } from '../../types/viewer2D/vivViewer'
 import type { 
-    NavigationState, VivViewState,
-    Viewer2DDataContextType,Viewer2DDataProviderProps
-} from '../types/viewer2D'
+    Viewer2DDataContextType, Viewer2DDataProviderProps
+} from '../../types/viewer2D/viewerContext'
+import type { NavigationState } from '../../types/viewer2D/navState'
 
 
 const Viewer2DDataContext = createContext<Viewer2DDataContextType | null>(null)
