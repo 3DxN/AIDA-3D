@@ -31,9 +31,11 @@ const Viewer3D = (props: {
 	tile: [number, number]
 	tilesUrl: string
 	polygonCoords: number[][][]
+	select3D: boolean // <-- Add the prop type
 	setSelect3D: (select3D: boolean) => void
 }) => {
-	const { tile, tilesUrl, polygonCoords, setSelect3D } = props
+	// Destructure the new prop
+	const { tile, tilesUrl, polygonCoords, select3D, setSelect3D } = props
 
 	const [content, setContent] = useState(null)
 	const [scene, setScene] = useState<Scene | undefined>(undefined)
