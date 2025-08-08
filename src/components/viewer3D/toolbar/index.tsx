@@ -87,10 +87,10 @@ const Tools = (props: {
 	// Key addition is select first mesh intersected with ray onClick.
 	useEffect(() => {
 		function findFirstIntersection(raycaster, pointer) {
-			if (scene && scene.children[0]) {
+			// Check for intersections specifically within the 'content' group, not the whole scene.
+			if (content) {
 				raycaster.setFromCamera(pointer, camera)
-				const intersects = raycaster.intersectObject(scene.children[0], true)
-
+				const intersects = raycaster.intersectObject(content, true)
 				if (intersects.length > 0) {
 					const firstMesh = intersects.find((o) => {
 						// Get the nucleus bounding sphere in world coords
