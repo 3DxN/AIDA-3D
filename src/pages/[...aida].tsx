@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 
+// Components & Hooks
 import Viewer from '../components/viewer'
+import { ZarrStoreProvider } from '../lib/contexts/ZarrStoreContext'
+import { Viewer2DDataProvider } from '../lib/contexts/Viewer2DDataContext'
 
-// Config
+// Config & Types
 import config from '../../aida.config'
+import type { Annotation } from '../types/annotation'
 
-// Types
-import { Annotation } from '../types/annotation'
 
 // Initial default template for new annotation data
 const defaultAnnotation: Annotation = {
@@ -94,12 +96,17 @@ const AIDA = () => {
 			<Head>
 				<title>{`${imageName} - AIDA 3D`}</title>
 			</Head>
+			
 			{!isLoading && (
-				<Viewer
-					imageUrls={imageUrls}
-					tilesUrl={tilesUrl}
-					annotationData={annotationData}
-				/>
+				<ZarrStoreProvider>
+					<Viewer2DDataProvider>
+						<Viewer
+							imageUrls={imageUrls}
+							tilesUrl={tilesUrl}
+							annotationData={annotationData}
+						/>
+					</Viewer2DDataProvider>
+				</ZarrStoreProvider>
 			)}
 		</>
 	)
