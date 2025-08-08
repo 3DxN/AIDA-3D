@@ -133,8 +133,16 @@ const Viewer3D = (props: {
 				setIsLoading(false)
 
 				const newContent = gltf.scene
-				scene.add(gltf.scene)
-				setContent(newContent)
+				// Ensure every mesh has a unique material instance to allow for
+				// individual color and emissive changes.
+				newContent.traverse((object) => {
+					if (object.isMesh) {
+						// Clone the material to ensure it's unique to this mesh
+						object.material = object.material.clone();
+					}
+				});
+				scene.add(newContent);
+				setContent(newContent);
 
 				// The model is orientated poorly, doesn't match up with the 2D
 				// Do some manual rotations/reflections in order to algin correctly.
