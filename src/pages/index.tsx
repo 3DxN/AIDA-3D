@@ -57,35 +57,26 @@ export default function Home() {
                                             />
                                         </svg>
                                     </a>{' '}
-                                    viewer for exploring 2D and 3D histology images.
+                                    web-based annotation tool built for exploring huge deep-zoom histology images alongside 3D segmentation.
                                 </p>
 
                                 {/* Action buttons */}
-                                <div className="mt-8 space-y-4">
+                                <div className="mt-8 flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
                                     <button
                                         onClick={() => setShowLoader(true)}
-                                        className="inline-flex items-center px-6 py-3 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                                        className="inline-flex items-center justify-center px-6 py-3 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 w-full sm:w-auto"
                                     >
                                         <PlayIcon className="mr-2 h-5 w-5" aria-hidden="true" />
                                         Load Project
                                         <ArrowRightIcon className="ml-2 -mr-0.5 h-5 w-5" aria-hidden="true" />
                                     </button>
 
-                                    <div className="flex space-x-4">
-                                        <Link href="/demo" legacyBehavior>
-                                            <a className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
-                                                <ServerIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-                                                View Demo
-                                            </a>
-                                        </Link>
-
-                                        <Link href="/local" legacyBehavior>
-                                            <a className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
-                                                <FolderOpenIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-                                                Local Dashboard
-                                            </a>
-                                        </Link>
-                                    </div>
+                                    <Link href="/demo" legacyBehavior>
+                                        <a className="inline-flex items-center justify-center px-6 py-3 border border-gray-300 shadow-sm text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 w-full sm:w-auto">
+                                            <ServerIcon className="mr-2 h-5 w-5" aria-hidden="true" />
+                                            View Demo
+                                        </a>
+                                    </Link>
                                 </div>
                             </div>
                         </div>

@@ -154,7 +154,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
         />
 
         {/* StoreLoader Content */}
-        <div className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 w-11/12 max-w-2xl bg-white shadow-2xl rounded-xl p-8 border-3 border-blue-500 transition-all duration-1000 ease-out ${
+        <div className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 w-11/12 max-w-2xl bg-white shadow-2xl rounded-xl p-8 border-3 border-teal-500 transition-all duration-1000 ease-out ${
             isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
         }`}>
             {/* Close Button */}
@@ -167,7 +167,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
             </button>
 
             <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-blue-600 mb-2 flex items-center justify-center">
+                <h2 className="text-2xl font-bold text-teal-600 mb-2 flex items-center justify-center">
                     <BeakerIcon className="h-6 w-6 mr-2" />
                     AIDA Image Loader
                 </h2>
@@ -182,7 +182,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                     onClick={() => setActiveTab('zarr')}
                     className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors flex items-center justify-center ${
                         activeTab === 'zarr'
-                            ? 'border-blue-500 text-blue-600 bg-blue-50'
+                            ? 'border-teal-500 text-teal-600 bg-teal-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                     disabled={isClosing}
@@ -194,7 +194,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                     onClick={() => setActiveTab('aida')}
                     className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors flex items-center justify-center ${
                         activeTab === 'aida'
-                            ? 'border-blue-500 text-blue-600 bg-blue-50'
+                            ? 'border-teal-500 text-teal-600 bg-teal-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                     disabled={isClosing}
@@ -213,10 +213,10 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                             </label>
                             <input 
                                 type="text" 
-                                value={source} 
+                                value={source}
                                 onChange={(e) => setSource(e.target.value)}
                                 disabled={isClosing}
-                                className={`w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none transition-all duration-200 focus:border-blue-500 ${
+                                className={`w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none transition-all duration-200 focus:border-teal-500 ${
                                     isClosing ? 'opacity-30' : 'opacity-100'
                                 }`}
                                 placeholder="Enter Zarr store URL"
@@ -226,10 +226,10 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                         <button 
                             onClick={handleLoadStore} 
                             disabled={isLoading || !source || isClosing}
-                            className={`px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold flex-shrink-0 whitespace-nowrap transition-all duration-200 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center ${
+                            className={`px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold flex-shrink-0 whitespace-nowrap transition-all duration-200 shadow-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 flex items-center ${
                                 isLoading || !source || isClosing 
                                     ? 'bg-gray-500 cursor-not-allowed' 
-                                    : 'bg-blue-600 hover:bg-blue-700'
+                                    : 'bg-teal-600 hover:bg-teal-700'
                             } ${isClosing ? 'opacity-30' : 'opacity-100'}`}
                         >
                             {isLoading ? (
@@ -250,14 +250,14 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
 
             {activeTab === 'aida' && (
                 <div className="text-center">
-                    <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <p className="text-blue-800 mb-4">
+                    <div className="mb-6 p-4 bg-teal-50 rounded-lg border border-teal-200">
+                        <p className="text-teal-800 mb-4">
                             Browse and load DZI, TIFF, and project files from your local AIDA server
                         </p>
                         <button
                             onClick={handleBrowseAIDA}
                             disabled={isClosing}
-                            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             <ExternalLinkIcon className="h-5 w-5 mr-2" />
                             Browse Local Projects
@@ -278,7 +278,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
 
             {/* Loading indicator */}
             {isLoading && !hasLoadedStore && activeTab === 'zarr' && (
-                <div className="mt-4 text-center p-4 bg-blue-50 rounded-md text-blue-700 text-sm">
+                <div className="mt-4 text-center p-4 bg-blue-50 rounded-md text-teal-700 text-sm">
                     <div className="mb-3 flex items-center justify-center">
                         <RefreshIcon className="h-5 w-5 mr-2 animate-spin" />
                         Loading Zarr store...
