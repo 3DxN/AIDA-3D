@@ -18,7 +18,7 @@ import { useZarrStore } from '../../lib/contexts/ZarrStoreContext'
 import { ZarrStoreSuggestionType } from '../../types/store'
 
 
-export default function StoreLoader({ onClose }: { onClose?: () => void }) {
+export default function StoreLoader({ onClose }: { onClose: () => void }) {
     const { 
         source, 
         root,
@@ -52,6 +52,7 @@ export default function StoreLoader({ onClose }: { onClose?: () => void }) {
             // Remove completely after fade-out animation (1 second)
             setTimeout(() => {
                 setIsVisible(false)
+                onClose();
             }, 1500) // 500ms success display + 1000ms fade-out
         }
     }, [hasLoadedStore, isClosing])
@@ -65,15 +66,9 @@ export default function StoreLoader({ onClose }: { onClose?: () => void }) {
         window.location.href = '/local'
     }
 
-    const handleClose = () => {
-        if (onClose) {
-            onClose()
-        }
-    }
-
     const handleOverlayClick = (e: React.MouseEvent) => {
         if (e.target === e.currentTarget) {
-            handleClose()
+            onClose()
         }
     }
 
@@ -164,7 +159,7 @@ export default function StoreLoader({ onClose }: { onClose?: () => void }) {
         }`}>
             {/* Close Button */}
             <button
-                onClick={handleClose}
+                onClick={onClose}
                 className="absolute top-4 right-4 p-1 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                 disabled={isClosing}
             >
