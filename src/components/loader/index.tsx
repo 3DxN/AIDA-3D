@@ -21,6 +21,7 @@ import { ZarrStoreSuggestionType } from '../../types/store'
 export default function StoreLoader({ onClose }: { onClose?: () => void }) {
     const { 
         source, 
+        root,
         setSource, 
         loadStore, 
         isLoading, 
@@ -101,9 +102,9 @@ export default function StoreLoader({ onClose }: { onClose?: () => void }) {
 
         return (
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-800">
-                <div className="flex items-center mb-2 font-semibold">
+                <div className="flex items-center justify-center mb-2 font-semibold text-center">
                     <SuggestionIcon className="h-5 w-5 mr-2" />
-                    {suggestionTitle}
+                    <span>{suggestionTitle}</span>
                 </div>
                 {suggestionDescription && (
                     <div className="mb-3 text-sm">
@@ -111,34 +112,34 @@ export default function StoreLoader({ onClose }: { onClose?: () => void }) {
                     </div>
                 )}
                 <div className="flex flex-col items-center gap-2 w-full">
-                    {suggestedPaths.length === 0 && (
-                        <div className="text-center w-full">
-                            No suggested paths found.
-                        </div>
-                    )}
-                    {suggestedPaths.length > 0 && (
-                        <div className="flex flex-wrap justify-center gap-2 w-full">
-                            {suggestedPaths.map((suggestion, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => navigateToSuggestion(suggestion.path)}
-                                    className={`px-3 py-1 text-white border-none rounded text-xs cursor-pointer transition-opacity hover:opacity-80 ${
-                                        suggestion.hasOme ? 'bg-green-600' : 
-                                        suggestion.isGroup ? 'bg-blue-500' : 'bg-gray-600'
-                                    }`}
-                                    title={
-                                        suggestion.hasOme 
-                                        ? 'OME-Zarr group - click to load' 
-                                        : suggestion.isGroup 
-                                            ? 'Zarr group - click to load' 
-                                            : 'Zarr array - click to load'
-                                    }
-                                >
-                                    {suggestion.path}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    <div className="flex flex-wrap justify-center gap-2 w-full">
+                        {root && root.path !== "/" && (
+                            <button
+                                onClick={() => navigateToSuggestion('..')}
+                                className="px-3 py-1 text-white border-none rounded text-xs cursor-pointer bg-gray-400 hover:bg-gray-600 transition-opacity"
+                                title="Go up one directory"
+                            >..</button>
+                        )}
+                        {suggestedPaths.map((suggestion, index) => (
+                            <button
+                                key={index}
+                                onClick={() => navigateToSuggestion(suggestion.path)}
+                                className={`px-3 py-1 text-white border-none rounded text-xs cursor-pointer transition-opacity hover:opacity-80 ${
+                                    suggestion.hasOme ? 'bg-green-600' : 
+                                    suggestion.isGroup ? 'bg-blue-500' : 'bg-gray-600'
+                                }`}
+                                title={
+                                    suggestion.hasOme 
+                                    ? 'OME-Zarr group - click to load' 
+                                    : suggestion.isGroup 
+                                        ? 'Zarr group - click to load' 
+                                        : 'Zarr array - click to load'
+                                }
+                            >
+                                {suggestion.path}
+                            </button>
+                        ))}
+                    </div>
                 </div>
                 <div className="text-xs mt-2 opacity-80">
                     Click a path to load that location
