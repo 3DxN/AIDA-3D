@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
@@ -55,17 +54,17 @@ const generateDummyCellposeData = (): number[][][] => {
 const formatVoxelDataAsMatlab = (voxelData: number[][][]): string => {
 	const [zSize, ySize, xSize] = [voxelData.length, voxelData[0].length, voxelData[0][0].length]
 
-	let matlabString = `% 3D Voxel Data Matrix - Size: ${ xSize }x${ ySize }x${ zSize } \n`
-	matlabString += `% Generated on ${ new Date().toISOString() } \n\n`
-	matlabString += `voxelData = zeros(${ zSize }, ${ ySize }, ${ xSize }); \n\n`
+	let matlabString = `% 3D Voxel Data Matrix - Size: ${xSize}x${ySize}x${zSize} \n`
+	matlabString += `% Generated on ${new Date().toISOString()} \n\n`
+	matlabString += `voxelData = zeros(${zSize}, ${ySize}, ${xSize}); \n\n`
 
 	// Format each z-slice as a 2D matrix
 	for (let z = 0; z < zSize; z++) {
-		matlabString += `% Z - slice ${ z + 1 } \n`
-		matlabString += `voxelData(${ z + 1}, :, : ) = [\n`
+		matlabString += `% Z - slice ${z + 1} \n`
+		matlabString += `voxelData(${z + 1}, :, : ) = [\n`
 
 		for (let y = 0; y < ySize; y++) {
-			matlabString += '    '
+			matlabString += '    ' // Using standard spaces for indentation
 			for (let x = 0; x < xSize; x++) {
 				matlabString += voxelData[z][y][x].toString().padStart(2, ' ')
 				if (x < xSize - 1) matlabString += ', '
@@ -113,7 +112,7 @@ const Viewer3D = (props: {
 	tile: [number, number]
 	tilesUrl: string
 	polygonCoords: number[][][]
-	select3D: boolean // <-- Add the prop type
+	select3D: boolean
 	setSelect3D: (select3D: boolean) => void
 }) => {
 	// Destructure the new prop
@@ -131,7 +130,7 @@ const Viewer3D = (props: {
 
 	const viewerRef: { current: HTMLCanvasElement | null } = useRef(null)
 
-	// Init (This hook remains the same)
+	// Init
 	useEffect(() => {
 		if (viewerRef.current) {
 			const canvas = viewerRef.current
@@ -197,59 +196,34 @@ const Viewer3D = (props: {
 			}
 
 			// 2. Generate voxel data and run marching cubes
-            // --- MODIFICATION: Use the new dummy cellpose data generator ---
 			const voxelData = generateDummyCellposeData()
-            // --- END MODIFICATION ---
-
-			// Optional: Download MATLAB-formatted voxel data
-			const matlabContent = formatVoxelDataAsMatlab(voxelData)
-			// downloadMatlabFile(matlabContent, 'voxelData.m')
-
 			const meshDataArray = generateMeshesFromVoxelData(voxelData)
-
 			const newContentGroup = new THREE.Group()
 
 			// 3. Create THREE.Mesh for each generated cell
-			// This loop now iterates through each nucleus found by `generateMeshesFromVoxelData`
 			meshDataArray.forEach(({ label, vertices, indices }) => {
 				const geometry = new THREE.BufferGeometry()
-
-				// The vertices from marching cubes are Vector3[], flatten them for the attribute
 				const flatVertices = vertices.flatMap((v) => [v.x, v.y, v.z])
 
-				geometry.setAttribute(
-					'position',
-					new THREE.Float32BufferAttribute(flatVertices, 3)
-				)
+				geometry.setAttribute('position', new THREE.Float32BufferAttribute(flatVertices, 3))
 				geometry.setIndex(indices)
-				geometry.computeVertexNormals() // Essential for correct lighting
+				geometry.computeVertexNormals()
 
 				const material = new THREE.MeshStandardMaterial({
-					// Give each cell a different color based on its label
-					color: new THREE.Color().setHSL(label / 10, 0.8, 0.6), 
+					color: new THREE.Color().setHSL(label / 10, 0.8, 0.6),
 					metalness: 0.1,
 					roughness: 0.5,
 				})
 
-				const newContent = gltf.scene
-				// Ensure every mesh has a unique material instance to allow for
-				// individual color and emissive changes.
-				newContent.traverse((object) => {
-					if (object.isMesh) {
-						// Clone the material to make it unique
-						const newMaterial = object.material.clone();
+				// Create the mesh and add it to our group
+				const mesh = new THREE.Mesh(geometry, material)
+				mesh.name = `nucleus_${label}`
+				newContentGroup.add(mesh)
+			})
 
-						// Set the color to a darker grey
-						newMaterial.color.setHex(0x808080);
-
-						object.material = newMaterial;
-					}
-				});
-				scene.add(newContent);
-				setContent(newContent);
-
-				// The model is orientated poorly, doesn't match up with the 2D
-				// Do some manual rotations/reflections in order to algin correctly.
+			// Add the entire group of new meshes to the scene and state
+			scene.add(newContentGroup)
+			setContent(newContentGroup)
 
 			// 4. Save the generated mesh locally as a .gltf file
 			if (newContentGroup.children.length > 0) {
@@ -261,40 +235,29 @@ const Viewer3D = (props: {
 			const size = box.getSize(new THREE.Vector3()).length()
 			const center = box.getCenter(new THREE.Vector3())
 
-			// A clearer way to move the mesh's center to the world origin
-			newContentGroup.position.sub(center);
+			newContentGroup.position.sub(center)
 
-			// Position the camera relative to the object's new position (the origin)
-			camera.position.set(
-				size / 1.5,
-				size / 4.0,
-				size / 1.5
-			);
+			camera.position.set(size / 1.5, size / 4.0, size / 1.5)
+			camera.lookAt(0, 0, 0)
 
-			// Look at the object's new center, which is the origin
-			camera.lookAt(0, 0, 0);
-
-
-			// Update camera properties based on the object's size
 			camera.near = size / 100
 			camera.far = size * 100
 			camera.updateProjectionMatrix()
 
-			// Axes helper for orientation
 			const axesHelper = new THREE.AxesHelper(size)
 			scene.add(axesHelper)
 
 			renderer.render(scene, camera)
 			setIsLoading(false)
 		}
-	}, [scene, camera, renderer]) // Runs once after initial setup
+	}, [scene, camera, renderer])
 
-	// Update feature data (This hook remains the same, though may not find a file)
+	// Update feature data
 	useEffect(() => {
 		if (tile) {
 			const H = padToTwo(tile[0])
 			const V = padToTwo(tile[1])
-			const url = `${ tilesUrl } / tile__H0${ H }_V0${ V }.tif__.json`
+			const url = `${tilesUrl} / tile__H0${H}_V0${V}.tif__.json`
 			fetch(url)
 				.then((res) => {
 					if (res.ok) return res.json()
@@ -304,49 +267,45 @@ const Viewer3D = (props: {
 		}
 	}, [tile, tilesUrl])
 
-	// Adjust selections (This hook remains the same and will work with the new meshes)
+	// Adjust selections
 	useEffect(() => {
-		// Exit early if there are no polygon coordinates
 		if (!polygonCoords || !polygonCoords.coords || polygonCoords.coords.length === 0) {
-			// If the polygon is cleared, we should also clear the selection made by it
-			if (!select3D) { // select3D is a good proxy to know if the selection originated from 3D view
+			if (!select3D) {
 				setSelected([]);
 			}
 			return;
 		}
 
-		// NEW: Check if we should reset the selection.
-		// We only reset if the 'accumulate' flag is false.
 		if (!polygonCoords.accumulate) {
 			setSelected([]);
 		}
 
-		const selectedNuclei = [];
+		if (!content) return;
 
-		// Check if nuclei is inside polygon, if yes, set as selected
-		content.children.forEach((child, index) => {
+		const selectedNuclei: THREE.Mesh[] = [];
+
+		content.children.forEach((child) => {
 			if (child.isMesh && child.name.includes('nucleus')) {
 				let match = true;
-				const nucleus = child;
+				const nucleus = child as THREE.Mesh;
 
-				// Get the nucleus bounding sphere in world coords
 				if (nucleus.geometry.boundingSphere === null)
 					nucleus.geometry.computeBoundingSphere();
 				const sphere = nucleus.geometry.boundingSphere.clone();
 				nucleus.localToWorld(sphere.center);
 				const center = sphere.center;
 
-				// Use the coordinates from our new object
 				if (checkPointInPolygon(polygonCoords.coords, [center.z, center.y]) > 0) {
 					match = false;
 				}
 
-				// ... (the rest of the matching logic remains the same)
-				renderer.clippingPlanes.forEach((plane) => {
-					const dot = center.dot(plane.normal) + plane.constant < 0;
-					const intersects = sphere.intersectsPlane(plane);
-					if (dot && !intersects) match = false;
-				});
+				if (renderer && renderer.clippingPlanes.length > 0) {
+					renderer.clippingPlanes.forEach((plane) => {
+						const dot = center.dot(plane.normal) + plane.constant < 0;
+						const intersects = sphere.intersectsPlane(plane);
+						if (dot && !intersects) match = false;
+					});
+				}
 
 				if (!nucleus.visible) match = false;
 
@@ -354,16 +313,14 @@ const Viewer3D = (props: {
 			}
 		});
 
-		// NEW: Use the functional form of setSelected to add to the previous state
 		setSelected(prevSelected => {
 			const combined = [...prevSelected, ...selectedNuclei];
-			// Return a unique set of nuclei to prevent duplicates
 			return [...new Set(combined)];
 		});
 
-	}, [polygonCoords, content, renderer]);
+	}, [polygonCoords, content, renderer, select3D]);
 
-	// Render selections (This hook remains the same)
+	// Render selections
 	useEffect(() => {
 		if (renderer && scene && camera) {
 			selectedCache.current.forEach((nucleus) =>
