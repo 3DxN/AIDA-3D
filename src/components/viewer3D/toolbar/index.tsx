@@ -33,6 +33,13 @@ const Tools = (props: {
 		if (renderer && scene && camera) {
 			const newControls = new OrbitControls(camera, renderer.domElement)
 			newControls.addEventListener('change', () => render()) // use if there is no animation loop
+
+			// --- ADD THESE LINES ---
+			newControls.enablePan = true;
+			newControls.enableKeys = true; // this is true by default, but let's be explicit
+			newControls.listenToKeyEvents(renderer.domElement);
+			// ------------------------
+
 			newControls.minDistance = 2
 			newControls.maxDistance = 10
 			newControls.target.set(0, 0, -0.2)

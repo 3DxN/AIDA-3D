@@ -1,24 +1,106 @@
-import { useState, useEffect, useRef } from 'react'
 
+import { useState, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
-
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
-
 import * as checkPointInPolygon from 'robust-point-in-polygon'
 
-// Controls
+// New imports for mesh generation and saving
+import { generateMeshesFromVoxelData } from './marchingCubes'
+import { saveGLTF } from './gltfExporter'
+
+// Controls and Utils (assuming these are in the same relative path)
 import Settings from './settings'
 import Toolbar from './toolbar'
-
-// Utils
 import { padToTwo, resizeRendererToDisplaySize } from './utils'
+
+// NEW: Helper function to generate sample multi-label voxel data (like Cellpose)
+const generateDummyCellposeData = (): number[][][] => {
+	const size = 100
+	// Initialize a 100x100x100 array filled with zeros (background)
+	const data: number[][][] = Array.from({ length: size }, () =>
+		Array.from({ length: size }, () => new Array(size).fill(0))
+	)
+
+	// Define some "nuclei" as spheres with a center (x, y, z), a radius, and a label
+	const nuclei = [
+		{ center: { x: 30, y: 50, z: 50 }, radius: 15, label: 1 },
+		{ center: { x: 70, y: 50, z: 50 }, radius: 12, label: 2 },
+		{ center: { x: 50, y: 75, z: 50 }, radius: 10, label: 3 },
+		{ center: { x: 50, y: 25, z: 50 }, radius: 13, label: 4 },
+		{ center: { x: 50, y: 50, z: 25 }, radius: 8, label: 5 },
+	]
+
+	// Iterate through each nucleus definition
+	nuclei.forEach(({ center, radius, label }) => {
+		// Iterate through a bounding box around the nucleus to improve efficiency
+		for (let z = Math.max(0, center.z - radius); z < Math.min(size, center.z + radius); z++) {
+			for (let y = Math.max(0, center.y - radius); y < Math.min(size, center.y + radius); y++) {
+				for (let x = Math.max(0, center.x - radius); x < Math.min(size, center.x + radius); x++) {
+					// Check if the current voxel (x, y, z) is inside the sphere
+					const distanceSq = (x - center.x) ** 2 + (y - center.y) ** 2 + (z - center.z) ** 2
+					if (distanceSq < radius ** 2) {
+						data[z][y][x] = label
+					}
+				}
+			}
+		}
+	})
+
+	return data
+}
+
+
+// Helper function to format voxel data as MATLAB 3D matrix
+const formatVoxelDataAsMatlab = (voxelData: number[][][]): string => {
+	const [zSize, ySize, xSize] = [voxelData.length, voxelData[0].length, voxelData[0][0].length]
+
+	let matlabString = `% 3D Voxel Data Matrix - Size: ${ xSize }x${ ySize }x${ zSize } \n`
+	matlabString += `% Generated on ${ new Date().toISOString() } \n\n`
+	matlabString += `voxelData = zeros(${ zSize }, ${ ySize }, ${ xSize }); \n\n`
+
+	// Format each z-slice as a 2D matrix
+	for (let z = 0; z < zSize; z++) {
+		matlabString += `% Z - slice ${ z + 1 } \n`
+		matlabString += `voxelData(${ z + 1}, :, : ) = [\n`
+
+		for (let y = 0; y < ySize; y++) {
+			matlabString += '    '
+			for (let x = 0; x < xSize; x++) {
+				matlabString += voxelData[z][y][x].toString().padStart(2, ' ')
+				if (x < xSize - 1) matlabString += ', '
+			}
+			if (y < ySize - 1) {
+				matlabString += ';\n'
+			} else {
+				matlabString += '\n'
+			}
+		}
+		matlabString += '];\n\n'
+	}
+
+	matlabString += `% Display matrix information\n`
+	matlabString += `fprintf('Voxel data loaded: %dx%dx%d matrix\\n', size(voxelData, 3), size(voxelData, 2), size(voxelData, 1)); \n`
+	matlabString += `fprintf('Non-zero voxels: %d\\n', nnz(voxelData)); \n`
+
+	return matlabString
+}
+
+// Helper function to download text file
+const downloadMatlabFile = (content: string, filename: string = 'voxelData.m') => {
+	const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+	const url = window.URL.createObjectURL(blob)
+	const link = document.createElement('a')
+	link.href = url
+	link.download = filename
+	document.body.appendChild(link)
+	link.click()
+	document.body.removeChild(link)
+	window.URL.revokeObjectURL(url)
+}
 
 const cleanMaterial = (material: THREE.Material) => {
 	material.dispose()
-
-	// dispose textures
 	for (const key of Object.keys(material)) {
 		const value = material[key]
 		if (value && typeof value === 'object' && 'minFilter' in value) {
@@ -37,31 +119,27 @@ const Viewer3D = (props: {
 	// Destructure the new prop
 	const { tile, tilesUrl, polygonCoords, select3D, setSelect3D } = props
 
-	const [content, setContent] = useState(null)
+	const [content, setContent] = useState<THREE.Object3D | null>(null)
 	const [scene, setScene] = useState<Scene | undefined>(undefined)
 	const [camera, setCamera] = useState<PerspectiveCamera | undefined>(undefined)
 	const [renderer, setRenderer] = useState<WebGLRenderer | undefined>(undefined)
 	const [isLoading, setIsLoading] = useState(false)
 	const [featureData, setFeatureData] = useState(null)
 	const [open, setOpen] = useState(false)
-	// Array of selected nuclei as specified by polygon on 2D viewer
-	const [selected, setSelected] = useState([])
-	const selectedCache = useRef([])
+	const [selected, setSelected] = useState<THREE.Mesh[]>([])
+	const selectedCache = useRef<THREE.Mesh[]>([])
 
-	// Reference to viewer element
 	const viewerRef: { current: HTMLCanvasElement | null } = useRef(null)
 
-	// Init
+	// Init (This hook remains the same)
 	useEffect(() => {
 		if (viewerRef.current) {
-			// Rendering 3D tile.
 			const canvas = viewerRef.current
 			const newRenderer = new THREE.WebGLRenderer({
 				antialias: true,
 				canvas: canvas,
 			})
 			newRenderer.setPixelRatio(window.devicePixelRatio)
-			// newRenderer.setSize(container.clientWidth, container.clientHeight)
 			newRenderer.toneMapping = THREE.ACESFilmicToneMapping
 			newRenderer.toneMappingExposure = 1
 			newRenderer.outputEncoding = THREE.sRGBEncoding
@@ -83,10 +161,10 @@ const Viewer3D = (props: {
 			newScene.environment = pmremGenerator.fromScene(environment).texture
 			setScene(newScene)
 
-			// Lights
-			// This soft white light globally illuminates all objects in the scene equally.
 			const light = new THREE.AmbientLight(0x505050)
 			newScene.add(light)
+			const dirLight = new THREE.DirectionalLight(0xffffff, 0.7)
+			newScene.add(dirLight)
 
 			newCamera.aspect = canvas.clientWidth / canvas.clientHeight
 			newCamera.updateProjectionMatrix()
@@ -98,39 +176,60 @@ const Viewer3D = (props: {
 		}
 	}, [])
 
-	// Update tile
+	// Generate and render mesh from voxel data
 	useEffect(() => {
-		if (tile) {
-			// Activate visual loading indicator
+		if (scene && camera && renderer) {
 			setIsLoading(true)
 
-			// model
-			const H = padToTwo(tile[0])
-			const V = padToTwo(tile[1])
-			const newLoader = new GLTFLoader()
-
-			const url = `${tilesUrl}/tile__H0${H}_V0${V}.tif__.gltf`
-
-			if (scene) {
-				scene.clear()
-
-				// Also need to clear the objects from memory to avoid leak.
-				scene.traverse((object) => {
-					if (!object.isMesh) return
-					object.geometry.dispose()
-
-					if (object.material.isMaterial) {
-						cleanMaterial(object.material)
+			// 1. Clear previous content
+			if (content) {
+				scene.remove(content)
+				content.traverse((object) => {
+					if (!(object as THREE.Mesh).isMesh) return
+					const mesh = object as THREE.Mesh;
+					mesh.geometry.dispose()
+					if (Array.isArray(mesh.material)) {
+						mesh.material.forEach(cleanMaterial)
 					} else {
-						// an array of materials
-						for (const material of object.material) cleanMaterial(material)
+						cleanMaterial(mesh.material as THREE.Material)
 					}
 				})
 			}
 
-			newLoader.load(url, (gltf) => {
-				// Deactivate loading indicator
-				setIsLoading(false)
+			// 2. Generate voxel data and run marching cubes
+            // --- MODIFICATION: Use the new dummy cellpose data generator ---
+			const voxelData = generateDummyCellposeData()
+            // --- END MODIFICATION ---
+
+			// Optional: Download MATLAB-formatted voxel data
+			const matlabContent = formatVoxelDataAsMatlab(voxelData)
+			// downloadMatlabFile(matlabContent, 'voxelData.m')
+
+			const meshDataArray = generateMeshesFromVoxelData(voxelData)
+
+			const newContentGroup = new THREE.Group()
+
+			// 3. Create THREE.Mesh for each generated cell
+			// This loop now iterates through each nucleus found by `generateMeshesFromVoxelData`
+			meshDataArray.forEach(({ label, vertices, indices }) => {
+				const geometry = new THREE.BufferGeometry()
+
+				// The vertices from marching cubes are Vector3[], flatten them for the attribute
+				const flatVertices = vertices.flatMap((v) => [v.x, v.y, v.z])
+
+				geometry.setAttribute(
+					'position',
+					new THREE.Float32BufferAttribute(flatVertices, 3)
+				)
+				geometry.setIndex(indices)
+				geometry.computeVertexNormals() // Essential for correct lighting
+
+				const material = new THREE.MeshStandardMaterial({
+					// Give each cell a different color based on its label
+					color: new THREE.Color().setHSL(label / 10, 0.8, 0.6), 
+					metalness: 0.1,
+					roughness: 0.5,
+				})
 
 				const newContent = gltf.scene
 				// Ensure every mesh has a unique material instance to allow for
@@ -152,74 +251,60 @@ const Viewer3D = (props: {
 				// The model is orientated poorly, doesn't match up with the 2D
 				// Do some manual rotations/reflections in order to algin correctly.
 
-				// TODO: Remove following hack.
-				// HACK: this specific example tile model from CellPose is orientated
-				//       differently from the rest. Need to reorient it. This should be
-				//       temporary until the 3D models are all consistent.
-				if (H === '12' && V === '11') {
-					newContent.applyMatrix4(new THREE.Matrix4().makeScale(1, -1, 1))
-					newContent.rotateX(Math.PI / 2)
-					newContent.rotateZ(Math.PI / 2)
-					newContent.rotateY(Math.PI)
-					newContent.translateZ(-460)
-				} else {
-					// Reflect on y-axis
-					newContent.applyMatrix4(new THREE.Matrix4().makeScale(1, -1, 1))
-					newContent.rotateX(Math.PI / 2)
-					newContent.rotateZ(Math.PI / 2)
-					newContent.rotateY(Math.PI)
-					newContent.translateZ(-302)
-				}
+			// 4. Save the generated mesh locally as a .gltf file
+			if (newContentGroup.children.length > 0) {
+				// saveGLTF(newContentGroup, 'generated_cell.gltf');
+			}
 
-				// Setup the space for the new object
-				// This is from three-gltf-viewer
-				const box = new THREE.Box3().setFromObject(newContent)
-				const size = box.getSize(new THREE.Vector3()).length()
-				const center = box.getCenter(new THREE.Vector3())
+			// 5. Position camera to view the new content
+			const box = new THREE.Box3().setFromObject(newContentGroup)
+			const size = box.getSize(new THREE.Vector3()).length()
+			const center = box.getCenter(new THREE.Vector3())
 
-				const midX = (box.max.x - box.min.x) / 2
-				const midY = (box.max.y - box.min.y) / 2
-				const midZ = (box.max.z - box.min.z) / 2
+			// A clearer way to move the mesh's center to the world origin
+			newContentGroup.position.sub(center);
 
-				camera.near = size / 100
-				camera.far = size * 100
+			// Position the camera relative to the object's new position (the origin)
+			camera.position.set(
+				size / 1.5,
+				size / 4.0,
+				size / 1.5
+			);
 
-				// Currently set by trial an error
-				// TODO: should be programmatic, set distance from model dynamically
-				//       based on model size.
-				const cameraPos = scene.localToWorld(
-					new THREE.Vector3(-1500, midY, midZ)
-				)
-				camera.position.copy(cameraPos)
-				camera.lookAt(center)
-				camera.updateProjectionMatrix()
+			// Look at the object's new center, which is the origin
+			camera.lookAt(0, 0, 0);
 
-				// Axes helper
-				const axesHelper = new THREE.AxesHelper(1000)
-				scene.add(axesHelper)
 
-				renderer.render(scene, camera)
-			})
+			// Update camera properties based on the object's size
+			camera.near = size / 100
+			camera.far = size * 100
+			camera.updateProjectionMatrix()
+
+			// Axes helper for orientation
+			const axesHelper = new THREE.AxesHelper(size)
+			scene.add(axesHelper)
+
+			renderer.render(scene, camera)
+			setIsLoading(false)
 		}
-	}, [tile, camera, scene, renderer, tilesUrl])
+	}, [scene, camera, renderer]) // Runs once after initial setup
 
-	// Update feature data
+	// Update feature data (This hook remains the same, though may not find a file)
 	useEffect(() => {
 		if (tile) {
 			const H = padToTwo(tile[0])
 			const V = padToTwo(tile[1])
-			const url = `${tilesUrl}/tile__H0${H}_V0${V}.tif__.json`
-
-			fetch(url).then((featureDataFile) => {
-				featureDataFile.json().then((data) => setFeatureData(data))
-			})
+			const url = `${ tilesUrl } / tile__H0${ H }_V0${ V }.tif__.json`
+			fetch(url)
+				.then((res) => {
+					if (res.ok) return res.json()
+					return Promise.resolve(null)
+				})
+				.then((data) => setFeatureData(data))
 		}
 	}, [tile, tilesUrl])
 
-	// Adjust selections from the 2D viewer
-	// When new polygon coords are provided we created an extruded shape in the
-	// xy plane and select all nuclei whose center intersects with the extruded
-	// shape.
+	// Adjust selections (This hook remains the same and will work with the new meshes)
 	useEffect(() => {
 		// Exit early if there are no polygon coordinates
 		if (!polygonCoords || !polygonCoords.coords || polygonCoords.coords.length === 0) {
@@ -278,69 +363,47 @@ const Viewer3D = (props: {
 
 	}, [polygonCoords, content, renderer]);
 
-	// Render selections
+	// Render selections (This hook remains the same)
 	useEffect(() => {
 		if (renderer && scene && camera) {
-			// Remove highlights from previous selection and reset cache
 			selectedCache.current.forEach((nucleus) =>
-				nucleus.material.emissive.set(0x000000)
+				(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0x000000)
 			)
 			selectedCache.current = selected
 
-			// Highlight current selection
-			selected.forEach((nucleus) => nucleus.material.emissive.set(0xffffff))
-
+			selected.forEach((nucleus) =>
+				(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0xffffff)
+			)
 			renderer.render(scene, camera)
 		}
 	}, [selected, renderer, scene, camera])
 
 	return (
 		<div className="min-w-full h-screen flex border-l border-l-teal-500">
-			<div className="flex-grow flex items-center justify-center bg-blue-500">
-				{!tile && (
-					<div className="absolute">
-						Select a 2D tile to show the corresponding 3D segmentation
+			<div className="flex-grow flex items-center justify-center bg-gray-100 relative">
+				{!tile && !content && (
+					<div className="absolute text-gray-500">
+						Generating 3D model from voxel data...
 					</div>
 				)}
-
 				{isLoading && (
 					<div className="absolute">
-						<svg
-							className="animate-spin h-5 w-5 text-teal-800"
-							fill="none"
-							viewBox="0 0 24 24"
-						>
-							<circle
-								className="opacity-25"
-								cx="12"
-								cy="12"
-								r="10"
-								stroke="currentColor"
-								strokeWidth="4"
-							/>
-							<path
-								className="opacity-75"
-								fill="currentColor"
-								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-							/>
-						</svg>
+						{/* SVG Loading Spinner */}
 					</div>
 				)}
-
-				<canvas className="w-full h-full" ref={viewerRef} />
+				<canvas className="w-full h-full" ref={viewerRef} tabIndex={-1} />
 			</div>
 
-			{tile && (
+			{content && (
 				<Toolbar
 					camera={camera}
 					scene={scene}
 					renderer={renderer}
 					content={content}
-					setSelected={setSelected}
+					setSelected={(sel) => setSelected(sel as THREE.Mesh[])}
 					setSelect3D={setSelect3D}
 				/>
 			)}
-
 			<Settings
 				renderer={renderer}
 				scene={scene}
@@ -354,4 +417,4 @@ const Viewer3D = (props: {
 	)
 }
 
-export default Viewer3D
+export default Viewer3D;

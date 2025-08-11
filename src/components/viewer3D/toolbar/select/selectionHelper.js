@@ -77,7 +77,7 @@ class SelectionHelper {
 	}
 
 	onSelectOver() {
-		if (this.enabled) {
+		if (this.enabled && this.element.parentElement) {
 			this.element.parentElement.removeChild(this.element)
 		}
 	}
