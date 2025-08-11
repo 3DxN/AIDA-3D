@@ -13,6 +13,7 @@ import type {
     Viewer2DDataContextType, Viewer2DDataProviderProps
 } from '../../types/viewer2D/viewerContext'
 import type { NavigationState } from '../../types/viewer2D/navState'
+import type { ViewerSize } from '../../types/viewer2D/dimensions'
 
 
 const Viewer2DDataContext = createContext<Viewer2DDataContextType | null>(null)
@@ -41,6 +42,9 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   // View state
   const [navigationState, setNavigationState] = useState<NavigationState | null>(null)
   const [vivViewState, setVivViewState] = useState<VivViewState | null>(null)
+
+  // Measured viewer container size
+  const [viewerSize, setViewerSize] = useState<ViewerSize>({ width: 0, height: 0 })
   
   // Data loading state
   const [isDataLoading, setIsDataLoading] = useState(false)
@@ -65,16 +69,16 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   
   // Current view bounds calculation from viv view state
   const currentViewBounds = useMemo(() => {
-    if (!vivViewState || !msInfo) return null
+    if (!vivViewState || !msInfo || viewerSize.width <= 0 || viewerSize.height <= 0) return null
     
     // This is a simplified calculation - you might need to adjust based on your viewer setup
     const [targetX, targetY] = vivViewState.target
     const zoom = vivViewState.zoom
     
-    // Calculate view bounds based on Approximated zoom and target
+    // Calculate view bounds based on approximated zoom and measured container size
     const zoomScale = Math.pow(2, zoom)
-    const viewWidth = 1000 / zoomScale
-    const viewHeight = 600 / zoomScale 
+    const viewWidth = viewerSize.width / zoomScale
+    const viewHeight = viewerSize.height / zoomScale 
     
     return {
       x1: targetX - viewWidth / 2,
@@ -82,7 +86,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
       x2: targetX + viewWidth / 2,
       y2: targetY + viewHeight / 2
     }
-  }, [vivViewState, msInfo])
+  }, [vivViewState, msInfo, viewerSize])
   
   // View bounds setter
   const setViewBounds = useCallback((bounds: { x1: number, y1: number, x2: number, y2: number }) => {
@@ -91,14 +95,16 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     const width = bounds.x2 - bounds.x1
     const height = bounds.y2 - bounds.y1
     
-    // Calculate appropriate zoom level
-    const zoom = Math.log2(Math.min(1000 / width, 600 / height)) // Approximate
+    // Calculate appropriate zoom level using measured viewer size and fallback to sensible defaults
+    const vw = viewerSize.width > 0 ? viewerSize.width : 1000
+    const vh = viewerSize.height > 0 ? viewerSize.height : 600
+    const zoom = Math.log2(Math.min(vw / width, vh / height)) // Approximate
     
     setVivViewState({
       target: [centerX, centerY, 0],
       zoom: zoom
     })
-  }, [])
+  }, [viewerSize])
   
   // Z/T slice setters
   const setZSlice = useCallback((z: number) => {
@@ -218,6 +224,10 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     // Viv viewer state
     vivViewState,
     setVivViewState,
+
+    // Viewer size
+    viewerSize,
+    setViewerSize,
     
     // Data access
     frameBoundCellposeData,

@@ -4,6 +4,7 @@ import type * as zarrita from 'zarrita'
 
 import type { NavigationState } from './navState'
 import type { VivViewState } from './vivViewer'
+import type { ViewerSize } from './dimensions'
 
 
 export interface Viewer2DDataContextType {
@@ -36,6 +37,10 @@ export interface Viewer2DDataContextType {
   // Viv viewer state integration  
   vivViewState: VivViewState | null
   setVivViewState: (state: VivViewState) => void
+
+  // Viewer container dimensions
+  viewerSize: ViewerSize
+  setViewerSize: (size: ViewerSize) => void
   
   // Data access
   frameBoundCellposeData: zarrita.Chunk<zarrita.DataType> | null
