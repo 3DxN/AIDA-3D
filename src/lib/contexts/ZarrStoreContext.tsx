@@ -16,6 +16,10 @@ import type OMEAttrs from '../../types/metadata/ome'
 import type { AxisKey, IMultiscaleInfo, MultiscaleShape } from '../../types/metadata/loader'
 
 
+// Expose default labels path for Cellpose or other masks so it can be customized
+export const DEFAULT_LABELS_SEGMENTATION_PATH = 'labels/Cellpose'
+
+
 const ZarrStoreContext = createContext<ZarrStoreContextType | null>(null)
 
 export function useZarrStore() {
@@ -55,11 +59,11 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
       if (!state.store) return null;
 
       try {
-        console.log('🔍 Searching for Cellpose data at labels/Cellpose...')
+        console.log(`🔍 Searching for Cellpose data at ${DEFAULT_LABELS_SEGMENTATION_PATH}...`)
 
         // Create a temporary root from the base `store` to search from the top level.
         const rootGroup = zarrita.root(state.store)
-        const cellposeGroup = await zarrita.open(rootGroup.resolve('labels/Cellpose'))
+        const cellposeGroup = await zarrita.open(rootGroup.resolve(DEFAULT_LABELS_SEGMENTATION_PATH))
 
         if (cellposeGroup instanceof zarrita.Group) {
           // Drill into OME multiscales metadata
@@ -83,7 +87,7 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
         // If not found, return null
         return null
       } catch (error) {
-        console.log(`❌ No Cellpose data at labels/Cellpose:`, error)
+        console.log(`❌ No Cellpose data at ${DEFAULT_LABELS_SEGMENTATION_PATH}:`, error)
         return null
       }
     }, [state.store]
@@ -205,7 +209,6 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
       return
     }
 
-    // ...existing code...
     if (attrs && (!attrs.multiscales || attrs.multiscales.length === 0)) {
       console.log('OME metadata found but no multiscales - suggesting subdirectories');
       
