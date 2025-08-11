@@ -199,6 +199,24 @@ const Viewer3D = (props: {
 			const voxelData = generateDummyCellposeData()
 			const meshDataArray = generateMeshesFromVoxelData(voxelData)
 			const newContentGroup = new THREE.Group()
+			const numNuclei = meshDataArray.length;
+			const newFeatureData = {
+				labels: Array.from({ length: numNuclei + 1 }, () => new Set()),
+				segmentationConfidence: Array.from({ length: numNuclei + 1 }, () => Math.random()),
+				nucleusDiameters: Array.from({ length: numNuclei + 1 }, () => 10 + Math.random() * 5),
+				nucleusVolumes: Array.from({ length: numNuclei + 1 }, () => 500 + Math.random() * 200),
+				elongations: Array.from({ length: numNuclei + 1 }, () => Math.random() * 2),
+				epithelialScores: Array.from({ length: numNuclei + 1 }, () => Math.random()),
+				mesenchymalScores: Array.from({ length: numNuclei + 1 }, () => Math.random()),
+				nucleusIrregularityScores: Array.from({ length: numNuclei + 1 }, () => Math.random()),
+				is_gH2AX: Array.from({ length: numNuclei + 1 }, () => (Math.random() > 0.8 ? 1 : 0)),
+				is_CD8: Array.from({ length: numNuclei + 1 }, () => (Math.random() > 0.7 ? 1 : 0)),
+				nucleusEllipsoidCenters: Array.from({ length: numNuclei + 1 }, () => [Math.random() * 100, Math.random() * 100, Math.random() * 100]),
+				nucleusEllipsoidAxes: Array.from({ length: numNuclei + 1 }, () => [[1, 0, 0], [0, 1, 0], [0, 0, 1]]),
+				nucleusEllipsoidRadii: Array.from({ length: numNuclei + 1 }, () => [10 + Math.random() * 5, 10 + Math.random() * 5, 10 + Math.random() * 5]),
+
+			};
+			setFeatureData(newFeatureData);
 
 			// 3. Create THREE.Mesh for each generated cell
 			meshDataArray.forEach(({ label, vertices, indices }) => {
