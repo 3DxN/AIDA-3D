@@ -23,7 +23,7 @@ export default function Settings(props: {
 	selected: any[]
 	setFeatureData: (data: any) => void;
 }) {
-	const { renderer, scene, camera, content, featureData, selected } = props
+	const { renderer, scene, camera, content, featureData, selected, setFeatureData } = props
 
 	const [isOpen, setIsOpen] = useState(true)
 
