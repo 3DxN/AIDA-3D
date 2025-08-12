@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
-import * as THREE from 'three'
-import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment'
-import * as checkPointInPolygon from 'robust-point-in-polygon'
+import { useState, useEffect, useRef } from 'react';
+import * as THREE from 'three';
+import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
+import * as checkPointInPolygon from 'robust-point-in-polygon';
 
 // New imports for mesh generation and saving
-import { generateMeshesFromVoxelData } from './algorithms/marchingCubes'
-import { saveGLTF } from './gltfExporter'
+import { generateMeshesFromVoxelData } from './algorithms/marchingCubes';
+import { calculateNucleusVolume } from './algorithms/nucleusVolume';
+import { calculateNucleusDiameter } from './algorithms/nucleusDiameter';
+import { saveGLTF } from './gltfExporter';
 
 // Controls and Utils (assuming these are in the same relative path)
 import Settings from './settings'
@@ -203,8 +205,8 @@ const Viewer3D = (props: {
 			const newFeatureData = {
 				labels: Array.from({ length: numNuclei + 1 }, () => new Set()),
 				segmentationConfidence: Array.from({ length: numNuclei + 1 }, () => Math.random()),
-				nucleusDiameters: Array.from({ length: numNuclei + 1 }, () => 10 + Math.random() * 5),
-				nucleusVolumes: Array.from({ length: numNuclei + 1 }, () => 500 + Math.random() * 200),
+				nucleusDiameters: newContentGroup.children.map(mesh => calculateNucleusDiameter(mesh as THREE.Mesh)),
+				nucleusVolumes: newContentGroup.children.map(mesh => calculateNucleusVolume(mesh as THREE.Mesh)),
 				elongations: Array.from({ length: numNuclei + 1 }, () => Math.random() * 2),
 				epithelialScores: Array.from({ length: numNuclei + 1 }, () => Math.random()),
 				mesenchymalScores: Array.from({ length: numNuclei + 1 }, () => Math.random()),
