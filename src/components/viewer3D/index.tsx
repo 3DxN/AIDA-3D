@@ -387,6 +387,7 @@ const Viewer3D = (props: {
 				tile={tile}
 				featureData={featureData}
 				selected={selected}
+				setFeatureData={setFeatureData}
 			/>
 		</div>
 	)

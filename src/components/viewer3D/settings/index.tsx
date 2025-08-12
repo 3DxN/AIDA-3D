@@ -20,7 +20,8 @@ export default function Settings(props: {
 	camera: Camera
 	content: Group
 	featureData: any
-	selected: Mesh[]
+	selected: any[]
+	setFeatureData: (data: any) => void;
 }) {
 	const { renderer, scene, camera, content, featureData, selected } = props
 
@@ -93,6 +94,7 @@ export default function Settings(props: {
 						content={content}
 						featureData={featureData}
 						selected={selected}
+						setFeatureData={setFeatureData}
 					/>
 					<Export
 						renderer={renderer}
