@@ -5,7 +5,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import * as checkPointInPolygon from 'robust-point-in-polygon'
 
 // New imports for mesh generation and saving
-import { generateMeshesFromVoxelData } from './marchingCubes'
+import { generateMeshesFromVoxelData } from './algorithms/marchingCubes'
 import { saveGLTF } from './gltfExporter'
 
 // Controls and Utils (assuming these are in the same relative path)
