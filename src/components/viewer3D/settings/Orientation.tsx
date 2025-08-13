@@ -58,6 +58,10 @@ const Orientation = (props: {
 			const axes = featureData.nucleusEllipsoidAxes
 			const radii = featureData.nucleusEllipsoidRadii
 
+			if (!centers || !axes || !radii) {
+				return; // Exit early if orientation data is missing
+			}
+
 			for (let i = 0; i < nuclei.length; i += 1) {
 				const c = centers[i]
 				const a = axes[i]

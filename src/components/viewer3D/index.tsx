@@ -201,25 +201,7 @@ const Viewer3D = (props: {
 			const voxelData = generateDummyCellposeData()
 			const meshDataArray = generateMeshesFromVoxelData(voxelData)
 			const newContentGroup = new THREE.Group()
-			const numNuclei = meshDataArray.length;
-			const newFeatureData = {
-				labels: Array.from({ length: numNuclei + 1 }, () => new Set()),
-				segmentationConfidence: Array.from({ length: numNuclei + 1 }, () => Math.random()),
-				nucleusDiameters: newContentGroup.children.map(mesh => calculateNucleusDiameter(mesh as THREE.Mesh)),
-				nucleusVolumes: newContentGroup.children.map(mesh => calculateNucleusVolume(mesh as THREE.Mesh)),
-				elongations: Array.from({ length: numNuclei + 1 }, () => Math.random() * 2),
-				epithelialScores: Array.from({ length: numNuclei + 1 }, () => Math.random()),
-				mesenchymalScores: Array.from({ length: numNuclei + 1 }, () => Math.random()),
-				nucleusIrregularityScores: Array.from({ length: numNuclei + 1 }, () => Math.random()),
-				is_gH2AX: Array.from({ length: numNuclei + 1 }, () => (Math.random() > 0.8 ? 1 : 0)),
-				is_CD8: Array.from({ length: numNuclei + 1 }, () => (Math.random() > 0.7 ? 1 : 0)),
-				nucleusEllipsoidCenters: Array.from({ length: numNuclei + 1 }, () => [Math.random() * 100, Math.random() * 100, Math.random() * 100]),
-				nucleusEllipsoidAxes: Array.from({ length: numNuclei + 1 }, () => [[1, 0, 0], [0, 1, 0], [0, 0, 1]]),
-				nucleusEllipsoidRadii: Array.from({ length: numNuclei + 1 }, () => [10 + Math.random() * 5, 10 + Math.random() * 5, 10 + Math.random() * 5]),
-
-			};
-			setFeatureData(newFeatureData);
-
+		
 			// 3. Create THREE.Mesh for each generated cell
 			meshDataArray.forEach(({ label, vertices, indices }) => {
 				const geometry = new THREE.BufferGeometry()
@@ -240,8 +222,18 @@ const Viewer3D = (props: {
 				mesh.name = `nucleus_${label}`
 				newContentGroup.add(mesh)
 			})
+			const nucleusMeshes = newContentGroup.children as THREE.Mesh[]; // <-- ADD THIS LINE
+			const numNuclei = nucleusMeshes.length; // <-- MODIFY THIS LINE
 
-			// Add the entire group of new meshes to the scene and state
+			const newFeatureData = {
+				labels: Array.from({ length: numNuclei + 1 }, () => new Set()),
+				segmentationConfidence: Array.from({ length: numNuclei + 1 }, () => Math.random()),
+				nucleusDiameters: nucleusMeshes.map(mesh => calculateNucleusDiameter(mesh)),
+				nucleusVolumes: nucleusMeshes.map(mesh => calculateNucleusVolume(mesh)),
+			};
+			setFeatureData(newFeatureData);
+
+				// Add the entire group of new meshes to the scene and state
 			scene.add(newContentGroup)
 			setContent(newContentGroup)
 

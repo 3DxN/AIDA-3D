@@ -133,49 +133,55 @@ const ColorMaps = (props: {
 	// Update 3D mesh colors
 	useEffect(() => {
 		if (featureData && content) {
-			content.children.forEach((child, index) => {
+			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
-					let color;
+					const nucleus = child as THREE.Mesh;
+					let finalColor: Color | string = new Color();
+
 					if (colorMaps.length === 0) {
-						// If no color maps are active, revert to the default color
+						// If no color maps, revert to the default color based on label
 						const label = parseInt(child.name.split('_')[1]);
-						color = new Color().setHSL(label / 10, 0.8, 0.6).getStyle();
+						finalColor.setHSL(label / 10, 0.8, 0.6);
 					} else {
-						// Combine colors from all maps
-						color = colorMaps[0].colorScale.value(
-							(() => {
-								const featureValues = featureData[colorMaps[0].featureMap.value];
-								const mapMax = Math.max(...featureValues);
-								const mapMin = Math.min(...featureValues);
+						// Otherwise, calculate color from the active color maps
+						const nucleusIndex = parseInt(child.name.split('_')[1]);
+						let blendedColor: d3.Color | null = null;
 
-								const featureValue = colorMaps[0].normalise
-									? normalize(mapMin, mapMax)(featureValues[index])
-									: featureValues[index];
-
-								return featureValue;
-							})()
-						);
-
-						for (let i = 1; i < colorMaps.length; i++) {
-							const colorMap = colorMaps[i];
+						colorMaps.forEach((colorMap, i) => {
 							const featureValues = featureData[colorMap.featureMap.value];
+							if (!featureValues || featureValues[nucleusIndex] === undefined) return;
+
 							const mapMax = Math.max(...featureValues);
 							const mapMin = Math.min(...featureValues);
 
 							const featureValue = colorMap.normalise
-								? normalize(mapMin, mapMax)(featureValues[index])
-								: featureValues[index];
+								? normalize(mapMin, mapMax)(featureValues[nucleusIndex])
+								: featureValues[nucleusIndex];
 
-							color = d3.interpolate(
-								color,
-								colorMap.colorScale.value(featureValue)
-							)(featureValue);
+							const currentColor = d3.color(colorMap.colorScale.value(featureValue));
+
+							if (!blendedColor) {
+								blendedColor = currentColor;
+							} else {
+								// Simple additive blending - you can change the logic here if needed
+								blendedColor.r = Math.min(255, blendedColor.r + currentColor.r);
+								blendedColor.g = Math.min(255, blendedColor.g + currentColor.g);
+								blendedColor.b = Math.min(255, blendedColor.b + currentColor.b);
+							}
+						});
+
+						if (blendedColor) {
+							finalColor = blendedColor.hex();
+						} else {
+							// Fallback if something went wrong
+							const label = parseInt(child.name.split('_')[1]);
+							finalColor.setHSL(label / 10, 0.8, 0.6);
 						}
 					}
 
-					const nucleus = child as THREE.Mesh;
+					// Apply the new color
 					const newMaterial = (nucleus.material as THREE.MeshStandardMaterial).clone();
-					newMaterial.color.setStyle(color);
+					newMaterial.color.set(finalColor);
 					nucleus.material = newMaterial;
 				}
 			});
@@ -187,8 +193,7 @@ const ColorMaps = (props: {
 		scene,
 		camera,
 		featureData,
-		activeColorMapIndex,
-		colorMaps,
+		colorMaps, // Dependency array now only contains colorMaps
 	]);
 
 	return (
