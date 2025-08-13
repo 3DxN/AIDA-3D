@@ -60,7 +60,6 @@ export interface VivViewerActions {
   setDetailViewDrag: (drag: VivDetailViewState) => void
   setControlledDetailViewState: (state: VivViewState | null) => void
   setIsManuallyPanning: (panning: boolean) => void
-  updateDimensions: () => void
   handleViewStateChange: ({ viewId, viewState }: {
     viewId: string
     viewState: VivViewState

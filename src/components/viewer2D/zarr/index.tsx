@@ -68,7 +68,7 @@ export default function ZarrViewer() {
       contrastLimits: [maxContrastLimit, 1024] // Default cytoplasm is on
     });
 
-  }, [hasLoadedArray, msInfo, navigationState, setNavigationState]) // When the store is loaded, initialize with default values
+  }, [hasLoadedArray, msInfo]) // Removed navigationState and setNavigationState from dependencies
 
   return (
     <div className="h-full min-h-[500px] flex flex-col">

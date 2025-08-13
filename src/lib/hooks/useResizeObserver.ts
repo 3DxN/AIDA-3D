@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 
 import type { ViewerSize } from '../../types/viewer2D/dimensions'
 
@@ -27,13 +27,17 @@ export function useResizeObserver<T extends HTMLElement>(
   ref: React.RefObject<T>,
   onSize: (size: ViewerSize) => void
 ) {
+  // Use a ref to store the latest callback to avoid re-creating the effect
+  const onSizeRef = useRef(onSize)
+  onSizeRef.current = onSize
+
   useEffect(() => {
     const el = ref.current
     if (!el) return
 
     const notify = () => {
       const rect = el.getBoundingClientRect()
-      onSize({ width: Math.round(rect.width), height: Math.round(rect.height) })
+      onSizeRef.current({ width: Math.round(rect.width), height: Math.round(rect.height) })
     }
 
     const ro = new ResizeObserver(() => notify())
@@ -41,5 +45,5 @@ export function useResizeObserver<T extends HTMLElement>(
     notify()
 
     return () => ro.disconnect()
-  }, [ref, onSize])
+  }, [ref]) // Remove onSize from dependencies
 }

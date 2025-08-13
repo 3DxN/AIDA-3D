@@ -44,28 +44,15 @@ export default function useVivViewer(
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Container dimension management
-  const updateDimensions = useCallback(() => {
-    if (containerRef.current) {
-      const { clientWidth, clientHeight } = containerRef.current
-      setContainerDimensions({ 
-        width: Math.max(clientWidth, 400),
-        height: Math.max(clientHeight, 400)
-      })
-    }
-  }, [])
-
-  // Use shared resize observer hook
-  useResizeObserver(containerRef as React.RefObject<HTMLElement>, ({ width, height }) => {
+  const handleResize = useCallback(({ width, height }: { width: number; height: number }) => {
     setContainerDimensions({
       width: Math.max(width, 400),
       height: Math.max(height, 400)
     })
-  })
+  }, [])
 
-  // Initial measurement fallback (in case observer fires late)
-  useEffect(() => {
-    updateDimensions()
-  }, [updateDimensions])
+  // Use shared resize observer hook with stable callback
+  useResizeObserver(containerRef as React.RefObject<HTMLElement>, handleResize)
 
   // Load Viv loaders for all resolution levels
   useEffect(() => {
@@ -278,7 +265,6 @@ export default function useVivViewer(
     setDetailViewDrag,
     setControlledDetailViewState,
     setIsManuallyPanning,
-    updateDimensions,
     handleViewStateChange,
     createLayerProps
   }
