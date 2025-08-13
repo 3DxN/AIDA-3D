@@ -6,7 +6,7 @@ import {
   calculateFrameResize,
   createFrameOverlayLayers,
   FRAME_VIEW_ID
-} from '../app/components/viewer2D/map/FrameView'
+} from '../../components/viewer2D/zarr/map/FrameView'
 
 import type { PickingInfo } from 'deck.gl'
 import type { DragMode, FrameInteractionState } from '../../types/viewer2D/frame'

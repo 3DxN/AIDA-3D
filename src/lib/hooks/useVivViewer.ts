@@ -9,7 +9,7 @@ import {
 } from '@hms-dbmi/viv'
 
 import ZarrPixelSource from '../ext/ZarrPixelSource'
-import { FrameView, FRAME_VIEW_ID } from '../app/components/viewer2D/map/FrameView'
+import { FrameView, FRAME_VIEW_ID } from '../../components/viewer2D/zarr/map/FrameView'
 import { useResizeObserver } from './useResizeObserver'
 
 import type * as viv from "@vivjs/types"
