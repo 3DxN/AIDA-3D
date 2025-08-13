@@ -1,0 +1,101 @@
+import { useEffect, useState } from 'react'
+import Head from 'next/head'
+import { useRouter } from 'next/router'
+
+import ZarrViewer from '../components/viewer2D/zarr'
+import Viewer3D from '../components/viewer3D'
+import { useZarrStore } from '../lib/contexts/ZarrStoreContext'
+
+// Types
+import { Annotation } from '../types/annotation'
+
+// Initial default template for new annotation data
+const defaultAnnotation: Annotation = {
+	header: {
+		schemaVersion: '2.0',
+		timestamp: Date.now(),
+	},
+	layers: [
+		{
+			id: 'Layer 1',
+			features: [],
+		},
+	],
+	classes: [
+		{
+			id: 0,
+			name: 'Default class',
+			style: {
+				stroke: {
+					color: [51, 153, 204, 1],
+					width: 1.25,
+				},
+				fill: {
+					color: [255, 255, 255, 0.4],
+				},
+			},
+		},
+	],
+}
+
+/**
+ * Zarr workspace page.
+ * Expects the Zarr store already loaded (navigated from loader) OR a ?src= URL.
+ * If not loaded but src present, it will attempt to load automatically.
+ */
+export default function ZarrWorkspace() {
+	const router = useRouter()
+	const { query } = router
+	const { source, loadStore, hasLoadedArray, msInfo, isLoading } = useZarrStore()
+
+	const [tile, setTile] = useState<[number, number]>([0, 0])
+	const [select3D, setSelect3D] = useState(false)
+	const [polygonCoords, setPolygonCoords] = useState<number[][][]>([])
+
+	// Auto-load if navigated directly with ?src=
+	useEffect(() => {
+		const srcParam = typeof query.src === 'string' ? query.src : null
+		if (srcParam && !hasLoadedArray && !isLoading && (!source || source !== srcParam)) {
+			loadStore(srcParam)
+		}
+	}, [query.src, hasLoadedArray, isLoading, source, loadStore])
+
+	return (
+		<>
+			<Head>
+				<title>Zarr Viewer - AIDA 3D</title>
+			</Head>
+			<div className="min-w-full h-screen flex bg-gray-100">
+				<div className="w-1/2 relative border-r border-gray-200">
+					{hasLoadedArray && msInfo ? (
+						<ZarrViewer />
+					) : (
+						<div className="flex items-center justify-center h-full text-gray-500">
+							{isLoading ? (
+								<div className="text-center">
+									<div className="text-lg mb-2">Loading Zarr store...</div>
+									<div className="text-sm">Please wait while we load your data</div>
+								</div>
+							) : (
+								<div className="text-center">
+									<div className="text-lg mb-2">Waiting for Zarr data...</div>
+									<div className="text-sm">No multiscale data loaded</div>
+								</div>
+							)}
+						</div>
+					)}
+				</div>
+				<div className="w-1/2 relative">
+					{hasLoadedArray && msInfo ? (
+						<Viewer3D
+							tile={tile}
+							tilesUrl=""
+							setSelect3D={setSelect3D}
+							polygonCoords={polygonCoords}
+						/>
+					) : null}
+				</div>
+			</div>
+		</>
+	)
+}

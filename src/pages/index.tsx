@@ -9,7 +9,6 @@ import {
 import { ScaleIcon } from '@heroicons/react/outline'
 
 import StoreLoader from '../components/loader'
-import { ZarrStoreProvider } from '../lib/contexts/ZarrStoreContext'
 
 
 export default function Home() {
@@ -332,11 +331,7 @@ export default function Home() {
                         className="fixed inset-0 bg-black bg-opacity-70 z-50"
                         onClick={() => setShowLoader(false)}
                     />
-                    <ZarrStoreProvider>
-                        <StoreLoader 
-                            onClose={() => setShowLoader(false)}
-                        />
-                    </ZarrStoreProvider>
+                    <StoreLoader onClose={() => setShowLoader(false)} />
                 </>
             )}
         </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useRouter } from 'next/router'
 import { 
     XIcon, 
     BeakerIcon, 
@@ -19,6 +20,7 @@ import { ZarrStoreSuggestionType } from '../../types/store'
 
 
 export default function StoreLoader({ onClose }: { onClose: () => void }) {
+    const router = useRouter()
     const { 
         source, 
         root,
@@ -44,6 +46,9 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
             // Show success message first
             setShowSuccess(true)
             
+            // Navigate to Zarr workspace shortly after success appears
+            router.push(`/zarr`)
+            
             // Start closing/fading after a brief success display
             setTimeout(() => {
                 setIsClosing(true)
@@ -55,7 +60,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                 onClose();
             }, 1500) // 500ms success display + 1000ms fade-out
         }
-    }, [hasLoadedStore, isClosing])
+    }, [hasLoadedStore, isClosing, router, source, onClose])
 
     const handleLoadStore = async () => {
         if (!source) return

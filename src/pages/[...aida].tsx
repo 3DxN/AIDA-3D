@@ -4,8 +4,6 @@ import { useRouter } from 'next/router'
 
 // Components & Hooks
 import Viewer from '../components/viewer'
-import { ZarrStoreProvider } from '../lib/contexts/ZarrStoreContext'
-import { Viewer2DDataProvider } from '../lib/contexts/Viewer2DDataContext'
 
 // Config & Types
 import config from '../../aida.config'
@@ -98,15 +96,11 @@ const AIDA = () => {
 			</Head>
 			
 			{!isLoading && (
-				<ZarrStoreProvider>
-					<Viewer2DDataProvider>
-						<Viewer
-							imageUrls={imageUrls}
-							tilesUrl={tilesUrl}
-							annotationData={annotationData}
-						/>
-					</Viewer2DDataProvider>
-				</ZarrStoreProvider>
+				<Viewer
+					imageUrls={imageUrls}
+					tilesUrl={tilesUrl}
+					annotationData={annotationData}
+				/>
 			)}
 		</>
 	)
