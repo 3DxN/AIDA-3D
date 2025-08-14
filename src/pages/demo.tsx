@@ -47,6 +47,7 @@ const Demo = () => {
 			<Head>
 				<title>Demo - AIDA 3D</title>
 			</Head>
+			
 			<Viewer
 				imageUrls={imageUrls}
 				tilesUrl={tilesUrl}

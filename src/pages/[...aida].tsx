@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 
+// Components & Hooks
 import Viewer from '../components/viewer'
 
-// Config
+// Config & Types
 import config from '../../aida.config'
+import type { Annotation } from '../types/annotation'
 
-// Types
-import { Annotation } from '../types/annotation'
 
 // Initial default template for new annotation data
 const defaultAnnotation: Annotation = {
@@ -94,6 +94,7 @@ const AIDA = () => {
 			<Head>
 				<title>{`${imageName} - AIDA 3D`}</title>
 			</Head>
+			
 			{!isLoading && (
 				<Viewer
 					imageUrls={imageUrls}

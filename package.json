@@ -9,7 +9,8 @@
 		"lint": "next lint"
 	},
 	"dependencies": {
-		"@headlessui/react": "^1.5.0",
+		"@hms-dbmi/viv": "~0.18.0",
+		"@headlessui/react": "^2.0.0",
 		"@heroicons/react": "^1.0.3",
 		"@react-aria/button": "^3.3.3",
 		"@react-aria/focus": "^3.4.1",
@@ -22,27 +23,30 @@
 		"body-parser": "^1.19.0",
 		"connect-history-api-fallback": "^1.6.0",
 		"d3": "^7.3.0",
+		"deck.gl": "~9.1.0",
 		"express": "^4.17.1",
 		"ip": "^1.1.5",
-		"next": "latest",
+		"next": "^15.4.6",
 		"ol": "^6.6.1",
-		"react": "^17.0.2",
+		"react": "^19.1.0",
 		"react-aria": "^3.13.2",
 		"react-color": "^2.19.3",
-		"react-dom": "^17.0.2",
+		"react-dom": "^19.1.0",
 		"react-stately": "^3.12.1",
 		"robust-point-in-polygon": "^1.0.3",
 		"three": "^0.138.3",
-		"xml2js": "^0.4.23"
+		"xml2js": "^0.4.23",
+		"zarrita": "~0.5.0"
 	},
 	"devDependencies": {
 		"@next/eslint-plugin-next": "^12.1.4",
 		"@types/express": "^4.17.13",
 		"@types/ip": "^1.1.0",
-		"@types/node": "^17.0.8",
-		"@types/react": "^17.0.15",
+		"@types/node": "^24.0.4",
+		"@types/react": "^19.1.9",
 		"@types/react-color": "^3.0.6",
-		"@types/three": "^0.138.0",
+		"@types/react-dom": "^19.1.7",
+		"@types/three": "^0.177.0",
 		"@types/xml2js": "^0.4.9",
 		"autoprefixer": "^10.4.0",
 		"concurrently": "^7.0.0",
@@ -57,14 +61,14 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/alanaberdeen/AIDA-3D.git"
+		"url": "git+https://github.com/3DxN/AIDA-3D.git"
 	},
 	"keywords": [
 		"GTL"
 	],
 	"author": "Alan Aberdeen",
 	"bugs": {
-		"url": "https://github.com/alanaberdeen/AIDA-3Dissues"
+		"url": "https://github.com/3DxN/AIDA-3D/issues"
 	},
-	"homepage": "https://github.com/alanaberdeen/AIDA-3D#readme"
+	"homepage": "https://github.com/3DxN/AIDA-3D#readme"
 }
