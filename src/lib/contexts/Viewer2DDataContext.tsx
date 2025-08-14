@@ -37,7 +37,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   // Frame state (replacing FrameStateContext)
   const [frameCenter, setFrameCenter] = useState<[number, number]>([500, 500])
   const [frameSize, setFrameSize] = useState<[number, number]>([100, 100])
-  const [frameZDepth, setFrameZDepth] = useState<number>(5)
+  const [frameZDepth, setFrameZDepth] = useState<number>(50)
   
   // View state
   const [navigationState, setNavigationState] = useState<NavigationState | null>(null)

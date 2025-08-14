@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { edgeTable, triTable } from './marchingCubesTables'
+import { Chunk, Uint32 } from 'zarrita'
 
 const interpolateVertex = (
 	isoLevel: number,
@@ -112,29 +113,20 @@ const march = (grid: number[][][], isoLevel: number) => {
 	return { vertices, indices }
 }
 
-export const generateMeshesFromVoxelData = (input) => {
+export const generateMeshesFromVoxelData = (input: Chunk<Uint32>) => {
 	const meshDataArray = [];
 	let dims;
 	let getValue;
 	let allVoxelValues;
 
 	// Check if the input is a Zarrita-style chunk (duck typing)
-	if (input.data && input.shape && input.stride) {
-		const { data, shape, stride } = input;
-		dims = shape; // e.g., [depth, height, width]
-		allVoxelValues = data; // The flat TypedArray
+	const { data, shape, stride } = input;
+	dims = shape; // e.g., [depth, height, width]
+	allVoxelValues = data; // The flat TypedArray
 
-		// Accessor for the 1D strided array
-		// Calculates the index in the flat array from 3D coordinates
-		getValue = (z, y, x) => data[z * stride[0] + y * stride[1] + x * stride[2]];
-	} else {
-		// Assume it's a standard 3D nested array
-		dims = [input.length, input[0]?.length ?? 0, input[0]?.[0]?.length ?? 0];
-		allVoxelValues = input.flat(2);
-
-		// Accessor for the 3D nested array
-		getValue = (z, y, x) => input[z]?.[y]?.[x];
-	}
+	// Accessor for the 1D strided array
+	// Calculates the index in the flat array from 3D coordinates
+	getValue = (z: number, y: number, x: number) => data[z * stride[0] + y * stride[1] + x * stride[2]];
 
 	const uniqueLabels = [...new Set(allVoxelValues)].filter(label => label > 0);
 
