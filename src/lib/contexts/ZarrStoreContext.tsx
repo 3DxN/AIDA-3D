@@ -168,7 +168,7 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
       let availableChannels: string[] = []
       if (attrs.omero?.channels) {
         availableChannels = attrs.omero.channels.map((ch, idx) => 
-          ch.label || `Channel ${idx}`
+          ch.label || `Channel ${idx + 1}`
         )
       }
 
@@ -182,9 +182,12 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
         return acc
       }, {} as MultiscaleShape)
 
-      if (!availableChannels) {
-        availableChannels = Array(shape.c).fill(null).map((_, index) => `Channel ${index + 1}`);
+      if (availableChannels.length === 0) {
+        for (let i = 0; i < shape.c!; i++) {
+          availableChannels.push(`Channel ${i + 1}`)
+        }
       }
+      console.log('Available channels:', availableChannels, shape.c)
 
       // Extract multiscale Information
       const msInfo = {
