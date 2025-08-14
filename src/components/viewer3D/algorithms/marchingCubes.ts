@@ -112,34 +112,57 @@ const march = (grid: number[][][], isoLevel: number) => {
 	return { vertices, indices }
 }
 
-export const generateMeshesFromVoxelData = (voxelData: number[][][]) => {
-	const meshDataArray = []
-	const uniqueLabels = [...new Set(voxelData.flat(2))].filter(label => label > 0)
-	const dims = [voxelData.length, voxelData[0]?.length ?? 0, voxelData[0]?.[0]?.length ?? 0]
+export const generateMeshesFromVoxelData = (input) => {
+	const meshDataArray = [];
+	let dims;
+	let getValue;
+	let allVoxelValues;
+
+	// Check if the input is a Zarrita-style chunk (duck typing)
+	if (input.data && input.shape && input.stride) {
+		const { data, shape, stride } = input;
+		dims = shape; // e.g., [depth, height, width]
+		allVoxelValues = data; // The flat TypedArray
+
+		// Accessor for the 1D strided array
+		// Calculates the index in the flat array from 3D coordinates
+		getValue = (z, y, x) => data[z * stride[0] + y * stride[1] + x * stride[2]];
+	} else {
+		// Assume it's a standard 3D nested array
+		dims = [input.length, input[0]?.length ?? 0, input[0]?.[0]?.length ?? 0];
+		allVoxelValues = input.flat(2);
+
+		// Accessor for the 3D nested array
+		getValue = (z, y, x) => input[z]?.[y]?.[x];
+	}
+
+	const uniqueLabels = [...new Set(allVoxelValues)].filter(label => label > 0);
 
 	for (const label of uniqueLabels) {
-		// Create binary grid for this specific label
+		// Create a binary grid for this specific label
 		const binaryGrid = Array.from({ length: dims[0] }, () =>
 			Array.from({ length: dims[1] }, () => new Array(dims[2]).fill(0))
-		)
+		);
 
 		for (let z = 0; z < dims[0]; z++) {
 			for (let y = 0; y < dims[1]; y++) {
 				for (let x = 0; x < dims[2]; x++) {
-					if (voxelData[z]?.[y]?.[x] === label) {
-						binaryGrid[z][y][x] = 1
+					// Use the unified accessor to get the value
+					if (getValue(z, y, x) === label) {
+						binaryGrid[z][y][x] = 1;
 					}
 				}
 			}
 		}
 
 		// Run marching cubes with iso level of 0.5
-		const { vertices, indices } = march(binaryGrid, 0.5)
+		// Note: 'march' function needs to be defined or imported elsewhere
+		const { vertices, indices } = march(binaryGrid, 0.5);
 
 		if (vertices.length > 0 && indices.length > 0) {
-			meshDataArray.push({ label, vertices, indices })
+			meshDataArray.push({ label, vertices, indices });
 		}
 	}
 
-	return meshDataArray
-}
+	return meshDataArray;
+};

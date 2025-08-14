@@ -9,6 +9,7 @@ import { generateMeshesFromVoxelData } from './algorithms/marchingCubes';
 import { calculateNucleusVolume } from './algorithms/nucleusVolume';
 import { calculateNucleusDiameter } from './algorithms/nucleusDiameter';
 import { saveGLTF } from './gltfExporter';
+import { useViewer2DData } from '../../lib/contexts/Viewer2DDataContext';
 
 // Controls and Utils (assuming these are in the same relative path)
 import Settings from './settings'
@@ -132,6 +133,10 @@ const Viewer3D = (props: {
 
 	const viewerRef: { current: HTMLCanvasElement | null } = useRef(null)
 
+	const {
+		frameBoundCellposeData
+    } = useViewer2DData()
+
 	// Init
 	useEffect(() => {
 		if (viewerRef.current) {
@@ -179,7 +184,7 @@ const Viewer3D = (props: {
 
 	// Generate and render mesh from voxel data
 	useEffect(() => {
-		if (scene && camera && renderer) {
+		if (scene && camera && renderer && frameBoundCellposeData) {
 			setIsLoading(true)
 
 			// 1. Clear previous content
@@ -198,7 +203,7 @@ const Viewer3D = (props: {
 			}
 
 			// 2. Generate voxel data and run marching cubes
-			const voxelData = generateDummyCellposeData()
+            const voxelData = frameBoundCellposeData //|| generateDummyCellposeData()
 			const meshDataArray = generateMeshesFromVoxelData(voxelData)
 			const newContentGroup = new THREE.Group()
 		
@@ -262,7 +267,7 @@ const Viewer3D = (props: {
 			renderer.render(scene, camera)
 			setIsLoading(false)
 		}
-	}, [scene, camera, renderer])
+	}, [scene, camera, renderer, frameBoundCellposeData])
 
 	// Update feature data
 	useEffect(() => {

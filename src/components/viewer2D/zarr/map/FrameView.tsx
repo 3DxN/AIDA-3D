@@ -203,7 +203,7 @@ export function calculateFrameResize(
 
   // Set the minimum and maximum frame size
   const MIN_FRAME_SIZE = 30;
-  const MAX_FRAME_SIZE = 500;
+  const MAX_FRAME_SIZE = 200;
 
   // Calculate the starting edges of the box
   let top = startCenterY - startHeight / 2;
