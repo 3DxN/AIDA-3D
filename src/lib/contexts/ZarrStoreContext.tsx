@@ -187,7 +187,6 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
           availableChannels.push(`Channel ${i + 1}`)
         }
       }
-      console.log('Available channels:', availableChannels, shape.c)
 
       // Extract multiscale Information
       const msInfo = {
