@@ -1,6 +1,6 @@
 // src/components/loader/index.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Import useEffect
 import { useRouter } from 'next/router';
 import {
     XIcon, BeakerIcon, FolderIcon, CubeIcon, InformationCircleIcon,
@@ -20,25 +20,35 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
 
     const [activeTab, setActiveTab] = useState<'zarr' | 'aida'>('zarr');
 
+    // --- START OF NEW CODE ---
+    // State to track if we are in the process of loading the example
+    const [isExampleLoading, setIsExampleLoading] = useState(false);
+
+    // This useEffect hook will run whenever `root` or `isExampleLoading` changes
+    useEffect(() => {
+        // We only proceed if we've initiated the example loading AND the root of the store is now available
+        if (isExampleLoading && root) {
+            navigateToSuggestion('0');
+            // Reset the flag so this doesn't run again accidentally
+            setIsExampleLoading(false);
+        }
+    }, [root, isExampleLoading, navigateToSuggestion]);
+
     const handleLoadStore = async () => {
         if (!source) return;
         await loadStore(source);
     };
 
-    const handleLoadExample = async () => {
+    const handleLoadExample = () => {
         const exampleUrl = 'http://141.147.103.49:5500';
-        const targetPath = '0';
-
         setSource(exampleUrl);
 
-        // `loadStore` now returns the store's root when successful
-        const storeRoot = await loadStore(exampleUrl);
-
-        // Only attempt to navigate if the store was loaded successfully
-        if (storeRoot) {
-            navigateToSuggestion(targetPath);
-        }
+        // Set our flag to true and start loading the store.
+        // The useEffect above will handle the next step.
+        setIsExampleLoading(true);
+        loadStore(exampleUrl);
     };
+    // --- END OF NEW CODE ---
 
     const handleBrowseAIDA = () => {
         router.push('/local');
@@ -46,6 +56,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
     };
 
     const renderSuggestions = () => {
+        // ... (this function remains unchanged)
         let suggestionTitle: string;
         let suggestionDescription: string;
         let SuggestionIcon: React.ComponentType<{ className?: string }>;

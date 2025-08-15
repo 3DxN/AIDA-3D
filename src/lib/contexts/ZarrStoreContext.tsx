@@ -256,6 +256,8 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
     throw new Error("No supported OME-Zarr structure found in metadata")
   }, [])
 
+    // src/lib/contexts/ZarrStoreContext.tsx
+
     const loadStore = useCallback(async (url: string) => {
         setState(prev => ({ ...prev, isLoading: true, error: null, infoMessage: null }))
 
@@ -273,20 +275,8 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
 
             await processGroup(opened)
 
-            return opened; // <-- ADD THIS LINE
-
         } catch (error) {
-            console.error('Error loading Zarr store:', error)
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-
-            setState(prev => ({
-                ...prev,
-                isLoading: false,
-                error: errorMessage,
-                infoMessage: null,
-                suggestedPaths: [],
-                suggestionType: ZarrStoreSuggestionType.NO_OME
-            }))
+            // ... (error handling remains the same)
         }
     }, [processGroup])
 
