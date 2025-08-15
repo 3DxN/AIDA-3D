@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/router'
 import { 
     ArrowRightIcon, ServerIcon, PlayIcon, FolderOpenIcon,
     CursorClickIcon, CollectionIcon, CubeTransparentIcon, PuzzleIcon
@@ -13,6 +14,7 @@ import StoreLoader from '../components/loader'
 
 export default function Home() {
     const [showLoader, setShowLoader] = useState(false)
+    const router = useRouter()
 
     return (
         <div>
@@ -62,7 +64,7 @@ export default function Home() {
                                 {/* Action buttons */}
                                 <div className="mt-8 flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
                                     <button
-                                        onClick={() => setShowLoader(true)}
+                                        onClick={() => router.push('/zarr')}
                                         className="inline-flex items-center justify-center px-6 py-3 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 w-full sm:w-auto"
                                     >
                                         <PlayIcon className="mr-2 h-5 w-5" aria-hidden="true" />
