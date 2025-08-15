@@ -4,6 +4,7 @@ import { useRouter } from 'next/router'
 
 import ZarrViewer from '../components/viewer2D/zarr'
 import Viewer3D from '../components/viewer3D'
+import StoreLoader from '../components/loader' // Make sure this is imported
 import { useZarrStore } from '../lib/contexts/ZarrStoreContext'
 
 // Types
@@ -38,11 +39,6 @@ const defaultAnnotation: Annotation = {
 	],
 }
 
-/**
- * Zarr workspace page.
- * Expects the Zarr store already loaded (navigated from loader) OR a ?src= URL.
- * If not loaded but src present, it will attempt to load automatically.
- */
 export default function ZarrWorkspace() {
 	const router = useRouter()
 	const { query } = router
@@ -51,6 +47,7 @@ export default function ZarrWorkspace() {
 	const [tile, setTile] = useState<[number, number]>([0, 0])
 	const [select3D, setSelect3D] = useState(false)
 	const [polygonCoords, setPolygonCoords] = useState<number[][][]>([])
+	const [showLoader, setShowLoader] = useState(true); // This state is new
 
 	// Auto-load if navigated directly with ?src=
 	useEffect(() => {
@@ -60,6 +57,15 @@ export default function ZarrWorkspace() {
 		}
 	}, [query.src, hasLoadedArray, isLoading, source, loadStore])
 
+	// This useEffect hook is also new
+	useEffect(() => {
+		if (hasLoadedArray) {
+			setShowLoader(false);
+		}
+	}, [hasLoadedArray]);
+
+	// src/pages/zarr.tsx
+
 	return (
 		<>
 			<Head>
@@ -67,7 +73,9 @@ export default function ZarrWorkspace() {
 			</Head>
 			<div className="min-w-full h-screen flex bg-gray-100">
 				<div className="w-1/2 relative border-r border-gray-200">
-					{hasLoadedArray && msInfo ? (
+					{showLoader ? (
+						<StoreLoader onClose={() => setShowLoader(false)} />
+					) : hasLoadedArray && msInfo ? (
 						<ZarrViewer />
 					) : (
 						<div className="flex items-center justify-center h-full text-gray-500">
@@ -79,7 +87,7 @@ export default function ZarrWorkspace() {
 							) : (
 								<div className="text-center">
 									<div className="text-lg mb-2">Waiting for Zarr data...</div>
-									<div className="text-sm">No multiscale data loaded</div>
+									<div className="text-sm">You can open the loader again to select a Zarr store.</div>
 								</div>
 							)}
 						</div>
@@ -93,9 +101,14 @@ export default function ZarrWorkspace() {
 							setSelect3D={setSelect3D}
 							polygonCoords={polygonCoords}
 						/>
-					) : null}
+					) : (
+						// Optional: You can add a placeholder for the 3D viewer as well
+						<div className="flex items-center justify-center h-full text-gray-400">
+							3D Viewer
+						</div>
+					)}
 				</div>
 			</div>
 		</>
-	)
+	);
 }
