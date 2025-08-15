@@ -1,14 +1,4 @@
 import type { ChannelMapping, ContrastLimits } from "./navTypes"
-import type { NavigationHandlers, NavigationLimits, NavigationState } from "./navState"
-import type { IMultiscaleInfo } from "../metadata/loader"
-
-
-export interface NavigationControlsProps {
-  msInfo: IMultiscaleInfo
-  navigationState: NavigationState
-  navigationLimits: NavigationLimits
-  navigationHandlers: NavigationHandlers
-}
 
 
 export interface SliderProps {
