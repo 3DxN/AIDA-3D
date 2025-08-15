@@ -256,40 +256,39 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
     throw new Error("No supported OME-Zarr structure found in metadata")
   }, [])
 
-  const loadStore = useCallback(async (url: string) => {
-    setState(prev => ({ ...prev, isLoading: true, error: null, infoMessage: null }))
-    
-    try {
-      console.log('Loading Zarr store from:', url)
-      
-      const store = new zarrita.FetchStore(url)
-      const opened = await zarrita.open(store)
-      
-      // Check if this is actually a group (not an array)
-      if (opened instanceof zarrita.Array) {
-        throw new Error("This appears to be an array, not a group. OME-Zarr requires group structure.")
-      }
+    const loadStore = useCallback(async (url: string) => {
+        setState(prev => ({ ...prev, isLoading: true, error: null, infoMessage: null }))
 
-      // ✅ ALWAYS set store and root first - even if processGroup fails later
-      setState(prev => ({ ...prev, store, root: opened }))
-      
-      // Now process the group
-      await processGroup(opened)
-      
-    } catch (error) {
-      console.error('Error loading Zarr store:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-        infoMessage: null,
-        suggestedPaths: [],
-        suggestionType: ZarrStoreSuggestionType.NO_OME
-      }))
-    }
-  }, [processGroup])
+        try {
+            console.log('Loading Zarr store from:', url)
+
+            const store = new zarrita.FetchStore(url)
+            const opened = await zarrita.open(store)
+
+            if (opened instanceof zarrita.Array) {
+                throw new Error("This appears to be an array, not a group. OME-Zarr requires group structure.")
+            }
+
+            setState(prev => ({ ...prev, store, root: opened }))
+
+            await processGroup(opened)
+
+            return opened; // <-- ADD THIS LINE
+
+        } catch (error) {
+            console.error('Error loading Zarr store:', error)
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+            setState(prev => ({
+                ...prev,
+                isLoading: false,
+                error: errorMessage,
+                infoMessage: null,
+                suggestedPaths: [],
+                suggestionType: ZarrStoreSuggestionType.NO_OME
+            }))
+        }
+    }, [processGroup])
 
   const navigateToSuggestion = useCallback(async (suggestionPath: string) => {
     if (!state.store) {

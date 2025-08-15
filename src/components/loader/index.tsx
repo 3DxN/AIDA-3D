@@ -25,9 +25,24 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
         await loadStore(source);
     };
 
+    const handleLoadExample = async () => {
+        const exampleUrl = 'http://141.147.103.49:5500';
+        const targetPath = '0';
+
+        setSource(exampleUrl);
+
+        // `loadStore` now returns the store's root when successful
+        const storeRoot = await loadStore(exampleUrl);
+
+        // Only attempt to navigate if the store was loaded successfully
+        if (storeRoot) {
+            navigateToSuggestion(targetPath);
+        }
+    };
+
     const handleBrowseAIDA = () => {
         router.push('/local');
-        onClose(); // Close loader when navigating away
+        onClose();
     };
 
     const renderSuggestions = () => {
@@ -138,6 +153,17 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                                 {isLoading ? (<><RefreshIcon className="h-5 w-5 mr-2 animate-spin" /> Loading...</>) : (<><PlayIcon className="h-5 w-5 mr-2" /> Load Store</>)}
                             </button>
                         </div>
+
+                        <div className="text-center mb-5">
+                            <button
+                                onClick={handleLoadExample}
+                                disabled={isLoading}
+                                className={`inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                            >
+                                <BeakerIcon className="h-5 w-5 mr-2" />
+                                Load Example Store
+                            </button>
+                        </div>
                     </>
                 )}
 
@@ -159,7 +185,6 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                 {hasLoadedArray && <div className="mt-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-md text-base text-center font-bold"><CheckCircleIcon className="h-5 w-5 inline mr-2" />Store loaded!</div>}
                 {isLoading && !hasLoadedArray && activeTab === 'zarr' && <div className="mt-4 text-center p-4 bg-blue-50 rounded-md text-teal-700 text-sm"><div className="mb-3 flex items-center justify-center"><RefreshIcon className="h-5 w-5 mr-2 animate-spin" />Loading Zarr store...</div><div className="w-full h-1 bg-blue-200 rounded-full overflow-hidden"><div className="w-1/3 h-full bg-blue-500 rounded-full animate-pulse" /></div></div>}
                 {(infoMessage || error) && !hasLoadedArray && activeTab === 'zarr' && <div className={`mt-4 p-4 rounded-md text-base text-center ${[ZarrStoreSuggestionType.PLATE_WELL, ZarrStoreSuggestionType.NO_MULTISCALE].includes(suggestionType) ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>{suggestionType === ZarrStoreSuggestionType.PLATE_WELL ? <div className="text-center mb-3 flex items-center justify-center"><TableIcon className="h-5 w-5 mr-2" /><strong>OME-Plate/Well Structure Detected</strong></div> : infoMessage ? <div className="flex items-center justify-center"><InformationCircleIcon className="h-5 w-5 mr-2" />{infoMessage}</div> : <div className="flex items-center justify-center"><ExclamationIcon className="h-5 w-5 mr-2" />{error}</div>}{renderSuggestions()}</div>}
-                {!hasLoadedArray && !isLoading && activeTab === 'zarr' && <div className="mt-5 p-4 bg-gray-50 rounded-md text-sm text-gray-600"><div className="flex items-center"><LightBulbIcon className="h-5 w-5 mr-2 text-gray-400" /><strong>Tip: </strong> You can use a sample OME-Zarr URL or paste your own.</div></div>}
             </div>
         </div>
     );
