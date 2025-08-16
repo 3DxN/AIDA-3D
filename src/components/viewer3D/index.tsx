@@ -182,6 +182,8 @@ const Viewer3D = (props: {
 		}
 	}, [])
 
+	// src/components/viewer3D/index.tsx
+
 	// Generate and render mesh from voxel data
 	useEffect(() => {
 		if (scene && camera && renderer && frameBoundCellposeData) {
@@ -203,10 +205,10 @@ const Viewer3D = (props: {
 			}
 
 			// 2. Generate voxel data and run marching cubes
-            const voxelData = frameBoundCellposeData //|| generateDummyCellposeData()
+			const voxelData = frameBoundCellposeData
 			const meshDataArray = generateMeshesFromVoxelData(voxelData)
 			const newContentGroup = new THREE.Group()
-		
+
 			// 3. Create THREE.Mesh for each generated cell
 			meshDataArray.forEach(({ label, vertices, indices }) => {
 				const geometry = new THREE.BufferGeometry()
@@ -225,10 +227,13 @@ const Viewer3D = (props: {
 				// Create the mesh and add it to our group
 				const mesh = new THREE.Mesh(geometry, material)
 				mesh.name = `nucleus_${label}`
+
 				newContentGroup.add(mesh)
 			})
-			const nucleusMeshes = newContentGroup.children as THREE.Mesh[]; // <-- ADD THIS LINE
-			const numNuclei = nucleusMeshes.length; // <-- MODIFY THIS LINE
+			// ...
+
+			const nucleusMeshes = newContentGroup.children.filter(child => child.visible) as THREE.Mesh[];
+			const numNuclei = nucleusMeshes.length;
 
 			const newFeatureData = {
 				labels: Array.from({ length: numNuclei + 1 }, () => new Set()),
@@ -238,14 +243,9 @@ const Viewer3D = (props: {
 			};
 			setFeatureData(newFeatureData);
 
-				// Add the entire group of new meshes to the scene and state
+			// Add the entire group of new meshes to the scene and state
 			scene.add(newContentGroup)
 			setContent(newContentGroup)
-
-			// 4. Save the generated mesh locally as a .gltf file
-			if (newContentGroup.children.length > 0) {
-				// saveGLTF(newContentGroup, 'generated_cell.gltf');
-			}
 
 			// 5. Position camera to view the new content
 			const box = new THREE.Box3().setFromObject(newContentGroup)
@@ -315,9 +315,22 @@ const Viewer3D = (props: {
 				nucleus.localToWorld(sphere.center);
 				const center = sphere.center;
 
-				if (checkPointInPolygon(polygonCoords.coords, [center.z, center.y]) > 0) {
-					match = false;
+				//...
+				const pointsToCheck = [
+					[center.z, center.y],
+					[center.z + sphere.radius, center.y],
+					[center.z - sphere.radius, center.y],
+					[center.z, center.y + sphere.radius],
+					[center.z, center.y - sphere.radius],
+				];
+
+				for (const point of pointsToCheck) {
+					if (checkPointInPolygon(polygonCoords.coords, point) > 0) {
+						match = false;
+						break;
+					}
 				}
+				//...
 
 				if (renderer && renderer.clippingPlanes.length > 0) {
 					renderer.clippingPlanes.forEach((plane) => {
@@ -342,18 +355,30 @@ const Viewer3D = (props: {
 
 	// Render selections
 	useEffect(() => {
-		if (renderer && scene && camera) {
-			selectedCache.current.forEach((nucleus) =>
-				(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0x000000)
-			)
-			selectedCache.current = selected
+		if (renderer && scene && camera && content) {
+			if (selected.length > 0) {
+				// If there is a selection, hide non-selected nuclei
+				content.children.forEach((child) => {
+					if (child.isMesh && child.name.includes('nucleus')) {
+						const nucleus = child as THREE.Mesh;
+						const isSelected = selected.includes(nucleus);
+						nucleus.visible = isSelected;
+						(nucleus.material as THREE.MeshStandardMaterial).emissive.set(isSelected ? 0xffffff : 0x000000);
+					}
+				});
+			} else {
+				// If selection is cleared, make all nuclei visible again
+				content.children.forEach((child) => {
+					if (child.isMesh && child.name.includes('nucleus')) {
+						child.visible = true;
+						(child.material as THREE.MeshStandardMaterial).emissive.set(0x000000);
+					}
+				});
+			}
 
-			selected.forEach((nucleus) =>
-				(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0xffffff)
-			)
-			renderer.render(scene, camera)
+			renderer.render(scene, camera);
 		}
-	}, [selected, renderer, scene, camera])
+	}, [selected, renderer, scene, camera, content]);
 
 	return (
 		<div className="min-w-full h-screen flex border-l border-l-teal-500">
