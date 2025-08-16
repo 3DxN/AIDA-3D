@@ -163,8 +163,7 @@ const Viewer3D = (props: {
 			const pmremGenerator = new THREE.PMREMGenerator(newRenderer)
 
 			const newScene = new THREE.Scene()
-			newScene.background = new THREE.Color('#f3f4f6')
-			newScene.environment = pmremGenerator.fromScene(environment).texture
+			newScene.background = new THREE.Color('black')
 			setScene(newScene)
 
 			const light = new THREE.AmbientLight(0x505050)
@@ -356,25 +355,16 @@ const Viewer3D = (props: {
 	// Render selections
 	useEffect(() => {
 		if (renderer && scene && camera && content) {
-			if (selected.length > 0) {
-				// If there is a selection, hide non-selected nuclei
-				content.children.forEach((child) => {
-					if (child.isMesh && child.name.includes('nucleus')) {
-						const nucleus = child as THREE.Mesh;
-						const isSelected = selected.includes(nucleus);
-						nucleus.visible = isSelected;
-						(nucleus.material as THREE.MeshStandardMaterial).emissive.set(isSelected ? 0xffffff : 0x000000);
-					}
-				});
-			} else {
-				// If selection is cleared, make all nuclei visible again
-				content.children.forEach((child) => {
-					if (child.isMesh && child.name.includes('nucleus')) {
-						child.visible = true;
-						(child.material as THREE.MeshStandardMaterial).emissive.set(0x000000);
-					}
-				});
-			}
+			// Handle all cases, regardless of whether a selection is active
+			content.children.forEach((child) => {
+				if (child.isMesh && child.name.includes('nucleus')) {
+					const nucleus = child as THREE.Mesh;
+					const isSelected = selected.includes(nucleus);
+
+					// Set the emissive color based on selection status
+					(nucleus.material as THREE.MeshStandardMaterial).emissive.set(isSelected ? 0xffffff : 0x000000);
+				}
+			});
 
 			renderer.render(scene, camera);
 		}
