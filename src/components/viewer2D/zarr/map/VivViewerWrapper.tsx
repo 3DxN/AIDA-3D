@@ -7,19 +7,15 @@ import { useFrameInteraction } from '../../../../lib/hooks/useFrameInteraction'
 import useVivViewer from '../../../../lib/hooks/useVivViewer'
 import useFrameInitialisation from '../../../../lib/hooks/useFrameInitialisation'
 
-import type { NavigationState } from '../../../../types/viewer2D/navState'
-import type { IMultiscaleInfo } from '../../../../types/metadata/loader'
 
-
-const VivViewerWrapper: React.FC<{
-  msInfo: IMultiscaleInfo
-  navigationState: NavigationState
-}> = ({
-  msInfo,
-  navigationState,
-}) => {
-  const { root } = useZarrStore()
-  const { frameCenter, frameSize, setFrameCenter, setFrameSize } = useViewer2DData()
+const VivViewerWrapper: React.FC = () => {
+  const { root, msInfo } = useZarrStore()
+  const { navigationState, frameCenter, frameSize, setFrameCenter, setFrameSize } = useViewer2DData()
+  
+  // Early return if required data not available
+  if (!msInfo || !navigationState) {
+    return <div className="flex items-center justify-center h-full text-gray-500">Loading viewer...</div>
+  }
   
   // Use the comprehensive Viv viewer hook first 
   const {

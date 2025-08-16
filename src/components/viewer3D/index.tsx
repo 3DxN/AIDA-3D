@@ -274,13 +274,16 @@ const Viewer3D = (props: {
 		if (tile) {
 			const H = padToTwo(tile[0])
 			const V = padToTwo(tile[1])
-			const url = `${tilesUrl} / tile__H0${H}_V0${V}.tif__.json`
-			fetch(url)
-				.then((res) => {
-					if (res.ok) return res.json()
-					return Promise.resolve(null)
+			const url = `${tilesUrl}/tile__H0${H}_V0${V}.tif__.json`
+
+			try {
+				fetch(url).then((featureDataFile) => {
+					featureDataFile.json().then((data) => setFeatureData(data))
 				})
-				.then((data) => setFeatureData(data))
+			} catch (error) {
+				console.error('Error fetching feature data:', error)
+				setFeatureData(null)
+			}
 		}
 	}, [tile, tilesUrl])
 

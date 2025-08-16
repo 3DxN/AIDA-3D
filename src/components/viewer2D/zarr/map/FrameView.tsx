@@ -5,6 +5,8 @@ import type { Layer } from '@deck.gl/core'
 import type { DragMode } from '../../../../types/viewer2D/frame'
 
 export const FRAME_VIEW_ID = 'frame';
+export const MIN_FRAME_SIZE = 30; // Minimum size for the frame
+export const MAX_FRAME_SIZE = 200; // Maximum size for the frame
 
 /**
  * Create interactive polygon frame overlay layers with handles
@@ -200,10 +202,6 @@ export function calculateFrameResize(
 ): { center: [number, number]; size: [number, number] } {
   const [startCenterX, startCenterY] = startFrameCenter;
   const [startWidth, startHeight] = startFrameSize;
-
-  // Set the minimum and maximum frame size
-  const MIN_FRAME_SIZE = 30;
-  const MAX_FRAME_SIZE = 200;
 
   // Calculate the starting edges of the box
   let top = startCenterY - startHeight / 2;
