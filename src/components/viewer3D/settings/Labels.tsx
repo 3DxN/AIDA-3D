@@ -3,8 +3,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { Disclosure } from '@headlessui/react'
 import { XIcon } from '@heroicons/react/solid'
 
-import { InputAutoComplete, Item } from '../../interaction/InputAutoComplete'
-import InputCombobox from '../../interaction/InputComboBox'
 import Input from '../../interaction/Input'
 
 function classNames(...classes) {
@@ -13,6 +11,7 @@ function classNames(...classes) {
 
 // Function finds common elements in array of sets
 const findCommon = (sets) => {
+	if (!sets || sets.length === 0) return new Set();
 	const result = new Set()
 	const set = sets[0]
 	if (set) {
@@ -35,7 +34,7 @@ const findCommon = (sets) => {
 }
 
 const Labels = (props) => {
-	const { featureData, selected, setFeatureData } = props
+	const { featureData, selected = [], setFeatureData } = props
 
 	const [commonLabels, setCommonLabels] = useState(new Set())
 	const [existingLabels, setExistingLabels] = useState(new Set<string>())
@@ -43,14 +42,16 @@ const Labels = (props) => {
 	// Set the range of existing labels
 	useEffect(() => {
 		if (featureData && featureData.labels) {
-			setExistingLabels(new Set(featureData.labels))
+			// Flatten all label sets into a single set of unique labels
+			const allLabels = new Set(featureData.labels.flatMap(s => s ? [...s] : []));
+			setExistingLabels(allLabels)
 		}
 	}, [featureData])
 
 	// Find common labels
 	useEffect(() => {
-		if (selected.length === 0) {
-			setCommonLabels([])
+		if (!selected || selected.length === 0) {
+			setCommonLabels(new Set())
 			return
 		}
 
@@ -58,8 +59,6 @@ const Labels = (props) => {
 			const data = {}
 			for (const [key, value] of Object.entries(featureData)) {
 				data[key] = selected.map((mesh) => {
-					// TODO: Use a index, or uuid for each mesh, extracting from name seems
-					//       liable to go wrong.
 					const index = Number(mesh.name.split('_')[1])
 					return value[index]
 				})
@@ -74,21 +73,21 @@ const Labels = (props) => {
 	const commitInput = useCallback(
 		(label) => {
 			const newLabels = [...(featureData.labels || [])]
-				for (const mesh of selected) {
+			for (const mesh of selected) {
 				const index = Number(mesh.name.split('_')[1])
 				if (!newLabels[index]) newLabels[index] = new Set()
 				const updatedLabels = new Set(newLabels[index])
-					updatedLabels.add(label)
-					newLabels[index] = updatedLabels
+				updatedLabels.add(label)
+				newLabels[index] = updatedLabels
 			}
 			const newFeatureData = { ...featureData, labels: newLabels }
 			setFeatureData(newFeatureData)
 			setCommonLabels(
-			(commonLabels) => new Set([...commonLabels.values(), label])
+				(commonLabels) => new Set([...commonLabels.values(), label])
 			)
-setExistingLabels(
-	(existingLabels) => new Set([...existingLabels.values(), label])
-)
+			setExistingLabels(
+				(existingLabels) => new Set([...existingLabels.values(), label])
+			)
 		},
 		[selected, featureData, setFeatureData]
 	)
@@ -98,9 +97,11 @@ setExistingLabels(
 			const newLabels = [...(featureData.labels || [])];
 			for (const mesh of selected) {
 				const index = Number(mesh.name.split('_')[1]);
-				const updatedLabels = new Set(newLabels[index]);
-				updatedLabels.delete(label);
-				newLabels[index] = updatedLabels;
+				if (newLabels[index]) {
+					const updatedLabels = new Set(newLabels[index]);
+					updatedLabels.delete(label);
+					newLabels[index] = updatedLabels;
+				}
 			}
 			const newFeatureData = { ...featureData, labels: newLabels };
 			setFeatureData(newFeatureData);
@@ -139,11 +140,11 @@ setExistingLabels(
 							<Input
 								commitInput={commitInput}
 								label={'Add label'}
-								disabled={selected.length === 0}
+								disabled={!selected || selected.length === 0}
 							/>
 						</div>
 
-						{selected.length > 0 && (
+						{selected && selected.length > 0 && (
 							<>
 								{' '}
 								<div className="ml-2 mt-4 mb-1 text-sm">

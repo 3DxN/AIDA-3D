@@ -46,16 +46,11 @@ async function marchGPU(device: GPUDevice, shaderModule: GPUShaderModule, grid: 
     const maxVertices = (dims[0] * dims[1] * dims[2]) * 5 * 3; // 5 triangles * 3 vertices
     const maxIndices = maxVertices;
 
-    // Counters are 4 bytes each (atomic<u32>)
-    const counterSize = 2 * 4;
-    const verticesSize = maxVertices * 3 * 4; // 3 floats (x,y,z) per vertex
-    const meshOutputBufferSize = counterSize + verticesSize;
-
-    const meshOutputBuffer = device.createBuffer({
-        size: meshOutputBufferSize,
+    const verticesBuffer = device.createBuffer({
+        size: maxVertices * 3 * 4,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
     });
-    const indicesOutputBuffer = device.createBuffer({
+    const indicesBuffer = device.createBuffer({
         size: maxIndices * 4,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
     });
@@ -63,16 +58,34 @@ async function marchGPU(device: GPUDevice, shaderModule: GPUShaderModule, grid: 
         size: uniformData.byteLength,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
+    const vertexCounterBuffer = device.createBuffer({
+        size: 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
+    });
+    const indexCounterBuffer = device.createBuffer({
+        size: 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
+    });
+
     device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
-    const resultBuffer = device.createBuffer({
-        size: meshOutputBufferSize,
+    const resultVertexBuffer = device.createBuffer({
+        size: verticesBuffer.size,
         usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     });
-    const indicesResultBuffer = device.createBuffer({
-        size: indicesOutputBuffer.size,
+    const resultIndexBuffer = device.createBuffer({
+        size: indicesBuffer.size,
         usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     });
+    const resultVertexCounterBuffer = device.createBuffer({
+        size: 4,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
+    const resultIndexCounterBuffer = device.createBuffer({
+        size: 4,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
+
 
     const computePipeline = device.createComputePipeline({
         layout: 'auto',
@@ -86,9 +99,11 @@ async function marchGPU(device: GPUDevice, shaderModule: GPUShaderModule, grid: 
         layout: computePipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: { buffer: gridBuffer } },
-            { binding: 1, resource: { buffer: meshOutputBuffer } },
-            { binding: 2, resource: { buffer: indicesOutputBuffer } },
+            { binding: 1, resource: { buffer: verticesBuffer } },
+            { binding: 2, resource: { buffer: indicesBuffer } },
             { binding: 3, resource: { buffer: uniformBuffer } },
+            { binding: 4, resource: { buffer: vertexCounterBuffer } },
+            { binding: 5, resource: { buffer: indexCounterBuffer } },
         ],
     });
 
@@ -99,19 +114,23 @@ async function marchGPU(device: GPUDevice, shaderModule: GPUShaderModule, grid: 
     passEncoder.dispatchWorkgroups(Math.ceil(dims[2] / 8), Math.ceil(dims[1] / 8), Math.ceil(dims[0] / 8));
     passEncoder.end();
 
-    commandEncoder.copyBufferToBuffer(meshOutputBuffer, 0, resultBuffer, 0, resultBuffer.size);
-    commandEncoder.copyBufferToBuffer(indicesOutputBuffer, 0, indicesResultBuffer, 0, indicesResultBuffer.size);
+    commandEncoder.copyBufferToBuffer(verticesBuffer, 0, resultVertexBuffer, 0, resultVertexBuffer.size);
+    commandEncoder.copyBufferToBuffer(indicesBuffer, 0, resultIndexBuffer, 0, resultIndexBuffer.size);
+    commandEncoder.copyBufferToBuffer(vertexCounterBuffer, 0, resultVertexCounterBuffer, 0, 4);
+    commandEncoder.copyBufferToBuffer(indexCounterBuffer, 0, resultIndexCounterBuffer, 0, 4);
+
     device.queue.submit([commandEncoder.finish()]);
 
-    await resultBuffer.mapAsync(GPUMapMode.READ);
-    await indicesResultBuffer.mapAsync(GPUMapMode.READ);
+    await resultVertexBuffer.mapAsync(GPUMapMode.READ);
+    await resultIndexBuffer.mapAsync(GPUMapMode.READ);
+    await resultVertexCounterBuffer.mapAsync(GPUMapMode.READ);
+    await resultIndexCounterBuffer.mapAsync(GPUMapMode.READ);
 
-    const counters = new Uint32Array(resultBuffer.getMappedRange(0, 8));
-    const vertexCount = counters[0];
-    const indexCount = counters[1];
+    const vertexCount = new Uint32Array(resultVertexCounterBuffer.getMappedRange())[0];
+    const indexCount = new Uint32Array(resultIndexCounterBuffer.getMappedRange())[0];
 
-    const vertexData = new Float32Array(resultBuffer.getMappedRange(8, vertexCount * 3 * 4));
-    const indicesData = new Uint32Array(indicesResultBuffer.getMappedRange(0, indexCount * 4));
+    const vertexData = new Float32Array(resultVertexBuffer.getMappedRange(0, vertexCount * 3 * 4));
+    const indicesData = new Uint32Array(resultIndexBuffer.getMappedRange(0, indexCount * 4));
 
     const vertices: THREE.Vector3[] = [];
     for (let i = 0; i < vertexCount; i++) {
@@ -120,8 +139,10 @@ async function marchGPU(device: GPUDevice, shaderModule: GPUShaderModule, grid: 
     }
     const indices = Array.from(indicesData);
 
-    resultBuffer.unmap();
-    indicesResultBuffer.unmap();
+    resultVertexBuffer.unmap();
+    resultIndexBuffer.unmap();
+    resultVertexCounterBuffer.unmap();
+    resultIndexCounterBuffer.unmap();
 
     return { vertices, indices };
 }

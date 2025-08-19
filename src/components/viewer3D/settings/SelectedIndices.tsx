@@ -1,4 +1,3 @@
-
 import { Disclosure } from '@headlessui/react'
 import { Mesh } from 'three'
 
@@ -9,7 +8,8 @@ function classNames(...classes: string[]) {
 const SelectedIndices = (props: { selected: Mesh[] }) => {
 	const { selected } = props
 
-	const selectedIndices = selected.map((mesh) => {
+	// Ensure 'selected' is an array before calling .map
+	const selectedIndices = (selected || []).map((mesh) => {
 		return Number(mesh.name.split('_')[1])
 	})
 

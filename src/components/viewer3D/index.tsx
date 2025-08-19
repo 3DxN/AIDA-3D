@@ -1,341 +1,218 @@
-// src/components/viewer3D/index.tsx
-
 import { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
 import * as checkPointInPolygon from 'robust-point-in-polygon';
 
-// New imports for mesh generation and saving
 import { generateMeshesFromVoxelDataGPU } from './algorithms/marchingCubes';
 import { calculateNucleusVolume } from './algorithms/nucleusVolume';
 import { calculateNucleusDiameter } from './algorithms/nucleusDiameter';
 import { saveGLTF } from './gltfExporter';
 import { useViewer2DData } from '../../lib/contexts/Viewer2DDataContext';
 
-// Controls and Utils (assuming these are in the same relative path)
-import Settings from './settings'
-import Toolbar from './toolbar'
-import { padToTwo, resizeRendererToDisplaySize } from './utils'
-
-const generateDummyCellposeData = (): number[][][] => {
-	const size = 100
-	const data: number[][][] = Array.from({ length: size }, () =>
-		Array.from({ length: size }, () => new Array(size).fill(0))
-	)
-
-	const nuclei = [
-		{ center: { x: 30, y: 50, z: 50 }, radius: 15, label: 1 },
-		{ center: { x: 70, y: 50, z: 50 }, radius: 12, label: 2 },
-		{ center: { x: 50, y: 75, z: 50 }, radius: 10, label: 3 },
-		{ center: { x: 50, y: 25, z: 50 }, radius: 13, label: 4 },
-		{ center: { x: 50, y: 50, z: 25 }, radius: 8, label: 5 },
-	]
-
-	nuclei.forEach(({ center, radius, label }) => {
-		for (let z = Math.max(0, center.z - radius); z < Math.min(size, center.z + radius); z++) {
-			for (let y = Math.max(0, center.y - radius); y < Math.min(size, center.y + radius); y++) {
-				for (let x = Math.max(0, center.x - radius); x < Math.min(size, center.x + radius); x++) {
-					const distanceSq = (x - center.x) ** 2 + (y - center.y) ** 2 + (z - center.z) ** 2
-					if (distanceSq < radius ** 2) {
-						data[z][y][x] = label
-					}
-				}
-			}
-		}
-	})
-
-	return data
-}
-
-const formatVoxelDataAsMatlab = (voxelData: number[][][]): string => {
-	const [zSize, ySize, xSize] = [voxelData.length, voxelData[0].length, voxelData[0][0].length]
-
-	let matlabString = `% 3D Voxel Data Matrix - Size: ${xSize}x${ySize}x${zSize} \n`
-	matlabString += `% Generated on ${new Date().toISOString()} \n\n`
-	matlabString += `voxelData = zeros(${zSize}, ${ySize}, ${xSize}); \n\n`
-
-	for (let z = 0; z < zSize; z++) {
-		matlabString += `% Z - slice ${z + 1} \n`
-		matlabString += `voxelData(${z + 1}, :, : ) = [\n`
-
-		for (let y = 0; y < ySize; y++) {
-			matlabString += '    '
-			for (let x = 0; x < xSize; x++) {
-				matlabString += voxelData[z][y][x].toString().padStart(2, ' ')
-				if (x < xSize - 1) matlabString += ', '
-			}
-			if (y < ySize - 1) {
-				matlabString += ';\n'
-			} else {
-				matlabString += '\n'
-			}
-		}
-		matlabString += '];\n\n'
-	}
-
-	matlabString += `% Display matrix information\n`
-	matlabString += `fprintf('Voxel data loaded: %dx%dx%d matrix\\n', size(voxelData, 3), size(voxelData, 2), size(voxelData, 1)); \n`
-	matlabString += `fprintf('Non-zero voxels: %d\\n', nnz(voxelData)); \n`
-
-	return matlabString
-}
-
-const downloadMatlabFile = (content: string, filename: string = 'voxelData.m') => {
-	const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-	const url = window.URL.createObjectURL(blob)
-	const link = document.createElement('a')
-	link.href = url
-	link.download = filename
-	document.body.appendChild(link)
-	link.click()
-	document.body.removeChild(link)
-	window.URL.revokeObjectURL(url)
-}
-
-const cleanMaterial = (material: THREE.Material) => {
-	material.dispose()
-	for (const key of Object.keys(material)) {
-		const value = material[key]
-		if (value && typeof value === 'object' && 'minFilter' in value) {
-			value.dispose()
-		}
-	}
-}
+// Controls and Utils
+import Settings from './settings';
+import Toolbar from './toolbar';
+import { padToTwo, resizeRendererToDisplaySize } from './utils';
 
 const Viewer3D = (props: {
-	tile: [number, number]
-	tilesUrl: string
-	polygonCoords: number[][][]
-	select3D: boolean
-	setSelect3D: (select3D: boolean) => void
+    tile: [number, number];
+    tilesUrl: string;
+    polygonCoords: number[][][];
+    select3D: boolean;
+    setSelect3D: (select3D: boolean) => void;
 }) => {
-	const { tile, tilesUrl, polygonCoords, select3D, setSelect3D } = props
+    const { tile, tilesUrl, polygonCoords, select3D, setSelect3D } = props;
 
-	const [content, setContent] = useState<THREE.Object3D | null>(null)
-	const [scene, setScene] = useState<Scene | undefined>(undefined)
-	const [camera, setCamera] = useState<PerspectiveCamera | undefined>(undefined)
-	const [renderer, setRenderer] = useState<WebGLRenderer | undefined>(undefined)
-	const [isLoading, setIsLoading] = useState(false)
-	const [featureData, setFeatureData] = useState(null)
-	const [open, setOpen] = useState(false)
-	const [selected, setSelected] = useState<THREE.Mesh[]>([])
-	const selectedCache = useRef<THREE.Mesh[]>([])
+    const [content, setContent] = useState<THREE.Object3D | null>(null);
+    const [scene, setScene] = useState<Scene | undefined>(undefined);
+    const [camera, setCamera] = useState<PerspectiveCamera | undefined>(undefined);
+    const [renderer, setRenderer] = useState<WebGLRenderer | undefined>(undefined);
+    const [controls, setControls] = useState<OrbitControls | undefined>(undefined);
+    const [boundingBox, setBoundingBox] = useState<THREE.Box3 | undefined>(undefined);
 
-	const viewerRef: { current: HTMLCanvasElement | null } = useRef(null)
+    const [selectedMeshes, setSelectedMeshes] = useState<THREE.Mesh[]>([]);
+    const [featureData, setFeatureData] = useState<Record<string, number>>({});
 
-	const {
-		frameBoundCellposeData
-	} = useViewer2DData()
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-	// Init
-	useEffect(() => {
-		if (viewerRef.current) {
-			const canvas = viewerRef.current
-			const newRenderer = new THREE.WebGLRenderer({
-				antialias: true,
-				canvas: canvas,
-			})
-			newRenderer.setPixelRatio(window.devicePixelRatio)
-			newRenderer.toneMapping = THREE.ACESFilmicToneMapping
-			newRenderer.toneMappingExposure = 1
-			newRenderer.outputEncoding = THREE.sRGBEncoding
-			setRenderer(newRenderer)
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const { frame: frameBoundCellposeData } = useViewer2DData();
 
-			const newCamera = new THREE.PerspectiveCamera(
-				45,
-				canvas.clientWidth / canvas.clientHeight,
-				0.25,
-				20
-			)
-			setCamera(newCamera)
+    // Init
+    useEffect(() => {
+        if (canvasRef.current) {
+            const newRenderer = new THREE.WebGLRenderer({
+                canvas: canvasRef.current,
+                antialias: true,
+                alpha: true,
+            });
+            newRenderer.setPixelRatio(window.devicePixelRatio);
+            newRenderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight);
+            setRenderer(newRenderer);
 
-			const environment = new RoomEnvironment()
-			const pmremGenerator = new THREE.PMREMGenerator(newRenderer)
+            const newScene = new THREE.Scene();
+            const environment = new RoomEnvironment();
+            const pmremGenerator = new THREE.PMREMGenerator(newRenderer);
+            newScene.environment = pmremGenerator.fromScene(environment).texture;
+            newScene.background = new THREE.Color(0x000000); // Set a background color
+            setScene(newScene);
 
-			const newScene = new THREE.Scene()
-			newScene.background = new THREE.Color('#f3f4f6')
-			newScene.environment = pmremGenerator.fromScene(environment).texture
-			setScene(newScene)
+            const fov = 60;
+            const aspect = canvasRef.current.clientWidth / canvasRef.current.clientHeight;
+            const near = 0.1;
+            const far = 2000;
+            const newCamera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+            newCamera.position.set(100, 100, 100);
+            setCamera(newCamera);
 
-			const light = new THREE.AmbientLight(0x505050)
-			newScene.add(light)
-			const dirLight = new THREE.DirectionalLight(0xffffff, 0.7)
-			newScene.add(dirLight)
+            const newControls = new OrbitControls(newCamera, newRenderer.domElement);
+            newControls.enableDamping = true;
+            setControls(newControls);
 
-			newCamera.aspect = canvas.clientWidth / canvas.clientHeight
-			newCamera.updateProjectionMatrix()
+            return () => {
+                newRenderer.dispose();
+                newControls.dispose();
+            };
+        }
+    }, []);
 
-			resizeRendererToDisplaySize(newRenderer)
-			window.addEventListener('resize', () =>
-				resizeRendererToDisplaySize(newRenderer)
-			)
-		}
-	}, [])
+    // Generate and render mesh from voxel data
+    useEffect(() => {
+        const runMarchingCubes = async () => {
+            if (scene && camera && renderer && frameBoundCellposeData) {
+                setIsLoading(true);
 
-	// Generate and render mesh from voxel data
-	useEffect(() => {
-		const runMarchingCubes = async () => {
-			if (scene && camera && renderer && frameBoundCellposeData) {
-				setIsLoading(true);
+                // Clear previous content
+                if (content) {
+                    scene.remove(content);
+                    content.traverse((object) => {
+                        if (object instanceof THREE.Mesh) {
+                            object.geometry.dispose();
+                            object.material.dispose();
+                        }
+                    });
+                }
 
-				// Clear previous content
-				if (content) {
-					scene.remove(content);
-					// ... proper disposal logic
-				}
+                const meshDataArray = await generateMeshesFromVoxelDataGPU(frameBoundCellposeData);
+                const newContentGroup = new THREE.Group();
 
-				try {
-					const meshDataArray = await generateMeshesFromVoxelDataGPU(frameBoundCellposeData);
-					const newContentGroup = new THREE.Group();
+                meshDataArray.forEach(({ label, mesh }) => {
+                    mesh.name = `nucleus_${label}`;
+                    newContentGroup.add(mesh);
+                });
 
-					meshDataArray.forEach(({ label, mesh }) => {
-						mesh.name = `nucleus_${label}`;
-						newContentGroup.add(mesh);
-					});
+                const newBoundingBox = new THREE.Box3().setFromObject(newContentGroup);
+                const center = newBoundingBox.getCenter(new THREE.Vector3());
+                const size = newBoundingBox.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const fov = camera.fov * (Math.PI / 180);
+                let cameraZ = Math.abs((maxDim / 2) * Math.tan(fov * 2));
+                cameraZ *= 1.5; // zoom out a bit
 
-					// Your existing logic for feature data, camera positioning, etc.
-					// ...
+                camera.position.set(center.x, center.y, center.z + cameraZ);
+                const minZ = newBoundingBox.min.z;
+                const cameraToFarEdge = minZ < 0 ? -minZ + size.z : size.z;
+                camera.far = cameraToFarEdge * 3;
+                camera.updateProjectionMatrix();
 
-					scene.add(newContentGroup);
-					setContent(newContentGroup);
+                if (controls) {
+                    controls.target.set(center.x, center.y, center.z);
+                    controls.update();
+                }
 
-					// ... camera positioning logic
-					renderer.render(scene, camera);
+                scene.add(newContentGroup);
+                setContent(newContentGroup);
+                setBoundingBox(newBoundingBox);
+                renderer.render(scene, camera);
+                setIsLoading(false);
+            }
+        };
 
-				} catch (error) {
-					// This will now catch the "WebGPU not supported" error and display it
-					console.error("Fatal Error during GPU Mesh Generation:", error);
-					// You might want to display an error message to the user here
-				} finally {
-					setIsLoading(false);
-				}
-			}
-		};
+        runMarchingCubes();
+    }, [scene, camera, renderer, frameBoundCellposeData]);
 
-		runMarchingCubes();
-	}, [scene, camera, renderer, frameBoundCellposeData]);
+    // Handle resize
+    useEffect(() => {
+        if (renderer && camera && canvasRef.current) {
+            const handleResize = () => {
+                if (canvasRef.current) {
+                    const { width, height, clientWidth, clientHeight } = canvasRef.current;
 
-	// Update feature data
-	useEffect(() => {
-		if (tile) {
-			const H = padToTwo(tile[0])
-			const V = padToTwo(tile[1])
-			const url = `${tilesUrl} / tile__H0${H}_V0${V}.tif__.json`
-			fetch(url)
-				.then((res) => {
-					if (res.ok) return res.json()
-					return Promise.resolve(null)
-				})
-				.then((data) => setFeatureData(data))
-		}
-	}, [tile, tilesUrl])
+                    camera.aspect = clientWidth / clientHeight;
+                    camera.updateProjectionMatrix();
 
-	// Adjust selections
-	useEffect(() => {
-		if (!polygonCoords || !polygonCoords.coords || polygonCoords.coords.length === 0) {
-			if (!select3D) {
-				setSelected([]);
-			}
-			return;
-		}
+                    const needResize = width !== clientWidth || height !== clientHeight;
+                    if (needResize) {
+                        renderer.setSize(clientWidth, clientHeight, false);
+                    }
+                }
+            };
+            window.addEventListener('resize', handleResize);
+            handleResize();
+            return () => window.removeEventListener('resize', handleResize);
+        }
+    }, [renderer, camera]);
 
-		if (!polygonCoords.accumulate) {
-			setSelected([]);
-		}
+    // Animation loop
+    useEffect(() => {
+        let animationFrameId: number;
+        const animate = () => {
+            if (renderer && scene && camera && controls) {
+                controls.update();
+                resizeRendererToDisplaySize(renderer);
+                renderer.render(scene, camera);
+                animationFrameId = requestAnimationFrame(animate);
+            }
+        };
+        animate();
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [renderer, scene, camera, controls]);
 
-		if (!content) return;
-
-		const selectedNuclei: THREE.Mesh[] = [];
-
-		content.children.forEach((child) => {
-			if (child.isMesh && child.name.includes('nucleus')) {
-				let match = true;
-				const nucleus = child as THREE.Mesh;
-
-				if (nucleus.geometry.boundingSphere === null)
-					nucleus.geometry.computeBoundingSphere();
-				const sphere = nucleus.geometry.boundingSphere.clone();
-				nucleus.localToWorld(sphere.center);
-				const center = sphere.center;
-
-				if (checkPointInPolygon(polygonCoords.coords, [center.z, center.y]) > 0) {
-					match = false;
-				}
-
-				if (renderer && renderer.clippingPlanes.length > 0) {
-					renderer.clippingPlanes.forEach((plane) => {
-						const dot = center.dot(plane.normal) + plane.constant < 0;
-						const intersects = sphere.intersectsPlane(plane);
-						if (dot && !intersects) match = false;
-					});
-				}
-
-				if (!nucleus.visible) match = false;
-
-				if (match) selectedNuclei.push(nucleus);
-			}
-		});
-
-		setSelected(prevSelected => {
-			const combined = [...prevSelected, ...selectedNuclei];
-			return [...new Set(combined)];
-		});
-
-	}, [polygonCoords, content, renderer, select3D]);
-
-	// Render selections
-	useEffect(() => {
-		if (renderer && scene && camera) {
-			selectedCache.current.forEach((nucleus) =>
-				(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0x000000)
-			)
-			selectedCache.current = selected
-
-			selected.forEach((nucleus) =>
-				(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0xffffff)
-			)
-			renderer.render(scene, camera)
-		}
-	}, [selected, renderer, scene, camera])
-
-	return (
-		<div className="min-w-full h-screen flex border-l border-l-teal-500">
-			<div className="flex-grow flex items-center justify-center bg-gray-100 relative">
-				{!tile && !content && (
-					<div className="absolute text-gray-500">
-						Generating 3D model from voxel data...
-					</div>
-				)}
-				{isLoading && (
-					<div className="absolute">
-						{/* SVG Loading Spinner */}
-					</div>
-				)}
-				<canvas className="w-full h-full" ref={viewerRef} tabIndex={-1} />
-			</div>
-
-			{content && (
-				<Toolbar
-					camera={camera}
-					scene={scene}
-					renderer={renderer}
-					content={content}
-					setSelected={(sel) => setSelected(sel as THREE.Mesh[])}
-					setSelect3D={setSelect3D}
-				/>
-			)}
-			<Settings
-				renderer={renderer}
-				scene={scene}
-				camera={camera}
-				content={content}
-				featureData={featureData}
-				selected={selected}
-				setFeatureData={setFeatureData}
-			/>
-		</div>
-	)
-}
+    return (
+        <div className="relative w-full h-full">
+            {isLoading && (
+                <div className="absolute top-0 left-0 z-10 flex items-center justify-center w-full h-full bg-gray-800 bg-opacity-50">
+                    <div className="text-white">Loading...</div>
+                </div>
+            )}
+            {error && (
+                <div className="absolute top-0 left-0 z-10 flex items-center justify-center w-full h-full bg-red-800 bg-opacity-50">
+                    <div className="text-white">{error}</div>
+                </div>
+            )}
+            <canvas ref={canvasRef} className="w-full h-full" />
+            <Toolbar
+                onSelect={() => setSelect3D(!select3D)}
+                select3D={select3D}
+                onSave={() => {
+                    if (scene) saveGLTF(scene);
+                }}
+            />
+            <Settings
+                selectedMeshes={selectedMeshes}
+                featureData={featureData}
+                onMeshSelectionChange={(meshes) => {
+                    setSelectedMeshes(meshes);
+                    // Calculate and set feature data for the new selection
+                    if (meshes.length > 0) {
+                        const volumes = meshes.map((mesh) => calculateNucleusVolume(mesh));
+                        const diameters = meshes.map((mesh) => calculateNucleusDiameter(mesh));
+                        const avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+                        const avgDiameter = diameters.reduce((a, b) => a + b, 0) / diameters.length;
+                        setFeatureData({
+                            'Avg. Volume': parseFloat(avgVolume.toFixed(2)),
+                            'Avg. Diameter': parseFloat(avgDiameter.toFixed(2)),
+                        });
+                    } else {
+                        setFeatureData({});
+                    }
+                }}
+            />
+        </div>
+    );
+};
 
 export default Viewer3D;
