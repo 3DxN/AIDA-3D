@@ -9,9 +9,9 @@
 		"lint": "next lint"
 	},
 	"dependencies": {
-		"@hms-dbmi/viv": "~0.18.0",
 		"@headlessui/react": "^2.0.0",
 		"@heroicons/react": "^1.0.3",
+		"@hms-dbmi/viv": "~0.18.0",
 		"@react-aria/button": "^3.3.3",
 		"@react-aria/focus": "^3.4.1",
 		"@react-aria/numberfield": "^3.0.1",
@@ -48,6 +48,7 @@
 		"@types/react-dom": "^19.1.7",
 		"@types/three": "^0.177.0",
 		"@types/xml2js": "^0.4.9",
+		"@webgpu/types": "^0.1.64",
 		"autoprefixer": "^10.4.0",
 		"concurrently": "^7.0.0",
 		"eslint": "^8.13.0",

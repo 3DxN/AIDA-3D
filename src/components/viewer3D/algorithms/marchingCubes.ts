@@ -1,179 +1,174 @@
 // src/components/viewer3D/algorithms/marchingCubes.ts
 
-import * as THREE from 'three'
-import { edgeTable, triTable } from './marchingCubesTables'
-import { Chunk, Uint32 } from 'zarrita'
+import * as THREE from 'three';
+import { Chunk, Uint32 } from 'zarrita';
 
-/**
- * Interpolates a vertex position along a cube edge.
- */
-const interpolateVertex = (
-	isoLevel: number,
-	p1: THREE.Vector3,
-	p2: THREE.Vector3,
-	val1: number,
-	val2: number
-): THREE.Vector3 => {
-	if (Math.abs(isoLevel - val1) < 0.00001) return p1
-	if (Math.abs(isoLevel - val2) < 0.00001) return p2
-	if (Math.abs(val1 - val2) < 0.00001) return p1
+// Global variable to hold the initialized WebGPU device
+let gpuDevice: GPUDevice | null = null;
 
-	const mu = (isoLevel - val1) / (val2 - val1)
-	return new THREE.Vector3(
-		p1.x + mu * (p2.x - p1.x),
-		p1.y + mu * (p2.y - p1.y),
-		p1.z + mu * (p2.z - p1.z)
-	)
+async function initializeWebGPU(): Promise<GPUDevice> {
+    if (gpuDevice) return gpuDevice;
+
+    if (!navigator.gpu) {
+        throw new Error("WebGPU not supported on this browser.");
+    }
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+        throw new Error("No appropriate GPUAdapter found.");
+    }
+    const device = await adapter.requestDevice();
+    gpuDevice = device;
+    return device;
 }
 
 /**
- * Executes the marching cubes algorithm on a single binary grid.
- *
- * @param grid A 3D binary grid (0 or 1 values).
- * @param isoLevel The isosurface value to extract (e.g., 0.5 for a binary grid).
- * @returns An object containing the generated vertices and indices.
+ * Executes the marching cubes algorithm on the GPU for a single binary grid.
  */
-const march = (grid: number[][][], isoLevel: number) => {
-	const vertices: THREE.Vector3[] = []
-	const indices: number[] = []
-	const vertexMap = new Map<string, number>()
+async function marchGPU(device: GPUDevice, shaderModule: GPUShaderModule, grid: Uint32Array, dims: number[], isoLevel: number) {
+    const [z_size, y_size, x_size] = dims;
 
-	const dims = [grid.length, grid[0]?.length ?? 0, grid[0]?.[0]?.length ?? 0]
+    // Uniforms: 4 bytes each for x, y, z sizes, and iso_level (as float bits)
+    const uniformData = new Uint32Array(4);
+    uniformData[0] = x_size;
+    uniformData[1] = y_size;
+    uniformData[2] = z_size;
+    const isoLevelFloat = new Float32Array([isoLevel]);
+    uniformData[3] = new Uint32Array(isoLevelFloat.buffer)[0];
 
-	for (let z = 0; z < dims[0] - 1; z++) {
-		for (let y = 0; y < dims[1] - 1; y++) {
-			for (let x = 0; x < dims[2] - 1; x++) {
-				// Define the 8 vertices of the current cube
-				// Following the standard marching cubes vertex indexing
-				const p = [
-					new THREE.Vector3(x, y, z), // 0
-					new THREE.Vector3(x + 1, y, z), // 1
-					new THREE.Vector3(x + 1, y + 1, z), // 2
-					new THREE.Vector3(x, y + 1, z), // 3
-					new THREE.Vector3(x, y, z + 1), // 4
-					new THREE.Vector3(x + 1, y, z + 1), // 5
-					new THREE.Vector3(x + 1, y + 1, z + 1), // 6
-					new THREE.Vector3(x, y + 1, z + 1), // 7
-				]
+    const gridBuffer = device.createBuffer({
+        size: grid.byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true,
+    });
+    new Uint32Array(gridBuffer.getMappedRange()).set(grid);
+    gridBuffer.unmap();
 
-				// Get the scalar values at each vertex
-				const pointValues = [
-					grid[z]?.[y]?.[x] ?? 0, // 0
-					grid[z]?.[y]?.[x + 1] ?? 0, // 1
-					grid[z]?.[y + 1]?.[x + 1] ?? 0, // 2
-					grid[z]?.[y + 1]?.[x] ?? 0, // 3
-					grid[z + 1]?.[y]?.[x] ?? 0, // 4
-					grid[z + 1]?.[y]?.[x + 1] ?? 0, // 5
-					grid[z + 1]?.[y + 1]?.[x + 1] ?? 0, // 6
-					grid[z + 1]?.[y + 1]?.[x] ?? 0, // 7
-				]
+    const maxVertices = (dims[0] * dims[1] * dims[2]) * 5 * 3; // 5 triangles * 3 vertices
+    const maxIndices = maxVertices;
 
-				// Calculate cube index based on which vertices are below the iso level
-				let cubeIndex = 0
-				if (pointValues[0] < isoLevel) cubeIndex |= 1
-				if (pointValues[1] < isoLevel) cubeIndex |= 2
-				if (pointValues[2] < isoLevel) cubeIndex |= 4
-				if (pointValues[3] < isoLevel) cubeIndex |= 8
-				if (pointValues[4] < isoLevel) cubeIndex |= 16
-				if (pointValues[5] < isoLevel) cubeIndex |= 32
-				if (pointValues[6] < isoLevel) cubeIndex |= 64
-				if (pointValues[7] < isoLevel) cubeIndex |= 128
+    // Counters are 4 bytes each (atomic<u32>)
+    const counterSize = 2 * 4;
+    const verticesSize = maxVertices * 3 * 4; // 3 floats (x,y,z) per vertex
+    const meshOutputBufferSize = counterSize + verticesSize;
 
-				// Skip cubes that are completely inside or outside the isosurface
-				if (edgeTable[cubeIndex] === 0) continue
+    const meshOutputBuffer = device.createBuffer({
+        size: meshOutputBufferSize,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+    });
+    const indicesOutputBuffer = device.createBuffer({
+        size: maxIndices * 4,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+    });
+    const uniformBuffer = device.createBuffer({
+        size: uniformData.byteLength,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
-				// Calculate intersection points on edges
-				const vertList: (THREE.Vector3 | undefined)[] = new Array(12)
+    const resultBuffer = device.createBuffer({
+        size: meshOutputBufferSize,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
+    const indicesResultBuffer = device.createBuffer({
+        size: indicesOutputBuffer.size,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
 
-				if (edgeTable[cubeIndex] & 1) vertList[0] = interpolateVertex(isoLevel, p[0], p[1], pointValues[0], pointValues[1])
-				if (edgeTable[cubeIndex] & 2) vertList[1] = interpolateVertex(isoLevel, p[1], p[2], pointValues[1], pointValues[2])
-				if (edgeTable[cubeIndex] & 4) vertList[2] = interpolateVertex(isoLevel, p[2], p[3], pointValues[2], pointValues[3])
-				if (edgeTable[cubeIndex] & 8) vertList[3] = interpolateVertex(isoLevel, p[3], p[0], pointValues[3], pointValues[0])
-				if (edgeTable[cubeIndex] & 16) vertList[4] = interpolateVertex(isoLevel, p[4], p[5], pointValues[4], pointValues[5])
-				if (edgeTable[cubeIndex] & 32) vertList[5] = interpolateVertex(isoLevel, p[5], p[6], pointValues[5], pointValues[6])
-				if (edgeTable[cubeIndex] & 64) vertList[6] = interpolateVertex(isoLevel, p[6], p[7], pointValues[6], pointValues[7])
-				if (edgeTable[cubeIndex] & 128) vertList[7] = interpolateVertex(isoLevel, p[7], p[4], pointValues[7], pointValues[4])
-				if (edgeTable[cubeIndex] & 256) vertList[8] = interpolateVertex(isoLevel, p[0], p[4], pointValues[0], pointValues[4])
-				if (edgeTable[cubeIndex] & 512) vertList[9] = interpolateVertex(isoLevel, p[1], p[5], pointValues[1], pointValues[5])
-				if (edgeTable[cubeIndex] & 1024) vertList[10] = interpolateVertex(isoLevel, p[2], p[6], pointValues[2], pointValues[6])
-				if (edgeTable[cubeIndex] & 2048) vertList[11] = interpolateVertex(isoLevel, p[3], p[7], pointValues[3], pointValues[7])
+    const computePipeline = device.createComputePipeline({
+        layout: 'auto',
+        compute: {
+            module: shaderModule,
+            entryPoint: 'main',
+        },
+    });
 
-				// Create triangles from the triangle table
-				for (let i = 0; triTable[cubeIndex][i] !== -1; i += 3) {
-					const triIndices = [0, 0, 0]
-					for (let j = 0; j < 3; j++) {
-						const edgeIndex = triTable[cubeIndex][i + j]
-						const vertex = vertList[edgeIndex]
-						if (!vertex) continue
+    const bindGroup = device.createBindGroup({
+        layout: computePipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: gridBuffer } },
+            { binding: 1, resource: { buffer: meshOutputBuffer } },
+            { binding: 2, resource: { buffer: indicesOutputBuffer } },
+            { binding: 3, resource: { buffer: uniformBuffer } },
+        ],
+    });
 
-						// Create a unique key for the vertex to avoid duplicates
-						const vertexKey = `${vertex.x.toFixed(6)},${vertex.y.toFixed(6)},${vertex.z.toFixed(6)}`
-						let vertIndex = vertexMap.get(vertexKey)
-						if (vertIndex === undefined) {
-							vertIndex = vertices.length
-							vertices.push(vertex)
-							vertexMap.set(vertexKey, vertIndex)
-						}
-						triIndices[j] = vertIndex
-					}
-					// Add triangle with correct winding order (counter-clockwise when viewed from outside)
-					indices.push(triIndices[0], triIndices[1], triIndices[2])
-				}
-			}
-		}
-	}
-	return { vertices, indices }
+    const commandEncoder = device.createCommandEncoder();
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(computePipeline);
+    passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.dispatchWorkgroups(Math.ceil(dims[2] / 8), Math.ceil(dims[1] / 8), Math.ceil(dims[0] / 8));
+    passEncoder.end();
+
+    commandEncoder.copyBufferToBuffer(meshOutputBuffer, 0, resultBuffer, 0, resultBuffer.size);
+    commandEncoder.copyBufferToBuffer(indicesOutputBuffer, 0, indicesResultBuffer, 0, indicesResultBuffer.size);
+    device.queue.submit([commandEncoder.finish()]);
+
+    await resultBuffer.mapAsync(GPUMapMode.READ);
+    await indicesResultBuffer.mapAsync(GPUMapMode.READ);
+
+    const counters = new Uint32Array(resultBuffer.getMappedRange(0, 8));
+    const vertexCount = counters[0];
+    const indexCount = counters[1];
+
+    const vertexData = new Float32Array(resultBuffer.getMappedRange(8, vertexCount * 3 * 4));
+    const indicesData = new Uint32Array(indicesResultBuffer.getMappedRange(0, indexCount * 4));
+
+    const vertices: THREE.Vector3[] = [];
+    for (let i = 0; i < vertexCount; i++) {
+        const offset = i * 3;
+        vertices.push(new THREE.Vector3(vertexData[offset], vertexData[offset + 1], vertexData[offset + 2]));
+    }
+    const indices = Array.from(indicesData);
+
+    resultBuffer.unmap();
+    indicesResultBuffer.unmap();
+
+    return { vertices, indices };
 }
 
+
 /**
- * Takes a Zarrita chunk with multiple labels and generates meshes for each.
- *
- * @param input The input chunk of voxel data.
- * @returns An array of objects, each containing a label and its corresponding mesh data.
+ * Takes a Zarrita chunk and generates meshes using WebGPU.
  */
-export const generateMeshesFromVoxelData = (input: Chunk<Uint32>) => {
-	const meshDataArray = [];
-	let dims;
-	let getValue;
-	let allVoxelValues;
+export async function generateMeshesFromVoxelDataGPU(input: Chunk<Uint32>): Promise<{ label: number; mesh: THREE.Mesh }[]> {
+    const device = await initializeWebGPU();
 
-	// Check if the input is a Zarrita-style chunk (duck typing)
-	const { data, shape, stride } = input;
-	dims = shape; // e.g., [depth, height, width]
-	allVoxelValues = data; // The flat TypedArray
+    // Fetch and compile the WGSL shader
+    const response = await fetch('/shaders/marchingCubes.wgsl');
+    const shaderCode = await response.text();
+    const shaderModule = device.createShaderModule({ code: shaderCode });
 
-	// Accessor for the 1D strided array
-	// Calculates the index in the flat array from 3D coordinates
-	getValue = (z: number, y: number, x: number) => data[z * stride[0] + y * stride[1] + x * stride[2]];
+    const meshArray: { label: number; mesh: THREE.Mesh }[] = [];
+    const { data, shape, stride } = input;
+    const dims = shape;
+    const allVoxelValues = data;
+    const uniqueLabels = [...new Set(allVoxelValues)].filter(label => label > 0);
 
-	// Create a Set of unique labels, filtering out the background (label 0)
-	const uniqueLabels = [...new Set(allVoxelValues)].filter(label => label > 0);
+    for (const label of uniqueLabels) {
+        const binaryGridData = new Uint32Array(dims[0] * dims[1] * dims[2]);
+        let i = 0;
+        for (let z = 0; z < dims[0]; z++) {
+            for (let y = 0; y < dims[1]; y++) {
+                for (let x = 0; x < dims[2]; x++) {
+                    binaryGridData[i++] = data[z * stride[0] + y * stride[1] + x * stride[2]] === label ? 1 : 0;
+                }
+            }
+        }
 
-	// Process each unique label separately
-	for (const label of uniqueLabels) {
-		// Create a binary grid for this specific label
-		const binaryGrid = Array.from({ length: dims[0] }, () =>
-			Array.from({ length: dims[1] }, () => new Array(dims[2]).fill(0))
-		);
+        const { vertices, indices } = await marchGPU(device, shaderModule, binaryGridData, dims, 0.5);
 
-		for (let z = 0; z < dims[0]; z++) {
-			for (let y = 0; y < dims[1]; y++) {
-				for (let x = 0; x < dims[2]; x++) {
-					// Use the unified accessor to get the value
-					if (getValue(z, y, x) === label) {
-						binaryGrid[z][y][x] = 1;
-					}
-				}
-			}
-		}
+        if (vertices.length > 0 && indices.length > 0) {
+            const geometry = new THREE.BufferGeometry();
+            geometry.setFromPoints(vertices);
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+            const material = new THREE.MeshStandardMaterial({
+                color: new THREE.Color().setHSL(label / 10, 0.8, 0.6),
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            meshArray.push({ label, mesh });
+        }
+    }
 
-		// Run marching cubes with iso level of 0.5
-		const { vertices, indices } = march(binaryGrid, 0.5);
-
-		if (vertices.length > 0 && indices.length > 0) {
-			meshDataArray.push({ label, vertices, indices });
-		}
-	}
-
-	return meshDataArray;
-};
+    return meshArray;
+}
