@@ -1,7 +1,12 @@
+// src/components/viewer3D/algorithms/marchingCubes.ts
+
 import * as THREE from 'three'
 import { edgeTable, triTable } from './marchingCubesTables'
 import { Chunk, Uint32 } from 'zarrita'
 
+/**
+ * Interpolates a vertex position along a cube edge.
+ */
 const interpolateVertex = (
 	isoLevel: number,
 	p1: THREE.Vector3,
@@ -21,6 +26,13 @@ const interpolateVertex = (
 	)
 }
 
+/**
+ * Executes the marching cubes algorithm on a single binary grid.
+ *
+ * @param grid A 3D binary grid (0 or 1 values).
+ * @param isoLevel The isosurface value to extract (e.g., 0.5 for a binary grid).
+ * @returns An object containing the generated vertices and indices.
+ */
 const march = (grid: number[][][], isoLevel: number) => {
 	const vertices: THREE.Vector3[] = []
 	const indices: number[] = []
@@ -34,11 +46,11 @@ const march = (grid: number[][][], isoLevel: number) => {
 				// Define the 8 vertices of the current cube
 				// Following the standard marching cubes vertex indexing
 				const p = [
-					new THREE.Vector3(x, y, z),         // 0
-					new THREE.Vector3(x + 1, y, z),     // 1
+					new THREE.Vector3(x, y, z), // 0
+					new THREE.Vector3(x + 1, y, z), // 1
 					new THREE.Vector3(x + 1, y + 1, z), // 2
-					new THREE.Vector3(x, y + 1, z),     // 3
-					new THREE.Vector3(x, y, z + 1),     // 4
+					new THREE.Vector3(x, y + 1, z), // 3
+					new THREE.Vector3(x, y, z + 1), // 4
 					new THREE.Vector3(x + 1, y, z + 1), // 5
 					new THREE.Vector3(x + 1, y + 1, z + 1), // 6
 					new THREE.Vector3(x, y + 1, z + 1), // 7
@@ -46,11 +58,11 @@ const march = (grid: number[][][], isoLevel: number) => {
 
 				// Get the scalar values at each vertex
 				const pointValues = [
-					grid[z]?.[y]?.[x] ?? 0,         // 0
-					grid[z]?.[y]?.[x + 1] ?? 0,     // 1
+					grid[z]?.[y]?.[x] ?? 0, // 0
+					grid[z]?.[y]?.[x + 1] ?? 0, // 1
 					grid[z]?.[y + 1]?.[x + 1] ?? 0, // 2
-					grid[z]?.[y + 1]?.[x] ?? 0,     // 3
-					grid[z + 1]?.[y]?.[x] ?? 0,     // 4
+					grid[z]?.[y + 1]?.[x] ?? 0, // 3
+					grid[z + 1]?.[y]?.[x] ?? 0, // 4
 					grid[z + 1]?.[y]?.[x + 1] ?? 0, // 5
 					grid[z + 1]?.[y + 1]?.[x + 1] ?? 0, // 6
 					grid[z + 1]?.[y + 1]?.[x] ?? 0, // 7
@@ -71,7 +83,7 @@ const march = (grid: number[][][], isoLevel: number) => {
 				if (edgeTable[cubeIndex] === 0) continue
 
 				// Calculate intersection points on edges
-				const vertList: (THREE.Vector3 | undefined)[] = Array(12)
+				const vertList: (THREE.Vector3 | undefined)[] = new Array(12)
 
 				if (edgeTable[cubeIndex] & 1) vertList[0] = interpolateVertex(isoLevel, p[0], p[1], pointValues[0], pointValues[1])
 				if (edgeTable[cubeIndex] & 2) vertList[1] = interpolateVertex(isoLevel, p[1], p[2], pointValues[1], pointValues[2])
@@ -113,55 +125,49 @@ const march = (grid: number[][][], isoLevel: number) => {
 	return { vertices, indices }
 }
 
-// src/components/viewer3D/algorithms/marchingCubes.ts
-
-// src/components/viewer3D/algorithms/marchingCubes.ts
-
-// src/components/viewer3D/algorithms/marchingCubes.ts
-
+/**
+ * Takes a Zarrita chunk with multiple labels and generates meshes for each.
+ *
+ * @param input The input chunk of voxel data.
+ * @returns An array of objects, each containing a label and its corresponding mesh data.
+ */
 export const generateMeshesFromVoxelData = (input: Chunk<Uint32>) => {
 	const meshDataArray = [];
+	let dims;
+	let getValue;
+	let allVoxelValues;
+
+	// Check if the input is a Zarrita-style chunk (duck typing)
 	const { data, shape, stride } = input;
-	const dims = shape; // e.g., [depth, height, width]
-	const allVoxelValues = data; // The flat TypedArray
+	dims = shape; // e.g., [depth, height, width]
+	allVoxelValues = data; // The flat TypedArray
 
 	// Accessor for the 1D strided array
-	const getValue = (z: number, y: number, x: number) => data[z * stride[0] + y * stride[1] + x * stride[2]];
+	// Calculates the index in the flat array from 3D coordinates
+	getValue = (z: number, y: number, x: number) => data[z * stride[0] + y * stride[1] + x * stride[2]];
 
+	// Create a Set of unique labels, filtering out the background (label 0)
 	const uniqueLabels = [...new Set(allVoxelValues)].filter(label => label > 0);
 
+	// Process each unique label separately
 	for (const label of uniqueLabels) {
-		let isOnBoundary = false;
-		const labelVoxels = [];
+		// Create a binary grid for this specific label
+		const binaryGrid = Array.from({ length: dims[0] }, () =>
+			Array.from({ length: dims[1] }, () => new Array(dims[2]).fill(0))
+		);
 
-		// First, find all voxels for the current label and check for boundaries
 		for (let z = 0; z < dims[0]; z++) {
 			for (let y = 0; y < dims[1]; y++) {
 				for (let x = 0; x < dims[2]; x++) {
+					// Use the unified accessor to get the value
 					if (getValue(z, y, x) === label) {
-						labelVoxels.push({ x, y, z });
-						if (!isOnBoundary && (x === 0 || x === dims[2] - 1 || y === 0 || y === dims[1] - 1 || z === 0 || z === dims[0] - 1)) {
-							isOnBoundary = true;
-						}
+						binaryGrid[z][y][x] = 1;
 					}
 				}
 			}
 		}
 
-		// If this nucleus is on the boundary, we will not generate a mesh for it at all.
-		if (isOnBoundary) {
-			continue; // Skip to the next nucleus label
-		}
-
-		// If not on the boundary, proceed with mesh generation
-		const binaryGrid = Array.from({ length: dims[0] }, () =>
-			Array.from({ length: dims[1] }, () => new Array(dims[2]).fill(0))
-		);
-
-		for (const { x, y, z } of labelVoxels) {
-			binaryGrid[z][y][x] = 1;
-		}
-
+		// Run marching cubes with iso level of 0.5
 		const { vertices, indices } = march(binaryGrid, 0.5);
 
 		if (vertices.length > 0 && indices.length > 0) {
