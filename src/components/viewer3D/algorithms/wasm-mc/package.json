@@ -1,0 +1,18 @@
+{
+  "name": "marching-cubes",
+  "type": "module",
+  "collaborators": [
+    "Will Usher <will@willusher.io>"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "marching_cubes_bg.wasm",
+    "marching_cubes.js",
+    "marching_cubes.d.ts"
+  ],
+  "main": "marching_cubes.js",
+  "types": "marching_cubes.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
