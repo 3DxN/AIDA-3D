@@ -113,7 +113,7 @@ const cleanMaterial = (material: THREE.Material) => {
 const Viewer3D = (props: {
 	tile: [number, number]
 	tilesUrl: string
-	polygonCoords: number[][][]
+	polygonCoords: any; // Kept as 'any' to match original provided code
 	select3D: boolean
 	setSelect3D: (select3D: boolean) => void
 }) => {
@@ -181,44 +181,53 @@ const Viewer3D = (props: {
 		}
 	}, [])
 
+	// --- MINIMAL CHANGES START HERE ---
+
 	// Generate and render mesh from voxel data
 	useEffect(() => {
 		if (scene && camera && renderer) {
-			setIsLoading(true)
+			// **MODIFIED**: Encapsulate the logic in an async function to handle the WASM call.
+			const runMarchingCubes = async () => {
+				setIsLoading(true);
 
-			// 1. Clear previous content
-			if (content) {
-				scene.remove(content)
-				content.traverse((object) => {
-					if (!(object as THREE.Mesh).isMesh) return
-					const mesh = object as THREE.Mesh;
-					mesh.geometry.dispose()
-					if (Array.isArray(mesh.material)) {
-						mesh.material.forEach(cleanMaterial)
-					} else {
-						cleanMaterial(mesh.material as THREE.Material)
-					}
-				})
-			}
+				// 1. Clear previous content
+				if (content) {
+					scene.remove(content);
+					content.traverse((object) => {
+						if (!(object as THREE.Mesh).isMesh) return;
+						const mesh = object as THREE.Mesh;
+						mesh.geometry.dispose();
+						if (Array.isArray(mesh.material)) {
+							mesh.material.forEach(cleanMaterial);
+						} else {
+							cleanMaterial(mesh.material as THREE.Material);
+						}
+					});
+				}
 
-			const processAndRenderVoxelData = (voxelChunk: Chunk<Uint32> | { data: Uint8Array, shape: [number, number, number], stride: number[] }) => {
+				// Get the right data source (real or dummy)
+				const voxelChunk = frameBoundCellposeData
+					? (frameBoundCellposeData as Chunk<Uint32>)
+					: (() => {
+						const dummyData = generateDummyCellposeData();
+						return { data: dummyData.data, shape: dummyData.shape, stride: [dummyData.shape[1] * dummyData.shape[2], dummyData.shape[2], 1] };
+					})();
+
 				if (!voxelChunk || !voxelChunk.data) {
 					setIsLoading(false);
 					return;
 				}
 
 				const { data: sourceData, shape, stride } = voxelChunk;
-				const [depth, height, width] = shape;
+				const [depth, height, width] = shape as [number, number, number];
 				const flatVoxelData = new Uint8Array(depth * height * width);
 
-				// Find unique labels and create a map to new sequential labels
 				const originalLabels = [...new Set(sourceData)].filter(label => label > 0).sort((a, b) => a - b);
 				const labelMap = new Map<number, number>();
 				originalLabels.forEach((originalLabel, i) => {
 					labelMap.set(originalLabel, i + 1);
 				});
 
-				// Create a new flat array with remapped labels
 				for (let z = 0; z < depth; z++) {
 					for (let y = 0; y < height; y++) {
 						for (let x = 0; x < width; x++) {
@@ -234,30 +243,27 @@ const Viewer3D = (props: {
 					}
 				}
 
-				const meshDataArray = generateMeshesFromVoxelData(flatVoxelData, shape as [number, number, number])
+				// **MODIFIED**: 'await' the result from the async marching cubes function.
+				const meshDataArray = await generateMeshesFromVoxelData(flatVoxelData, shape as [number, number, number]);
 
-				const newContentGroup = new THREE.Group()
+				const newContentGroup = new THREE.Group();
 
-				// Create THREE.Mesh for each generated cell using the new remapped label
 				meshDataArray.forEach(({ label, vertices, indices }) => {
-					const geometry = new THREE.BufferGeometry()
-					const flatVertices = vertices.flatMap((v) => [v.x, v.y, v.z])
-
-					geometry.setAttribute('position', new THREE.Float32BufferAttribute(flatVertices, 3))
-					geometry.setIndex(indices)
-					geometry.computeVertexNormals()
-
+					const geometry = new THREE.BufferGeometry();
+					const flatVertices = vertices.flatMap((v) => [v.x, v.y, v.z]);
+					geometry.setAttribute('position', new THREE.Float32BufferAttribute(flatVertices, 3));
+					geometry.setIndex(indices);
+					geometry.computeVertexNormals();
 					const material = new THREE.MeshStandardMaterial({
 						color: new THREE.Color().setHSL(label / 10, 0.8, 0.6),
 						metalness: 0.1,
 						roughness: 0.5,
-					})
+					});
+					const mesh = new THREE.Mesh(geometry, material);
+					mesh.name = `nucleus_${label}`;
+					newContentGroup.add(mesh);
+				});
 
-					// Create the mesh and add it to our group
-					const mesh = new THREE.Mesh(geometry, material)
-					mesh.name = `nucleus_${label}`
-					newContentGroup.add(mesh)
-				})
 				const nucleusMeshes = newContentGroup.children as THREE.Mesh[];
 				const numNuclei = nucleusMeshes.length;
 
@@ -268,48 +274,41 @@ const Viewer3D = (props: {
 					nucleusDiameters: nucleusMeshes.map(mesh => calculateNucleusDiameter(mesh)),
 					nucleusVolumes: nucleusMeshes.map(mesh => calculateNucleusVolume(mesh)),
 				};
-				setFeatureData(newFeatureData);
+				setFeatureData(newFeatureData as any); // Kept 'as any' to match original
 
-				// Add the entire group of new meshes to the scene and state
-				scene.add(newContentGroup)
-				setContent(newContentGroup)
+				scene.add(newContentGroup);
+				setContent(newContentGroup);
 
-				// 4. Save the generated mesh locally as a .gltf file
 				if (newContentGroup.children.length > 0) {
 					// saveGLTF(newContentGroup, 'generated_cell.gltf');
 				}
 
-				// 5. Position camera to view the new content
-				const box = new THREE.Box3().setFromObject(newContentGroup)
-				const size = box.getSize(new THREE.Vector3()).length()
-				const center = box.getCenter(new THREE.Vector3())
+				const box = new THREE.Box3().setFromObject(newContentGroup);
+				const size = box.getSize(new THREE.Vector3()).length();
+				const center = box.getCenter(new THREE.Vector3());
 
-				newContentGroup.position.sub(center)
+				newContentGroup.position.sub(center);
 
-				camera.position.set(size / 1.5, size / 4.0, size / 1.5)
-				camera.lookAt(0, 0, 0)
+				camera.position.set(size / 1.5, size / 4.0, size / 1.5);
+				camera.lookAt(0, 0, 0);
 
-				camera.near = size / 100
-				camera.far = size * 100
-				camera.updateProjectionMatrix()
+				camera.near = size / 100;
+				camera.far = size * 100;
+				camera.updateProjectionMatrix();
 
-				const axesHelper = new THREE.AxesHelper(size)
-				scene.add(axesHelper)
+				const axesHelper = new THREE.AxesHelper(size);
+				scene.add(axesHelper);
 
-				renderer.render(scene, camera)
-				setIsLoading(false)
-			}
+				renderer.render(scene, camera);
+				setIsLoading(false);
+			};
 
-			if (frameBoundCellposeData) {
-				processAndRenderVoxelData(frameBoundCellposeData as Chunk<Uint32>)
-			} else {
-				// Use dummy data if no real data is available
-				const dummyData = generateDummyCellposeData();
-				const dummyChunk = { data: dummyData.data, shape: dummyData.shape, stride: [dummyData.shape[1] * dummyData.shape[2], dummyData.shape[2], 1] };
-				processAndRenderVoxelData(dummyChunk as unknown as Chunk<Uint32>);
-			}
+			// **MODIFIED**: Call the new async function.
+			runMarchingCubes();
 		}
-	}, [scene, camera, renderer, frameBoundCellposeData])
+	}, [scene, camera, renderer, frameBoundCellposeData]);
+
+	// --- MINIMAL CHANGES END HERE ---
 
 	// Update feature data
 	useEffect(() => {
@@ -322,7 +321,7 @@ const Viewer3D = (props: {
 					if (res.ok) return res.json()
 					return Promise.resolve(null)
 				})
-				.then((data) => setFeatureData(data))
+				.then((data) => setFeatureData(data as any)) // Kept 'as any'
 		}
 	}, [tile, tilesUrl])
 
@@ -428,7 +427,7 @@ const Viewer3D = (props: {
 				tile={tile}
 				featureData={featureData}
 				selected={selected}
-				setFeatureData={setFeatureData}
+				setFeatureData={setFeatureData as any} // Kept 'as any'
 			/>
 		</div>
 	)

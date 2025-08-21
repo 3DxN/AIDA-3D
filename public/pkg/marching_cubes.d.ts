@@ -5,7 +5,7 @@ export class MarchingCubes {
   free(): void;
   static new(): MarchingCubes;
   set_volume(volume: Uint8Array, dims_x: number, dims_y: number, dims_z: number): void;
-  marching_cubes(isovalue: number): Float32Array;
+  marching_cubes(isovalue: number, label: number): Float32Array;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -15,7 +15,7 @@ export interface InitOutput {
   readonly __wbg_marchingcubes_free: (a: number, b: number) => void;
   readonly marchingcubes_new: () => number;
   readonly marchingcubes_set_volume: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-  readonly marchingcubes_marching_cubes: (a: number, b: number) => any;
+  readonly marchingcubes_marching_cubes: (a: number, b: number, c: number) => any;
   readonly __wbindgen_export_0: WebAssembly.Table;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_start: () => void;

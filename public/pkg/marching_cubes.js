@@ -72,10 +72,11 @@ export class MarchingCubes {
     }
     /**
      * @param {number} isovalue
+     * @param {number} label
      * @returns {Float32Array}
      */
-    marching_cubes(isovalue) {
-        const ret = wasm.marchingcubes_marching_cubes(this.__wbg_ptr, isovalue);
+    marching_cubes(isovalue, label) {
+        const ret = wasm.marchingcubes_marching_cubes(this.__wbg_ptr, isovalue, label);
         return ret;
     }
 }
