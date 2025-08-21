@@ -1,4 +1,3 @@
-
 import { Disclosure } from '@headlessui/react'
 import { Mesh } from 'three'
 
@@ -6,11 +5,19 @@ function classNames(...classes: string[]) {
 	return classes.filter(Boolean).join(' ')
 }
 
-const SelectedIndices = (props: { selected: Mesh[] }) => {
-	const { selected } = props
+const SelectedIndices = (props: { selected: Mesh[]; featureData: any }) => {
+	const { selected, featureData } = props
 
 	const selectedIndices = selected.map((mesh) => {
-		return Number(mesh.name.split('_')[1])
+		const remappedIndex = Number(mesh.name.split('_')[1])
+		if (
+			featureData &&
+			featureData.originalNucleusIndices &&
+			featureData.originalNucleusIndices[remappedIndex - 1]
+		) {
+			return featureData.originalNucleusIndices[remappedIndex - 1]
+		}
+		return remappedIndex // Fallback to remapped index if original is not found
 	})
 
 	return (
@@ -38,8 +45,8 @@ const SelectedIndices = (props: { selected: Mesh[] }) => {
 						{selectedIndices.length > 0 ? (
 							<div className="max-h-40 overflow-y-auto">
 								<ul className="list-disc pl-5">
-									{selectedIndices.map((index) => (
-										<li key={index} className="text-sm">
+									{selectedIndices.map((index, i) => (
+										<li key={`${index}-${i}`} className="text-sm">
 											Index: {index}
 										</li>
 									))}

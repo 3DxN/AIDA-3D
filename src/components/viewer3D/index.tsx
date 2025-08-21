@@ -15,20 +15,19 @@ import { useViewer2DData } from '../../lib/contexts/Viewer2DDataContext';
 import Settings from './settings'
 import Toolbar from './toolbar'
 import { padToTwo, resizeRendererToDisplaySize } from './utils'
+import { Chunk, Uint32 } from 'zarrita';
 
 // NEW: Helper function to generate sample multi-label voxel data (like Cellpose)
-const generateDummyCellposeData = (): number[][][] => {
+const generateDummyCellposeData = (): { data: Uint8Array; shape: [number, number, number] } => {
 	const size = 100
-	// Initialize a 100x100x100 array filled with zeros (background)
-	const data: number[][][] = Array.from({ length: size }, () =>
-		Array.from({ length: size }, () => new Array(size).fill(0))
-	)
+	const shape: [number, number, number] = [size, size, size]
+	const data = new Uint8Array(size * size * size).fill(0)
 
 	// Define some "nuclei" as spheres with a center (x, y, z), a radius, and a label
 	const nuclei = [
 		{ center: { x: 30, y: 50, z: 50 }, radius: 15, label: 1 },
-		{ center: { x: 70, y: 50, z: 50 }, radius: 12, label: 2 },
-		{ center: { x: 50, y: 75, z: 50 }, radius: 10, label: 3 },
+		{ center: { x: 70, y: 50, z: 50 }, radius: 12, label: 255 },
+		{ center: { x: 50, y: 75, z: 50 }, radius: 10, label: 256 },
 		{ center: { x: 50, y: 25, z: 50 }, radius: 13, label: 4 },
 		{ center: { x: 50, y: 50, z: 25 }, radius: 8, label: 5 },
 	]
@@ -42,14 +41,14 @@ const generateDummyCellposeData = (): number[][][] => {
 					// Check if the current voxel (x, y, z) is inside the sphere
 					const distanceSq = (x - center.x) ** 2 + (y - center.y) ** 2 + (z - center.z) ** 2
 					if (distanceSq < radius ** 2) {
-						data[z][y][x] = label
+						data[z * size * size + y * size + x] = label
 					}
 				}
 			}
 		}
 	})
 
-	return data
+	return { data, shape }
 }
 
 
@@ -135,7 +134,7 @@ const Viewer3D = (props: {
 
 	const {
 		frameBoundCellposeData
-    } = useViewer2DData()
+	} = useViewer2DData()
 
 	// Init
 	useEffect(() => {
@@ -163,7 +162,8 @@ const Viewer3D = (props: {
 			const pmremGenerator = new THREE.PMREMGenerator(newRenderer)
 
 			const newScene = new THREE.Scene()
-			newScene.background = new THREE.Color('black')
+			newScene.background = new THREE.Color('#f3f4f6')
+			newScene.environment = pmremGenerator.fromScene(environment).texture
 			setScene(newScene)
 
 			const light = new THREE.AmbientLight(0x505050)
@@ -181,11 +181,9 @@ const Viewer3D = (props: {
 		}
 	}, [])
 
-	// src/components/viewer3D/index.tsx
-
 	// Generate and render mesh from voxel data
 	useEffect(() => {
-		if (scene && camera && renderer && frameBoundCellposeData) {
+		if (scene && camera && renderer) {
 			setIsLoading(true)
 
 			// 1. Clear previous content
@@ -203,68 +201,113 @@ const Viewer3D = (props: {
 				})
 			}
 
-			// 2. Generate voxel data and run marching cubes
-			const voxelData = frameBoundCellposeData
-			const meshDataArray = generateMeshesFromVoxelData(voxelData)
-			const newContentGroup = new THREE.Group()
+			const processAndRenderVoxelData = (voxelChunk: Chunk<Uint32> | { data: Uint8Array, shape: [number, number, number], stride: number[] }) => {
+				if (!voxelChunk || !voxelChunk.data) {
+					setIsLoading(false);
+					return;
+				}
 
-			// 3. Create THREE.Mesh for each generated cell
-			meshDataArray.forEach(({ label, vertices, indices }) => {
-				const geometry = new THREE.BufferGeometry()
-				const flatVertices = vertices.flatMap((v) => [v.x, v.y, v.z])
+				const { data: sourceData, shape, stride } = voxelChunk;
+				const [depth, height, width] = shape;
+				const flatVoxelData = new Uint8Array(depth * height * width);
 
-				geometry.setAttribute('position', new THREE.Float32BufferAttribute(flatVertices, 3))
-				geometry.setIndex(indices)
-				geometry.computeVertexNormals()
+				// Find unique labels and create a map to new sequential labels
+				const originalLabels = [...new Set(sourceData)].filter(label => label > 0).sort((a, b) => a - b);
+				const labelMap = new Map<number, number>();
+				originalLabels.forEach((originalLabel, i) => {
+					labelMap.set(originalLabel, i + 1);
+				});
 
-				const material = new THREE.MeshStandardMaterial({
-					color: new THREE.Color().setHSL(label / 10, 0.8, 0.6),
-					metalness: 0.1,
-					roughness: 0.5,
+				// Create a new flat array with remapped labels
+				for (let z = 0; z < depth; z++) {
+					for (let y = 0; y < height; y++) {
+						for (let x = 0; x < width; x++) {
+							const sourceIndex = z * stride[0] + y * stride[1] + x * stride[2];
+							const destIndex = z * height * width + y * width + x;
+							const originalLabel = sourceData[sourceIndex];
+							if (originalLabel > 0) {
+								flatVoxelData[destIndex] = labelMap.get(originalLabel) || 0;
+							} else {
+								flatVoxelData[destIndex] = 0;
+							}
+						}
+					}
+				}
+
+				const meshDataArray = generateMeshesFromVoxelData(flatVoxelData, shape as [number, number, number])
+
+				const newContentGroup = new THREE.Group()
+
+				// Create THREE.Mesh for each generated cell using the new remapped label
+				meshDataArray.forEach(({ label, vertices, indices }) => {
+					const geometry = new THREE.BufferGeometry()
+					const flatVertices = vertices.flatMap((v) => [v.x, v.y, v.z])
+
+					geometry.setAttribute('position', new THREE.Float32BufferAttribute(flatVertices, 3))
+					geometry.setIndex(indices)
+					geometry.computeVertexNormals()
+
+					const material = new THREE.MeshStandardMaterial({
+						color: new THREE.Color().setHSL(label / 10, 0.8, 0.6),
+						metalness: 0.1,
+						roughness: 0.5,
+					})
+
+					// Create the mesh and add it to our group
+					const mesh = new THREE.Mesh(geometry, material)
+					mesh.name = `nucleus_${label}`
+					newContentGroup.add(mesh)
 				})
+				const nucleusMeshes = newContentGroup.children as THREE.Mesh[];
+				const numNuclei = nucleusMeshes.length;
 
-				// Create the mesh and add it to our group
-				const mesh = new THREE.Mesh(geometry, material)
-				mesh.name = `nucleus_${label}`
+				const newFeatureData = {
+					originalNucleusIndices: originalLabels,
+					labels: Array.from({ length: numNuclei + 1 }, () => new Set()),
+					segmentationConfidence: Array.from({ length: numNuclei + 1 }, () => Math.random()),
+					nucleusDiameters: nucleusMeshes.map(mesh => calculateNucleusDiameter(mesh)),
+					nucleusVolumes: nucleusMeshes.map(mesh => calculateNucleusVolume(mesh)),
+				};
+				setFeatureData(newFeatureData);
 
-				newContentGroup.add(mesh)
-			})
-			// ...
+				// Add the entire group of new meshes to the scene and state
+				scene.add(newContentGroup)
+				setContent(newContentGroup)
 
-			const nucleusMeshes = newContentGroup.children.filter(child => child.visible) as THREE.Mesh[];
-			const numNuclei = nucleusMeshes.length;
+				// 4. Save the generated mesh locally as a .gltf file
+				if (newContentGroup.children.length > 0) {
+					// saveGLTF(newContentGroup, 'generated_cell.gltf');
+				}
 
-			const newFeatureData = {
-				labels: Array.from({ length: numNuclei + 1 }, () => new Set()),
-				segmentationConfidence: Array.from({ length: numNuclei + 1 }, () => Math.random()),
-				nucleusDiameters: nucleusMeshes.map(mesh => calculateNucleusDiameter(mesh)),
-				nucleusVolumes: nucleusMeshes.map(mesh => calculateNucleusVolume(mesh)),
-			};
-			setFeatureData(newFeatureData);
+				// 5. Position camera to view the new content
+				const box = new THREE.Box3().setFromObject(newContentGroup)
+				const size = box.getSize(new THREE.Vector3()).length()
+				const center = box.getCenter(new THREE.Vector3())
 
-			// Add the entire group of new meshes to the scene and state
-			scene.add(newContentGroup)
-			setContent(newContentGroup)
+				newContentGroup.position.sub(center)
 
-			// 5. Position camera to view the new content
-			const box = new THREE.Box3().setFromObject(newContentGroup)
-			const size = box.getSize(new THREE.Vector3()).length()
-			const center = box.getCenter(new THREE.Vector3())
+				camera.position.set(size / 1.5, size / 4.0, size / 1.5)
+				camera.lookAt(0, 0, 0)
 
-			newContentGroup.position.sub(center)
+				camera.near = size / 100
+				camera.far = size * 100
+				camera.updateProjectionMatrix()
 
-			camera.position.set(size / 1.5, size / 4.0, size / 1.5)
-			camera.lookAt(0, 0, 0)
+				const axesHelper = new THREE.AxesHelper(size)
+				scene.add(axesHelper)
 
-			camera.near = size / 100
-			camera.far = size * 100
-			camera.updateProjectionMatrix()
+				renderer.render(scene, camera)
+				setIsLoading(false)
+			}
 
-			const axesHelper = new THREE.AxesHelper(size)
-			scene.add(axesHelper)
-
-			renderer.render(scene, camera)
-			setIsLoading(false)
+			if (frameBoundCellposeData) {
+				processAndRenderVoxelData(frameBoundCellposeData as Chunk<Uint32>)
+			} else {
+				// Use dummy data if no real data is available
+				const dummyData = generateDummyCellposeData();
+				const dummyChunk = { data: dummyData.data, shape: dummyData.shape, stride: [dummyData.shape[1] * dummyData.shape[2], dummyData.shape[2], 1] };
+				processAndRenderVoxelData(dummyChunk as unknown as Chunk<Uint32>);
+			}
 		}
 	}, [scene, camera, renderer, frameBoundCellposeData])
 
@@ -273,16 +316,13 @@ const Viewer3D = (props: {
 		if (tile) {
 			const H = padToTwo(tile[0])
 			const V = padToTwo(tile[1])
-			const url = `${tilesUrl}/tile__H0${H}_V0${V}.tif__.json`
-
-			try {
-				fetch(url).then((featureDataFile) => {
-					featureDataFile.json().then((data) => setFeatureData(data))
+			const url = `${tilesUrl} / tile__H0${H}_V0${V}.tif__.json`
+			fetch(url)
+				.then((res) => {
+					if (res.ok) return res.json()
+					return Promise.resolve(null)
 				})
-			} catch (error) {
-				console.error('Error fetching feature data:', error)
-				setFeatureData(null)
-			}
+				.then((data) => setFeatureData(data))
 		}
 	}, [tile, tilesUrl])
 
@@ -314,22 +354,9 @@ const Viewer3D = (props: {
 				nucleus.localToWorld(sphere.center);
 				const center = sphere.center;
 
-				//...
-				const pointsToCheck = [
-					[center.z, center.y],
-					[center.z + sphere.radius, center.y],
-					[center.z - sphere.radius, center.y],
-					[center.z, center.y + sphere.radius],
-					[center.z, center.y - sphere.radius],
-				];
-
-				for (const point of pointsToCheck) {
-					if (checkPointInPolygon(polygonCoords.coords, point) > 0) {
-						match = false;
-						break;
-					}
+				if (checkPointInPolygon(polygonCoords.coords, [center.z, center.y]) > 0) {
+					match = false;
 				}
-				//...
 
 				if (renderer && renderer.clippingPlanes.length > 0) {
 					renderer.clippingPlanes.forEach((plane) => {
@@ -354,21 +381,18 @@ const Viewer3D = (props: {
 
 	// Render selections
 	useEffect(() => {
-		if (renderer && scene && camera && content) {
-			// Handle all cases, regardless of whether a selection is active
-			content.children.forEach((child) => {
-				if (child.isMesh && child.name.includes('nucleus')) {
-					const nucleus = child as THREE.Mesh;
-					const isSelected = selected.includes(nucleus);
+		if (renderer && scene && camera) {
+			selectedCache.current.forEach((nucleus) =>
+				(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0x000000)
+			)
+			selectedCache.current = selected
 
-					// Set the emissive color based on selection status
-					(nucleus.material as THREE.MeshStandardMaterial).emissive.set(isSelected ? 0xffffff : 0x000000);
-				}
-			});
-
-			renderer.render(scene, camera);
+			selected.forEach((nucleus) =>
+				(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0xffffff)
+			)
+			renderer.render(scene, camera)
 		}
-	}, [selected, renderer, scene, camera, content]);
+	}, [selected, renderer, scene, camera])
 
 	return (
 		<div className="min-w-full h-screen flex border-l border-l-teal-500">

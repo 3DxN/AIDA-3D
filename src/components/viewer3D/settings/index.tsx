@@ -57,7 +57,7 @@ export default function Settings(props: {
 						Settings
 						<ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
 					</button>
-					<SelectedIndices selected={selected} />
+					<SelectedIndices selected={selected} featureData={featureData} />
 					<Clipping renderer={renderer} scene={scene} camera={camera} />
 					<Explode
 						renderer={renderer}
