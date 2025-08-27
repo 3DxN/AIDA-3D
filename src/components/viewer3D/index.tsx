@@ -218,7 +218,7 @@ const Viewer3D = (props: {
 				geometry.computeVertexNormals()
 
 				const material = new THREE.MeshStandardMaterial({
-					color: new THREE.Color().setHSL(label / 10, 0.8, 0.6),
+					color: new THREE.Color('grey'),
 					metalness: 0.1,
 					roughness: 0.5,
 				})
@@ -352,6 +352,7 @@ const Viewer3D = (props: {
 
 	}, [polygonCoords, content, renderer, select3D]);
 
+
 	// Render selections
 	useEffect(() => {
 		if (renderer && scene && camera && content) {
@@ -369,6 +370,34 @@ const Viewer3D = (props: {
 			renderer.render(scene, camera);
 		}
 	}, [selected, renderer, scene, camera, content]);
+
+	// Update colors based on labels
+	useEffect(() => {
+		if (!content || !featureData?.labels || !renderer || !scene || !camera) {
+			return;
+		}
+
+		let needsRender = false;
+		content.children.forEach((child) => {
+			if (child.isMesh && child.name.includes('nucleus')) {
+				const nucleus = child as THREE.Mesh;
+				const material = nucleus.material as THREE.MeshStandardMaterial;
+				const nucleusIndex = parseInt(child.name.split('_')[1], 10);
+				const labels = featureData.labels[nucleusIndex];
+				const targetColorHex = (labels && labels.has('red')) ? 0xff0000 : 0x808080; // red or grey
+
+				if (material.color.getHex() !== targetColorHex) {
+					material.color.setHex(targetColorHex);
+					needsRender = true;
+				}
+			}
+		});
+
+		if (needsRender) {
+			renderer.render(scene, camera);
+		}
+	}, [featureData, content, renderer, scene, camera]);
+
 
 	return (
 		<div className="min-w-full h-screen flex border-l border-l-teal-500">

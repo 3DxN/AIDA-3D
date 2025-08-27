@@ -130,6 +130,7 @@ const ColorMaps = (props: {
 		}
 	}, [featureData])
 
+	/*
 	// Update 3D mesh colors
 	useEffect(() => {
 		if (featureData && content) {
@@ -195,6 +196,7 @@ const ColorMaps = (props: {
 		featureData,
 		colorMaps, // Dependency array now only contains colorMaps
 	]);
+	*/
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
