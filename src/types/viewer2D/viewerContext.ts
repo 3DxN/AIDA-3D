@@ -42,10 +42,12 @@ export interface Viewer2DDataContextType {
   viewerSize: ViewerSize
   setViewerSize: (size: ViewerSize) => void
   
-  // Data access
-  frameBoundCellposeData: zarrita.Chunk<zarrita.DataType> | null
-  isDataLoading: boolean
-  dataError: string | null
+    // Data access
+    frameBoundCellposeData: zarrita.Chunk<zarrita.DataType> | null
+    isDataLoading: boolean
+    dataError: string | null
+    isDraggingFrame: boolean; // <-- Add this line
+    setIsDraggingFrame: (isDragging: boolean) => void; // <-- And this line
 }
 
 export interface Viewer2DDataProviderProps {

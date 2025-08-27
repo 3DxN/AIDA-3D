@@ -29,7 +29,8 @@ export function useFrameInteraction(
   setIsManuallyPanning: (panning: boolean) => void,
   setDetailViewDrag: (drag: VivDetailViewState) => void,
   detailViewDrag: VivDetailViewState,
-  setControlledDetailViewState: (state: VivViewState) => void,
+    setControlledDetailViewState: (state: VivViewState) => void,
+    setIsDraggingFrame: (isDragging: boolean) => void, // <-- We add this line
 ) {
   const [frameInteraction, setFrameInteraction] = useState<FrameInteractionState>({
     isDragging: false,
@@ -182,7 +183,8 @@ export function useFrameInteraction(
     if (info.layer && info.object) {
       if ((info.layer.id.includes('handle') && info.object.type?.startsWith('resize-'))
         || (info.layer.id.includes('move-area') && info.object.type === 'move')) {
-        const handled = handleFrameInteraction(info);
+          setIsDraggingFrame(true); 
+          const handled = handleFrameInteraction(info);
         if (handled) {
           return true; // Stop propagation - we're handling this
         }
@@ -248,7 +250,8 @@ export function useFrameInteraction(
   }, [handleDrag, detailViewDrag, detailViewStateRef, setControlledDetailViewState]);
 
   // Complete onDragEnd handler combining frame and view interactions
-  const onDragEnd = useCallback(() => {
+    const onDragEnd = useCallback(() => {
+        setIsDraggingFrame(false);
     // Handle frame drag end first
     const frameHandled = handleDragEnd();
     if (frameHandled) {

@@ -10,7 +10,7 @@ import useFrameInitialisation from '../../../../lib/hooks/useFrameInitialisation
 
 const VivViewerWrapper: React.FC = () => {
   const { root, msInfo } = useZarrStore()
-  const { navigationState, frameCenter, frameSize, setFrameCenter, setFrameSize } = useViewer2DData()
+    const { navigationState, frameCenter, frameSize, setFrameCenter, setFrameSize, setIsDraggingFrame } = useViewer2DData();
   
   // Early return if required data not available
   if (!msInfo || !navigationState) {
@@ -53,7 +53,8 @@ const VivViewerWrapper: React.FC = () => {
     setIsManuallyPanning,
     setDetailViewDrag,
     detailViewDrag,
-    setControlledDetailViewState,
+      setControlledDetailViewState,
+          setIsDraggingFrame
   )
 
   // Generate final layer props with frame overlays

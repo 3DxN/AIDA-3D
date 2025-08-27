@@ -37,7 +37,8 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   // Frame state (replacing FrameStateContext)
   const [frameCenter, setFrameCenter] = useState<[number, number]>([500, 500])
   const [frameSize, setFrameSize] = useState<[number, number]>([40, 40])
-  const [frameZDepth, setFrameZDepth] = useState<number>(20)
+    const [frameZDepth, setFrameZDepth] = useState<number>(20)
+    const [isDraggingFrame, setIsDraggingFrame] = useState(false);
   
   // View state
   const [navigationState, setNavigationState] = useState<NavigationState | null>(null)
@@ -173,32 +174,33 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   
   // Auto-update frame-bound Cellpose data when dependencies change
   useEffect(() => {
-    const loadFrameBoundCellposeData = async () => {
-      if (!cellposeArray || !navigationState) {
-        setFrameBoundCellposeData(null)
-        return
-      }
-      
-      setIsDataLoading(true)
+      const loadFrameBoundCellposeData = async () => {
+          if (!cellposeArray || !navigationState || isDraggingFrame) {
+              if (!isDraggingFrame) {
+                  setFrameBoundCellposeData(null)
+              }
+              return
+          }
+
+          setIsDataLoading(true)
       setDataError(null)
       
-      try {
-        // Use shared helper function
-        const result = await getFrameBoundData(cellposeArray)
-        setFrameBoundCellposeData(result)
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-        console.error('❌ Error getting frame-bound Cellpose data:', errorMsg)
-        setDataError(errorMsg)
-        setFrameBoundCellposeData(null)
-      } finally {
-        setIsDataLoading(false)
+          try {
+              const result = await getFrameBoundData(cellposeArray)
+              setFrameBoundCellposeData(result)
+          } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+              console.error('❌ Error getting frame-bound Cellpose data:', errorMsg)
+              setDataError(errorMsg)
+              setFrameBoundCellposeData(null)
+          } finally {
+              setIsDataLoading(false)
+          }
       }
-    }
-    
-    loadFrameBoundCellposeData()
-  }, [cellposeArray, navigationState, frameCenter, frameSize, currentZSlice, currentTimeSlice])
-  
+
+      loadFrameBoundCellposeData()
+  }, [cellposeArray, navigationState, frameCenter, frameSize, currentZSlice, currentTimeSlice, isDraggingFrame, getFrameBoundData])
+
   const contextValue: Viewer2DDataContextType = {
     // Frame state
     frameCenter,
@@ -232,7 +234,9 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     // Data access
     frameBoundCellposeData,
     isDataLoading: isDataLoading || isCellposeLoading,
-    dataError: dataError || cellposeError
+      dataError: dataError || cellposeError
+    isDraggingFrame,
+      setIsDraggingFrame
   }
   
   return (
