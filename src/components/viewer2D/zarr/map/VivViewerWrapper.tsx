@@ -54,7 +54,7 @@ const VivViewerWrapper: React.FC = () => {
     setDetailViewDrag,
     detailViewDrag,
       setControlledDetailViewState,
-          setIsDraggingFrame
+          setIsDraggingFrame,
   )
 
   // Generate final layer props with frame overlays

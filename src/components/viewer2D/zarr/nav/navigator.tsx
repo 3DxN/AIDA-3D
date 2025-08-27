@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid'
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext'
 import { useZarrStore } from '../../../../lib/contexts/ZarrStoreContext'
@@ -24,7 +24,18 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
     getFrameBounds
   } = useViewer2DData()
 
-  const [isCollapsed, setIsCollapsed] = useState(true)
+    const [isCollapsed, setIsCollapsed] = useState(true)
+    // Local state for immediate feedback
+    const [zSliceValue, setZSliceValue] = useState(navigationState.zSlice);
+    const [zDepthValue, setZDepthValue] = useState(frameZDepth);
+
+    useEffect(() => {
+        setZSliceValue(navigationState.zSlice);
+    }, [navigationState.zSlice]);
+
+    useEffect(() => {
+        setZDepthValue(frameZDepth);
+    }, [frameZDepth]);
 
   const handleToggle = (newState: boolean) => {
     setIsCollapsed(newState)
@@ -157,20 +168,22 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                 </div>
 
                 {/* Z Depth Control */}
-                {msInfo.shape.z && msInfo.shape.z > 1 && (
-                  <UnifiedSlider
-                    label="Z Depth Range"
-                    value={frameZDepth}
-                    minValue={0}
-                    maxValue={Math.floor((msInfo.shape.z - 1) / 2)}
-                    onChange={(value) => setFrameZDepth(Array.isArray(value) ? value[0] : value)}
-                    valueDisplay={(val) => {
-                      const depth = Array.isArray(val) ? val[0] : val;
-                      const maxZ = msInfo.shape.z || 1;
-                      return `±${depth} slices (Z ${Math.max(0, zSlice - depth)} - ${Math.min(maxZ - 1, zSlice + depth)})`;
-                    }}
-                  />
-                )}
+                              {msInfo.shape.z && msInfo.shape.z > 1 && (
+                                  <UnifiedSlider
+                                      label="Z Depth Range"
+                                      value={zDepthValue}
+                                      minValue={0}
+                                      maxValue={Math.floor((msInfo.shape.z - 1) / 2)}
+                                      onChange={(value) => setZDepthValue(Array.isArray(value) ? value[0] : value)}
+                                      onChangeEnd={(value) => setFrameZDepth(Array.isArray(value) ? value[0] : value)}
+                                      valueDisplay={(val) => {
+                                          const depth = Array.isArray(val) ? val[0] : val;
+                                          const maxZ = msInfo.shape.z || 1;
+                                          // Use zSliceValue here for immediate feedback
+                                          return `±${depth} slices (Z ${Math.max(0, zSliceValue - depth)} - ${Math.min(maxZ - 1, zSliceValue + depth)})`;
+                                      }}
+                                  />
+                              )}
 
                 {/* Frame Bounds Info */}
                 {(() => {
@@ -193,14 +206,15 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
             <div className="px-4 py-2">
               <h3 className="text-sm font-medium text-gray-700 mb-3">Navigation</h3>
               <div className="space-y-3">
-                <UnifiedSlider
-                  label="Z Slice"
-                  value={zSlice}
-                  minValue={0}
-                  maxValue={maxZSlice}
-                  onChange={(value) => navigationHandlers.onZSliceChange(Array.isArray(value) ? value[0] : value)}
-                  condition={Boolean(msInfo.shape.z && maxZSlice > 0)}
-                />
+                              <UnifiedSlider
+                                  label="Z Slice"
+                                  value={zSliceValue}
+                                  minValue={0}
+                                  maxValue={maxZSlice}
+                                  onChange={(value) => setZSliceValue(Array.isArray(value) ? value[0] : value)}
+                                  onChangeEnd={(value) => navigationHandlers.onZSliceChange(Array.isArray(value) ? value[0] : value)}
+                                  condition={Boolean(msInfo.shape.z && maxZSlice > 0)}
+                              />
 
                 <UnifiedSlider
                   label="Time"

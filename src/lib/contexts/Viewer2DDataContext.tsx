@@ -234,7 +234,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     // Data access
     frameBoundCellposeData,
     isDataLoading: isDataLoading || isCellposeLoading,
-      dataError: dataError || cellposeError
+      dataError: dataError || cellposeError,
     isDraggingFrame,
       setIsDraggingFrame
   }
