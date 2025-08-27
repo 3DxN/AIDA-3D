@@ -1,125 +1,106 @@
+// src/components/viewer3D/settings/Labels.tsx
+
 /* eslint-disable max-len */
 import { useState, useEffect, useCallback } from 'react'
 import { Disclosure } from '@headlessui/react'
 import { XIcon } from '@heroicons/react/solid'
-
-import { InputAutoComplete, Item } from '../../interaction/InputAutoComplete'
-import InputCombobox from '../../interaction/InputComboBox'
 import Input from '../../interaction/Input'
 
-function classNames(...classes) {
+function classNames(...classes: string[]) {
 	return classes.filter(Boolean).join(' ')
 }
 
-// Function finds common elements in array of sets
 const findCommon = (sets) => {
-	const result = new Set()
-	const set = sets[0]
-	if (set) {
-		if (sets.length === 1) return set
-
-		set.forEach((value) => {
-			let match = true
-
-			for (let j = 1; j < sets.length; j++) {
-				if (!sets[j] || !sets[j].has(value)) {
-					match = false
-					break
-				}
+	if (!sets || sets.length === 0) return new Set()
+	const result = new Set(sets[0])
+	for (let i = 1; i < sets.length; i++) {
+		const currentSet = sets[i]
+		result.forEach((value) => {
+			if (!currentSet || !currentSet.has(value)) {
+				result.delete(value)
 			}
-
-			if (match) result.add(value)
 		})
 	}
 	return result
 }
 
-const Labels = (props) => {
-	const { featureData, selected, setFeatureData, globalLabels } = props;
+const Labels = (props: any) => {
+	const { featureData, selected, setFeatureData, globalLabels } = props
 
 	const [commonLabels, setCommonLabels] = useState(new Set())
 	const [existingLabels, setExistingLabels] = useState(new Set<string>())
 
-	// Set the range of existing labels
 	useEffect(() => {
 		if (featureData && featureData.labels) {
-			setExistingLabels(new Set(featureData.labels))
+			const all = new Set<string>()
+			featureData.labels.forEach((labelSet: Set<string>) => {
+				if (labelSet) {
+					labelSet.forEach((label) => all.add(label))
+				}
+			})
+			setExistingLabels(all)
 		}
 	}, [featureData])
 
-	// Find common labels
 	useEffect(() => {
 		if (selected.length === 0) {
-			setCommonLabels([])
+			setCommonLabels(new Set())
 			return
 		}
 
-		if (featureData) {
-			const data = {}
-			for (const [key, value] of Object.entries(featureData)) {
-				data[key] = selected.map((mesh) => {
-					// TODO: Use a index, or uuid for each mesh, extracting from name seems
-					//       liable to go wrong.
-					const index = Number(mesh.name.split('_')[1])
-					return value[index]
-				})
-			}
-
-			if (!data.labels) return
-			const common = findCommon(data.labels)
-			setCommonLabels(common)
+		if (featureData?.labels) {
+			const selectedLabels = selected.map((mesh: THREE.Mesh) => {
+				const index = Number(mesh.name.split('_')[1])
+				return featureData.labels[index]
+			})
+			setCommonLabels(findCommon(selectedLabels))
 		}
 	}, [selected, featureData])
 
-	 const commitInput = useCallback(
-        (label) => {
-            const newLabels = [...(featureData.labels || [])];
-            for (const mesh of selected) {
-                const index = Number(mesh.name.split('_')[1]);
-                if (!newLabels[index]) newLabels[index] = new Set();
-                const updatedLabels = new Set(newLabels[index]);
-                updatedLabels.add(label);
-                newLabels[index] = updatedLabels;
-                globalLabels.current.set(index, updatedLabels); // Add this line
-            }
-            const newFeatureData = { ...featureData, labels: newLabels };
-            setFeatureData(newFeatureData)
-			setCommonLabels(
-			(commonLabels) => new Set([...commonLabels.values(), label])
-			)
-setExistingLabels(
-	(existingLabels) => new Set([...existingLabels.values(), label])
-)
+	const commitInput = useCallback(
+		(label: string) => {
+			if (!globalLabels?.current) return
+
+			setFeatureData((prevData: any) => {
+				const newLabels = [...(prevData.labels || [])]
+				for (const mesh of selected) {
+					const index = Number(mesh.name.split('_')[1])
+					const updatedLabels = new Set(newLabels[index] || [])
+					updatedLabels.add(label)
+					newLabels[index] = updatedLabels
+					globalLabels.current.set(index, updatedLabels)
+				}
+				return { ...prevData, labels: newLabels }
+			})
 		},
-		 [selected, featureData, setFeatureData, globalLabels]
+		[selected, setFeatureData, globalLabels]
 	)
 
 	const removeLabel = useCallback(
-		(label) => {
-			const newLabels = [...(featureData.labels || [])];
-			for (const mesh of selected) {
-				const index = Number(mesh.name.split('_')[1]);
-				const updatedLabels = new Set(newLabels[index]);
-				updatedLabels.delete(label);
-				newLabels[index] = updatedLabels;
+		(label: string) => {
+			if (!globalLabels?.current) return
 
-				// If no labels remain, remove from global store
-				if (updatedLabels.size === 0) {
-					globalLabels.current.delete(index);
-				} else {
-					globalLabels.current.set(index, updatedLabels);
+			setFeatureData((prevData: any) => {
+				const newLabels = [...(prevData.labels || [])]
+				for (const mesh of selected) {
+					const index = Number(mesh.name.split('_')[1])
+					if (newLabels[index]) {
+						const updatedLabels = new Set(newLabels[index])
+						updatedLabels.delete(label)
+						newLabels[index] = updatedLabels
+
+						if (updatedLabels.size === 0) {
+							globalLabels.current.delete(index)
+						} else {
+							globalLabels.current.set(index, updatedLabels)
+						}
+					}
 				}
-			}
-			const newFeatureData = { ...featureData, labels: newLabels };
-			setFeatureData(newFeatureData);	
-			setCommonLabels((commonLabels) => {
-				const newCommonLabels = new Set(commonLabels);
-				newCommonLabels.delete(label);
-				return newCommonLabels
-			});
+				return { ...prevData, labels: newLabels }
+			})
 		},
-		[selected, featureData, setFeatureData, globalLabels]
-	);
+		[selected, setFeatureData, globalLabels]
+	)
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -157,8 +138,7 @@ setExistingLabels(
 								<div className="ml-2 mt-4 mb-1 text-sm">
 									Selected item labels:
 								</div>
-								{/* Show common class labels for the selected items */}
-								{Array.from(commonLabels).map((label, index) => {
+								{Array.from(commonLabels).map((label: any, index) => {
 									return (
 										<div
 											key={index}

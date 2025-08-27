@@ -1,7 +1,9 @@
+// src/components/viewer3D/settings/index.tsx
+
 import { useState } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid'
 
-import { WebGLRenderer, Scene, Camera, Group, Mesh } from 'three'
+import { WebGLRenderer, Scene, Camera, Group } from 'three'
 
 import Clipping from './Clipping'
 import Explode from './Explode'
@@ -10,7 +12,7 @@ import Filter from './Filter'
 import Orientation from './Orientation'
 import Labels from './Labels'
 import Export from './Export'
-import SelectedIndices from './SelectedIndices' // Import the new component
+import SelectedIndices from './SelectedIndices'
 
 import { resizeRendererToDisplaySize } from '../utils'
 
@@ -21,10 +23,19 @@ export default function Settings(props: {
 	content: Group
 	featureData: any
 	selected: any[]
-	setFeatureData: (data: any) => void;
+	setFeatureData: (data: any) => void
 	globalLabels: any
 }) {
-	const { renderer, scene, camera, content, featureData, selected, setFeatureData, globalLabels } = props
+	const {
+		renderer,
+		scene,
+		camera,
+		content,
+		featureData,
+		selected,
+		setFeatureData,
+		globalLabels,
+	} = props
 
 	const [isOpen, setIsOpen] = useState(true)
 
