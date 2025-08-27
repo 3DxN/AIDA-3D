@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import * as THREE from 'three';
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
@@ -121,6 +121,7 @@ const Viewer3D = (props: {
 	const { tile, tilesUrl, polygonCoords, select3D, setSelect3D } = props
 
 	const [content, setContent] = useState<THREE.Object3D | null>(null)
+	const contentRef = useRef<THREE.Group | null>(null);
 	const [scene, setScene] = useState<Scene | undefined>(undefined)
 	const [camera, setCamera] = useState<PerspectiveCamera | undefined>(undefined)
 	const [renderer, setRenderer] = useState<WebGLRenderer | undefined>(undefined)
@@ -181,8 +182,6 @@ const Viewer3D = (props: {
 		}
 	}, [])
 
-	// --- MINIMAL CHANGES START HERE ---
-
 	// Generate and render mesh from voxel data
 	useEffect(() => {
 		if (scene && camera && renderer) {
@@ -190,10 +189,10 @@ const Viewer3D = (props: {
 			const runMarchingCubes = async () => {
 				setIsLoading(true);
 
-				// 1. Clear previous content
-				if (content) {
-					scene.remove(content);
-					content.traverse((object) => {
+				// 1. Clear previous content using the ref
+				if (contentRef.current) {
+					scene.remove(contentRef.current);
+					contentRef.current.traverse((object) => {
 						if (!(object as THREE.Mesh).isMesh) return;
 						const mesh = object as THREE.Mesh;
 						mesh.geometry.dispose();
@@ -213,7 +212,16 @@ const Viewer3D = (props: {
 						return { data: dummyData.data, shape: dummyData.shape, stride: [dummyData.shape[1] * dummyData.shape[2], dummyData.shape[2], 1] };
 					})();
 
-				if (!voxelChunk || !voxelChunk.data) {
+				if (!voxelChunk || voxelChunk.data.length === 0) {
+					// If there's no data, ensure the scene is cleared.
+					// The main cleanup at the top of the useEffect handles this,
+					// but this ensures we stop processing and render the empty scene.
+					if (contentRef.current) {
+						scene.remove(contentRef.current);
+					}
+					contentRef.current = null;
+					setContent(null);
+					renderer.render(scene, camera);
 					setIsLoading(false);
 					return;
 				}
@@ -277,6 +285,7 @@ const Viewer3D = (props: {
 				setFeatureData(newFeatureData as any); // Kept 'as any' to match original
 
 				scene.add(newContentGroup);
+				contentRef.current = newContentGroup; // Add this line
 				setContent(newContentGroup);
 
 				if (newContentGroup.children.length > 0) {
