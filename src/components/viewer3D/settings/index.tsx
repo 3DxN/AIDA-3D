@@ -100,10 +100,6 @@ export default function Settings(props: {
 						featureData={featureData}
 					/>
 					<Labels
-						renderer={renderer}
-						scene={scene}
-						camera={camera}
-						content={content}
 						featureData={featureData}
 						selected={selected}
 						setFeatureData={setFeatureData}
@@ -112,7 +108,8 @@ export default function Settings(props: {
 					<Export
 						renderer={renderer}
 						content={content}
-						featureData={featureData}
+						globalLabels={globalLabels}
+						setFeatureData={setFeatureData}
 					/>
 				</div>
 			)}
