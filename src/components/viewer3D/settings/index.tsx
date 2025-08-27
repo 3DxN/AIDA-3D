@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid'
-
 import { WebGLRenderer, Scene, Camera, Group } from 'three'
 
 import Clipping from './Clipping'
@@ -25,6 +24,7 @@ export default function Settings(props: {
 	selected: any[]
 	setFeatureData: (data: any) => void
 	globalLabels: any
+	globalLabelTypes: any
 }) {
 	const {
 		renderer,
@@ -35,18 +35,18 @@ export default function Settings(props: {
 		selected,
 		setFeatureData,
 		globalLabels,
+		globalLabelTypes,
 	} = props
 
 	const [isOpen, setIsOpen] = useState(true)
 
 	return (
 		<>
-			{/* Open button */}
 			{!isOpen && (
 				<button
 					onClick={() => {
 						setIsOpen(true)
-						resizeRendererToDisplaySize(renderer)
+						if (renderer) resizeRendererToDisplaySize(renderer)
 					}}
 					className="rounded-bl-md hover:bg-gray-100 border-gray-200 shadow p-2 bg-white absolute top-0 right-0 inline-flex items-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
 				>
@@ -55,14 +55,12 @@ export default function Settings(props: {
 				</button>
 			)}
 
-			{/* Content */}
 			{isOpen && (
 				<div className="bg-white border-l border-gray-200 h-screen shadow text-gray-800 flex flex-col divide-y overflow-y-auto">
-					{/* Close button */}
 					<button
 						onClick={() => {
 							setIsOpen(false)
-							resizeRendererToDisplaySize(renderer)
+							if (renderer) resizeRendererToDisplaySize(renderer)
 						}}
 						className="w-48 flex justify-between hover:bg-gray-100 p-2 items-center focus:outline-none  ring-inset focus:ring-2 focus:ring-teal-500"
 					>
@@ -104,11 +102,13 @@ export default function Settings(props: {
 						selected={selected}
 						setFeatureData={setFeatureData}
 						globalLabels={globalLabels}
+						globalLabelTypes={globalLabelTypes}
 					/>
 					<Export
 						renderer={renderer}
 						content={content}
 						globalLabels={globalLabels}
+						globalLabelTypes={globalLabelTypes}
 						setFeatureData={setFeatureData}
 					/>
 				</div>

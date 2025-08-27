@@ -1,84 +1,98 @@
 // src/components/viewer3D/settings/Export.tsx
 
-import { useCallback, useRef } from 'react'
-import { Disclosure } from '@headlessui/react'
-import { SaveIcon, UploadIcon } from '@heroicons/react/solid'
-import { WebGLRenderer, Group } from 'three'
+import { useCallback, useRef } from 'react';
+import { Disclosure } from '@headlessui/react';
+import { SaveIcon, UploadIcon } from '@heroicons/react/solid';
+import { WebGLRenderer, Group } from 'three';
 
 function classNames(...classes: any[]) {
-	return classes.filter(Boolean).join(' ')
+	return classes.filter(Boolean).join(' ');
 }
 
 const Export = (props: {
-	renderer: WebGLRenderer
-	content: Group
-	globalLabels: React.MutableRefObject<Map<any, any>>
-	setFeatureData: (updater: (prevData: any) => any) => void
+	renderer: WebGLRenderer;
+	content: Group;
+	globalLabels: React.MutableRefObject<Map<number, Set<number>>>;
+	globalLabelTypes: React.MutableRefObject<string[]>;
+	setFeatureData: (updater: (prevData: any) => any) => void;
 }) => {
-	const { renderer, content, globalLabels, setFeatureData } = props
-	const fileInputRef = useRef<HTMLInputElement>(null)
+	const { renderer, content, globalLabels, globalLabelTypes, setFeatureData } =
+		props;
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
-		const labelsToExport: { [key: number]: string[] } = {}
+		const labelsToExport: { [key: number]: number[] } = {};
 		globalLabels.current.forEach((value, key) => {
-			labelsToExport[key] = Array.from(value)
-		})
+			labelsToExport[key] = Array.from(value);
+		});
 
-		const output = JSON.stringify(labelsToExport, null, 2)
+		const exportObject = {
+			labelTypes: globalLabelTypes.current,
+			labels: labelsToExport,
+		};
 
-		const element = document.createElement('a')
+		const output = JSON.stringify(exportObject, null, 2);
+
+		const element = document.createElement('a');
 		element.setAttribute(
 			'href',
 			'data:text/plain;charset=utf-8,' + encodeURIComponent(output)
-		)
-		element.setAttribute('download', 'labels.json')
+		);
+		element.setAttribute('download', 'labels.json');
 
-		element.style.display = 'none'
-		document.body.appendChild(element)
-		element.click()
-		document.body.removeChild(element)
-	}, [globalLabels])
+		element.style.display = 'none';
+		document.body.appendChild(element);
+		element.click();
+		document.body.removeChild(element);
+	}, [globalLabels, globalLabelTypes]);
 
 	const handleImportClick = () => {
-		fileInputRef.current?.click()
-	}
+		fileInputRef.current?.click();
+	};
 
 	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0]
-		if (!file) return
+		const file = event.target.files?.[0];
+		if (!file) return;
 
-		const reader = new FileReader()
+		const reader = new FileReader();
 		reader.onload = (e) => {
 			try {
-				const text = e.target?.result
-				if (typeof text !== 'string') return
+				const text = e.target?.result;
+				if (typeof text !== 'string') return;
 
-				const importedLabels = JSON.parse(text)
-				const newLabelsMap = new Map<number, Set<string>>()
+				const importedData = JSON.parse(text);
+				const { labelTypes, labels } = importedData;
 
-				for (const key in importedLabels) {
-					if (Object.prototype.hasOwnProperty.call(importedLabels, key)) {
-						const index = parseInt(key, 10)
-						const labels = new Set<string>(importedLabels[key])
-						newLabelsMap.set(index, labels)
+				if (!Array.isArray(labelTypes) || typeof labels !== 'object') {
+					throw new Error('Invalid labels.json format');
+				}
+
+				globalLabelTypes.current = labelTypes;
+
+				const newLabelsMap = new Map<number, Set<number>>();
+				for (const key in labels) {
+					if (Object.prototype.hasOwnProperty.call(labels, key)) {
+						const index = parseInt(key, 10);
+						const labelIds = new Set<number>(labels[key]);
+						newLabelsMap.set(index, labelIds);
 					}
 				}
 
-				globalLabels.current = newLabelsMap
+				globalLabels.current = newLabelsMap;
 
-				setFeatureData((prevData) => {
-					const newLabels = [...(prevData.labels || [])]
-					newLabelsMap.forEach((labels, index) => {
-						newLabels[index] = labels
-					})
-					return { ...prevData, labels: newLabels }
-				})
+				setFeatureData((prevData: any) => {
+					const newLabels = [...(prevData.labels || [])];
+					newLabelsMap.forEach((labelSet, index) => {
+						newLabels[index] = labelSet;
+					});
+					return { ...prevData, labels: newLabels };
+				});
 			} catch (error) {
-				console.error('Error parsing labels.json:', error)
+				console.error('Error parsing labels.json:', error);
 			}
-		}
-		reader.readAsText(file)
-	}
+		};
+		reader.readAsText(file);
+	};
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -137,7 +151,7 @@ const Export = (props: {
 				</>
 			)}
 		</Disclosure>
-	)
-}
+	);
+};
 
-export default Export
+export default Export;
