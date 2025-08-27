@@ -16,6 +16,8 @@ import Settings from './settings'
 import Toolbar from './toolbar'
 import { padToTwo, resizeRendererToDisplaySize } from './utils'
 
+
+
 // NEW: Helper function to generate sample multi-label voxel data (like Cellpose)
 const generateDummyCellposeData = (): number[][][] => {
 	const size = 100
@@ -130,6 +132,7 @@ const Viewer3D = (props: {
 	const [open, setOpen] = useState(false)
 	const [selected, setSelected] = useState<THREE.Mesh[]>([])
 	const selectedCache = useRef<THREE.Mesh[]>([])
+	const globalLabels = useRef(new Map());
 
 	const viewerRef: { current: HTMLCanvasElement | null } = useRef(null)
 
@@ -271,20 +274,28 @@ const Viewer3D = (props: {
 	// Update feature data
 	useEffect(() => {
 		if (tile) {
-			const H = padToTwo(tile[0])
-			const V = padToTwo(tile[1])
-			const url = `${tilesUrl}/tile__H0${H}_V0${V}.tif__.json`
+			const H = padToTwo(tile[0]);
+			const V = padToTwo(tile[1]);
+			const url = `${tilesUrl}/tile__H0${H}_V0${V}.tif__.json`;
 
 			try {
 				fetch(url).then((featureDataFile) => {
-					featureDataFile.json().then((data) => setFeatureData(data))
-				})
+					featureDataFile.json().then((data) => {
+						// Merge global labels into new feature data
+						if (data.labels) {
+							globalLabels.current.forEach((labels, index) => {
+								data.labels[index] = labels;
+							});
+						}
+						setFeatureData(data);
+					});
+				});
 			} catch (error) {
-				console.error('Error fetching feature data:', error)
-				setFeatureData(null)
+				console.error('Error fetching feature data:', error);
+				setFeatureData(null);
 			}
 		}
-	}, [tile, tilesUrl])
+	}, [tile, tilesUrl]);
 
 	// Adjust selections
 	useEffect(() => {
@@ -434,6 +445,7 @@ const Viewer3D = (props: {
 				featureData={featureData}
 				selected={selected}
 				setFeatureData={setFeatureData}
+				globalLabels={globalLabels}
 			/>
 		</div>
 	)

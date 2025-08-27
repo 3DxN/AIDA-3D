@@ -22,8 +22,9 @@ export default function Settings(props: {
 	featureData: any
 	selected: any[]
 	setFeatureData: (data: any) => void;
+	globalLabels: any
 }) {
-	const { renderer, scene, camera, content, featureData, selected, setFeatureData } = props
+	const { renderer, scene, camera, content, featureData, selected, setFeatureData, globalLabels } = props
 
 	const [isOpen, setIsOpen] = useState(true)
 
@@ -95,6 +96,7 @@ export default function Settings(props: {
 						featureData={featureData}
 						selected={selected}
 						setFeatureData={setFeatureData}
+						globalLabels={globalLabels}
 					/>
 					<Export
 						renderer={renderer}

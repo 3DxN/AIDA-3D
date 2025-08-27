@@ -35,7 +35,7 @@ const findCommon = (sets) => {
 }
 
 const Labels = (props) => {
-	const { featureData, selected, setFeatureData } = props
+	const { featureData, selected, setFeatureData, globalLabels } = props;
 
 	const [commonLabels, setCommonLabels] = useState(new Set())
 	const [existingLabels, setExistingLabels] = useState(new Set<string>())
@@ -71,18 +71,19 @@ const Labels = (props) => {
 		}
 	}, [selected, featureData])
 
-	const commitInput = useCallback(
-		(label) => {
-			const newLabels = [...(featureData.labels || [])]
-				for (const mesh of selected) {
-				const index = Number(mesh.name.split('_')[1])
-				if (!newLabels[index]) newLabels[index] = new Set()
-				const updatedLabels = new Set(newLabels[index])
-					updatedLabels.add(label)
-					newLabels[index] = updatedLabels
-			}
-			const newFeatureData = { ...featureData, labels: newLabels }
-			setFeatureData(newFeatureData)
+	 const commitInput = useCallback(
+        (label) => {
+            const newLabels = [...(featureData.labels || [])];
+            for (const mesh of selected) {
+                const index = Number(mesh.name.split('_')[1]);
+                if (!newLabels[index]) newLabels[index] = new Set();
+                const updatedLabels = new Set(newLabels[index]);
+                updatedLabels.add(label);
+                newLabels[index] = updatedLabels;
+                globalLabels.current.set(index, updatedLabels); // Add this line
+            }
+            const newFeatureData = { ...featureData, labels: newLabels };
+            setFeatureData(newFeatureData)
 			setCommonLabels(
 			(commonLabels) => new Set([...commonLabels.values(), label])
 			)
@@ -90,7 +91,7 @@ setExistingLabels(
 	(existingLabels) => new Set([...existingLabels.values(), label])
 )
 		},
-		[selected, featureData, setFeatureData]
+		 [selected, featureData, setFeatureData, globalLabels]
 	)
 
 	const removeLabel = useCallback(
@@ -101,16 +102,23 @@ setExistingLabels(
 				const updatedLabels = new Set(newLabels[index]);
 				updatedLabels.delete(label);
 				newLabels[index] = updatedLabels;
+
+				// If no labels remain, remove from global store
+				if (updatedLabels.size === 0) {
+					globalLabels.current.delete(index);
+				} else {
+					globalLabels.current.set(index, updatedLabels);
+				}
 			}
 			const newFeatureData = { ...featureData, labels: newLabels };
-			setFeatureData(newFeatureData);
+			setFeatureData(newFeatureData);	
 			setCommonLabels((commonLabels) => {
 				const newCommonLabels = new Set(commonLabels);
 				newCommonLabels.delete(label);
 				return newCommonLabels
 			});
 		},
-		[selected, featureData, setFeatureData]
+		[selected, featureData, setFeatureData, globalLabels]
 	);
 
 	return (
