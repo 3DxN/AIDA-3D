@@ -1,9 +1,9 @@
 // src/components/viewer3D/settings/Attributes.tsx
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Disclosure } from '@headlessui/react';
-import Input from '../../interaction/Input';
 import NumberField from '../../interaction/NumberField';
+import AttributeModal from './AttributeModal';
 import { Mesh } from 'three';
 
 const MAX_LABELS = 256;
@@ -20,7 +20,7 @@ const Attributes = (props: {
 		{ nucleus_index: number;[key: string]: number }[]
 	>;
 	globalAttributeTypes: React.MutableRefObject<
-		{ id: number; name: string; count: number }[]
+		{ id: number; name: string; count: number; readOnly: boolean }[]
 	>;
 }) => {
 	const {
@@ -32,8 +32,10 @@ const Attributes = (props: {
 	} = props;
 
 	const [attributeError, setLabelError] = useState<string | null>(null);
+	const [isModalOpen, setIsModalOpen] = useState(false);
 
-	const commitInput = useCallback(
+
+	const addAttributeType = useCallback(
 		(attributeStr: string) => {
 			setLabelError(null);
 			const attributeName = attributeStr.trim();
@@ -49,7 +51,7 @@ const Attributes = (props: {
 					return;
 				}
 				const newId = globalAttributeTypes.current.length;
-				globalAttributeTypes.current.push({ id: newId, name: attributeName, count: 0 });
+				globalAttributeTypes.current.push({ id: newId, name: attributeName, count: 0, readOnly: false });
 
 				globalAttributes.current.forEach((nucleus) => {
 					nucleus[attributeName] = 0;
@@ -63,6 +65,36 @@ const Attributes = (props: {
 		},
 		[setFeatureData, globalAttributes, globalAttributeTypes]
 	);
+
+	const removeAttributeType = useCallback(
+		(attributeName: string) => {
+			globalAttributeTypes.current = globalAttributeTypes.current.filter(
+				(attr) => attr.name !== attributeName
+			);
+			globalAttributes.current.forEach((nucleus) => {
+				delete nucleus[attributeName];
+			});
+			setFeatureData((prevData: any) => ({
+				...prevData,
+				labels: [...globalAttributes.current],
+			}));
+		},
+		[setFeatureData, globalAttributes, globalAttributeTypes]
+	);
+
+	const toggleReadOnly = useCallback(
+		(attributeName: string) => {
+			const attribute = globalAttributeTypes.current.find(
+				(attr) => attr.name === attributeName
+			);
+			if (attribute) {
+				attribute.readOnly = !attribute.readOnly;
+				setFeatureData((prevData: any) => ({ ...prevData })); // Trigger re-render
+			}
+		},
+		[setFeatureData, globalAttributeTypes]
+	);
+
 
 	const updateLabelValue = useCallback(
 		(attributeName: string, value: number) => {
@@ -123,13 +155,12 @@ const Attributes = (props: {
 						Attributes
 					</Disclosure.Button>
 					<Disclosure.Panel className="relative px-4 py-2 w-48">
-						<div>
-							<Input
-								commitInput={commitInput}
-								label={'Add attribute type'}
-								placeholder="New attribute name"
-							/>
-						</div>
+						<button
+							onClick={() => setIsModalOpen(true)}
+							className="w-full bg-pink-500 text-white py-1 px-2 rounded hover:bg-pink-600 text-sm"
+						>
+							Manage Attribute Types
+						</button>
 						{attributeError && (
 							<div className="mt-2 text-sm text-red-600">{attributeError}</div>
 						)}
@@ -145,7 +176,7 @@ const Attributes = (props: {
 											<NumberField
 												value={getDisplayValue(attributeType.name)}
 												onChange={(value) => updateLabelValue(attributeType.name, value)}
-												disabled={selected.length === 0}
+												disabled={selected.length === 0 || attributeType.readOnly}
 											/>
 										</div>
 									</div>
@@ -158,6 +189,14 @@ const Attributes = (props: {
 							)}
 						</div>
 					</Disclosure.Panel>
+					<AttributeModal
+						isOpen={isModalOpen}
+						onClose={() => setIsModalOpen(false)}
+						attributeTypes={globalAttributeTypes.current}
+						onAdd={addAttributeType}
+						onRemove={removeAttributeType}
+						onToggleReadOnly={toggleReadOnly}
+					/>
 				</>
 			)}
 		</Disclosure>
