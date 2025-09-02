@@ -12,26 +12,25 @@ function classNames(...classes: any[]) {
 const Export = (props: {
 	renderer: WebGLRenderer;
 	content: Group;
-	globalLabels: React.MutableRefObject<Map<number, Set<number>>>;
-	globalLabelTypes: React.MutableRefObject<string[]>;
+	globalLabels: React.MutableRefObject<
+		{ nucleus_index: number;[key: string]: number }[]
+	>;
+	globalLabelTypes: React.MutableRefObject<
+		{ id: number; name: string; count: number }[]
+	>;
 	setFeatureData: (updater: (prevData: any) => any) => void;
 }) => {
-	const { renderer, content, globalLabels, globalLabelTypes, setFeatureData } =
-		props;
+	const {
+		renderer,
+		content,
+		globalLabels,
+		globalLabelTypes,
+		setFeatureData,
+	} = props;
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
-		const labelsToExport: { [key: number]: number[] } = {};
-		globalLabels.current.forEach((value, key) => {
-			labelsToExport[key] = Array.from(value);
-		});
-
-		const exportObject = {
-			labelTypes: globalLabelTypes.current,
-			labels: labelsToExport,
-		};
-
-		const output = JSON.stringify(exportObject, null, 2);
+		const output = JSON.stringify(globalLabels.current, null, 2);
 
 		const element = document.createElement('a');
 		element.setAttribute(
@@ -44,7 +43,7 @@ const Export = (props: {
 		document.body.appendChild(element);
 		element.click();
 		document.body.removeChild(element);
-	}, [globalLabels, globalLabelTypes]);
+	}, [globalLabels]);
 
 	const handleImportClick = () => {
 		fileInputRef.current?.click();
@@ -61,32 +60,69 @@ const Export = (props: {
 				if (typeof text !== 'string') return;
 
 				const importedData = JSON.parse(text);
-				const { labelTypes, labels } = importedData;
 
-				if (!Array.isArray(labelTypes) || typeof labels !== 'object') {
-					throw new Error('Invalid labels.json format');
+				if (!Array.isArray(importedData)) {
+					throw new Error('Invalid labels.json format: must be an array.');
 				}
 
-				globalLabelTypes.current = labelTypes;
+				if (importedData.length === 0) {
+					console.warn('Imported labels.json is empty.');
+					globalLabels.current = [];
+					globalLabelTypes.current = [];
+					setFeatureData((prevData: any) => ({ ...prevData, labels: [] }));
+					return;
+				}
 
-				const newLabelsMap = new Map<number, Set<number>>();
-				for (const key in labels) {
-					if (Object.prototype.hasOwnProperty.call(labels, key)) {
-						const index = parseInt(key, 10);
-						const labelIds = new Set<number>(labels[key]);
-						newLabelsMap.set(index, labelIds);
+				// Infer label types and find max index from imported data
+				const importedLabelNames = new Set<string>();
+				const maxIndex = importedData.reduce((max, nucleus) => {
+					Object.keys(nucleus).forEach((key) => {
+						if (key !== 'nucleus_index') {
+							importedLabelNames.add(key);
+						}
+					});
+					return Math.max(max, nucleus.nucleus_index);
+				}, 0);
+
+				// Create a map for quick lookup of imported data
+				const importedMap = new Map(
+					importedData.map((item) => [item.nucleus_index, item])
+				);
+
+				// Create a new "dense" array
+				const denseLabels = [];
+				for (let i = 0; i <= maxIndex; i++) {
+					const existingData = importedMap.get(i);
+					if (existingData) {
+						const completeData: { [key: string]: any } = { ...existingData };
+						importedLabelNames.forEach((name) => {
+							if (!(name in completeData)) {
+								completeData[name] = 0;
+							}
+						});
+						denseLabels.push(completeData);
+					} else {
+						// Create a default entry for missing indices
+						const defaultEntry: { [key: string]: number | string } = {
+							nucleus_index: i,
+						};
+						importedLabelNames.forEach((name) => {
+							defaultEntry[name] = 0;
+						});
+						denseLabels.push(defaultEntry);
 					}
 				}
 
-				globalLabels.current = newLabelsMap;
+				// Update global state
+				globalLabelTypes.current = Array.from(importedLabelNames).map(
+					(name, id) => ({ id, name, count: 0 })
+				);
+				globalLabels.current = denseLabels;
 
-				setFeatureData((prevData: any) => {
-					const newLabels = [...(prevData.labels || [])];
-					newLabelsMap.forEach((labelSet, index) => {
-						newLabels[index] = labelSet;
-					});
-					return { ...prevData, labels: newLabels };
-				});
+				setFeatureData((prevData: any) => ({
+					...prevData,
+					labels: denseLabels,
+				}));
 			} catch (error) {
 				console.error('Error parsing labels.json:', error);
 			}

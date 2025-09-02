@@ -4,26 +4,62 @@ import { useState, useEffect, useCallback } from 'react';
 import { Disclosure } from '@headlessui/react';
 import { XIcon } from '@heroicons/react/solid';
 import Input from '../../interaction/Input';
+import { Mesh } from 'three';
+
+const MAX_LABELS = 256;
 
 function classNames(...classes: any[]) {
 	return classes.filter(Boolean).join(' ');
 }
 
-const findCommon = (sets: Set<number>[]) => {
-	if (!sets || sets.length === 0) return new Set<number>();
-	const result = new Set(sets[0]);
-	for (let i = 1; i < sets.length; i++) {
-		const currentSet = sets[i];
-		result.forEach((value) => {
-			if (!currentSet || !currentSet.has(value)) {
-				result.delete(value);
+// This function finds which labels are active (value=1) for ALL selected nuclei
+const findCommonActiveLabels = (
+	labelsData: { nucleus_index: number;[key: string]: number }[],
+	selectedMeshes: THREE.Mesh[],
+	allLabelTypes: string[]
+) => {
+	if (!labelsData || selectedMeshes.length === 0) {
+		return [];
+	}
+
+	const selectedIndices = new Set(
+		selectedMeshes.map((mesh) => Number(mesh.name.split('_')[1]))
+	);
+
+	// Start with all possible label types as candidates
+	const commonLabels = new Set(allLabelTypes);
+
+	// Iterate through selected nuclei and remove labels that are not active for any of them
+	for (const mesh of selectedMeshes) {
+		const index = Number(mesh.name.split('_')[1]);
+		const nucleusData = labelsData.find((l) => l.nucleus_index === index);
+
+		if (!nucleusData) {
+			// If a selected nucleus has no data, no labels can be common
+			return [];
+		}
+
+		commonLabels.forEach((labelName) => {
+			if (nucleusData[labelName] !== 1) {
+				commonLabels.delete(labelName);
 			}
 		});
 	}
-	return result;
+
+	return Array.from(commonLabels);
 };
 
-const Labels = (props: any) => {
+const Labels = (props: {
+	featureData: any;
+	selected: Mesh[];
+	setFeatureData: (updater: (prevData: any) => any) => void;
+	globalLabels: React.MutableRefObject<
+		{ nucleus_index: number;[key: string]: number }[]
+	>;
+	globalLabelTypes: React.MutableRefObject<
+		{ id: number; name: string; count: number }[]
+	>;
+}) => {
 	const {
 		featureData,
 		selected,
@@ -32,70 +68,85 @@ const Labels = (props: any) => {
 		globalLabelTypes,
 	} = props;
 
-	const [commonLabelIds, setCommonLabelIds] = useState(new Set<number>());
+	const [commonLabelNames, setCommonLabelNames] = useState<string[]>([]);
+	const [labelError, setLabelError] = useState<string | null>(null);
 
 	useEffect(() => {
-		if (selected.length === 0) {
-			setCommonLabelIds(new Set());
+		if (selected.length === 0 || !featureData?.labels) {
+			setCommonLabelNames([]);
 			return;
 		}
-
-		if (featureData?.labels) {
-			const selectedLabels = selected.map((mesh: THREE.Mesh) => {
-				const index = Number(mesh.name.split('_')[1]);
-				return featureData.labels[index];
-			});
-			setCommonLabelIds(findCommon(selectedLabels));
-		}
-	}, [selected, featureData]);
+		const allTypes = globalLabelTypes.current.map((lt) => lt.name);
+		setCommonLabelNames(
+			findCommonActiveLabels(featureData.labels, selected, allTypes)
+		);
+	}, [selected, featureData, globalLabelTypes]);
 
 	const commitInput = useCallback(
 		(labelStr: string) => {
-			if (!globalLabels?.current || !globalLabelTypes?.current) return;
+			setLabelError(null);
 
-			let labelId = globalLabelTypes.current.indexOf(labelStr);
-			if (labelId === -1) {
-				labelId = globalLabelTypes.current.length;
-				globalLabelTypes.current.push(labelStr);
+			const labelName = labelStr.trim();
+			if (!labelName) return;
+
+			// Check if label type already exists
+			let labelType = globalLabelTypes.current.find(
+				(lt) => lt.name === labelName
+			);
+
+			// If it's a new label type, add it
+			if (!labelType) {
+				if (globalLabelTypes.current.length >= MAX_LABELS) {
+					setLabelError(`Cannot add more than ${MAX_LABELS} label types.`);
+					return;
+				}
+				const newId = globalLabelTypes.current.length;
+				globalLabelTypes.current.push({ id: newId, name: labelName, count: 0 });
+
+				// Add the new label key with default value 0 to every nucleus
+				globalLabels.current.forEach((nucleus) => {
+					nucleus[labelName] = 0;
+				});
 			}
 
-			setFeatureData((prevData: any) => {
-				const newLabels = [...(prevData.labels || [])];
-				for (const mesh of selected) {
-					const index = Number(mesh.name.split('_')[1]);
-					const updatedLabels = new Set<number>(newLabels[index] || []);
-					updatedLabels.add(labelId);
-					newLabels[index] = updatedLabels;
-					globalLabels.current.set(index, updatedLabels);
+			// Apply the label (set to 1) to selected nuclei
+			const selectedIndices = new Set(
+				selected.map((mesh: THREE.Mesh) => Number(mesh.name.split('_')[1]))
+			);
+
+			globalLabels.current.forEach((nucleus) => {
+				if (selectedIndices.has(nucleus.nucleus_index)) {
+					nucleus[labelName] = 1;
 				}
-				return { ...prevData, labels: newLabels };
 			});
+
+			// Update state to trigger re-render
+			setFeatureData((prevData: any) => ({
+				...prevData,
+				labels: [...globalLabels.current],
+			}));
 		},
 		[selected, setFeatureData, globalLabels, globalLabelTypes]
 	);
 
 	const removeLabel = useCallback(
-		(labelId: number) => {
-			if (!globalLabels?.current) return;
+		(labelName: string) => {
+			// This function now acts as a toggle, setting the label value to 0 for selected items
+			const selectedIndices = new Set(
+				selected.map((mesh: THREE.Mesh) => Number(mesh.name.split('_')[1]))
+			);
 
-			setFeatureData((prevData: any) => {
-				const newLabels = [...(prevData.labels || [])];
-				for (const mesh of selected) {
-					const index = Number(mesh.name.split('_')[1]);
-					if (newLabels[index]) {
-						const updatedLabels = new Set(newLabels[index]);
-						updatedLabels.delete(labelId);
-						newLabels[index] = updatedLabels;
-
-						if (updatedLabels.size === 0) {
-							globalLabels.current.delete(index);
-						} else {
-							globalLabels.current.set(index, updatedLabels);
-						}
-					}
+			globalLabels.current.forEach((nucleus) => {
+				if (selectedIndices.has(nucleus.nucleus_index)) {
+					nucleus[labelName] = 0;
 				}
-				return { ...prevData, labels: newLabels };
 			});
+
+			// Update state to trigger re-render
+			setFeatureData((prevData: any) => ({
+				...prevData,
+				labels: [...globalLabels.current],
+			}));
 		},
 		[selected, setFeatureData, globalLabels]
 	);
@@ -129,25 +180,26 @@ const Labels = (props: any) => {
 								disabled={selected.length === 0}
 							/>
 						</div>
-
+						{labelError && (
+							<div className="mt-2 text-sm text-red-600">{labelError}</div>
+						)}
 						{selected.length > 0 && (
 							<>
 								{' '}
 								<div className="ml-2 mt-4 mb-1 text-sm">
 									Selected item labels:
 								</div>
-								{Array.from(commonLabelIds).map((labelId: number) => {
-									const labelStr = globalLabelTypes.current[labelId];
+								{commonLabelNames.map((labelName: string) => {
 									return (
 										<div
-											key={labelId}
+											key={labelName}
 											className="flex items-center justify-between mx-2 max-w-48"
 										>
-											<div className="truncate">{labelStr}</div>
+											<div className="truncate">{labelName}</div>
 											<button
 												type="button"
 												className="flex-none inline-flex items-center rounded-full text-gray-500 hover:text-gray-800 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-blue-500"
-												onClick={() => removeLabel(labelId)}
+												onClick={() => removeLabel(labelName)}
 											>
 												<XIcon className="h-3 w-3" aria-hidden="true" />
 											</button>

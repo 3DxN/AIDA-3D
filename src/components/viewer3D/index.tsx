@@ -47,8 +47,12 @@ const Viewer3D = (props: {
 	const [selected, setSelected] = useState<THREE.Mesh[]>([]);
 
 	// New label storage refs
-	const globalLabels = useRef(new Map<number, Set<number>>());
-	const globalLabelTypes = useRef<string[]>(['red']); // Initialize with 'red'
+	const globalLabels = useRef<{ nucleus_index: number;[key: string]: number }[]>(
+		[]
+	);
+	const globalLabelTypes = useRef<{ id: number; name: string; count: number }[]>(
+		[]
+	);
 
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
@@ -139,28 +143,45 @@ const Viewer3D = (props: {
 				newContentGroup.add(mesh);
 			});
 
-			const nucleusMeshes = newContentGroup.children.filter(
-				(child) => child.visible
-			) as THREE.Mesh[];
-			const numNuclei = nucleusMeshes.length;
+			const nucleusMeshes = newContentGroup.children as THREE.Mesh[];
+
+			// Find the maximum index from the newly generated meshes
+			const maxNewIndex = meshDataArray.reduce(
+				(max, { label }) => Math.max(max, label),
+				-1
+			);
+			// Find the maximum index currently in memory
+			const maxExistingIndex =
+				globalLabels.current.length > 0
+					? globalLabels.current[globalLabels.current.length - 1].nucleus_index
+					: -1;
+			const newSize = Math.max(maxNewIndex, maxExistingIndex);
+
+			if (newSize > -1) {
+				const currentLabelNames = globalLabelTypes.current.map((lt) => lt.name);
+				// If the new max index is larger than what we have, expand the array
+				if (newSize > maxExistingIndex) {
+					for (let i = maxExistingIndex + 1; i <= newSize; i++) {
+						const defaultLabelState: { [key: string]: number } = {};
+						currentLabelNames.forEach((name) => {
+							defaultLabelState[name] = 0;
+						});
+						globalLabels.current.push({ nucleus_index: i, ...defaultLabelState });
+					}
+				}
+			}
 
 			const newFeatureData = {
-				labels: Array.from({ length: numNuclei + 1 }, () => new Set<number>()),
-				segmentationConfidence: Array.from({ length: numNuclei + 1 }, () =>
-					Math.random()
+				labels: globalLabels.current, // Always use the persistent, dense global array
+				segmentationConfidence: Array.from(
+					{ length: nucleusMeshes.length + 1 },
+					() => Math.random()
 				),
 				nucleusDiameters: nucleusMeshes.map((mesh) =>
 					calculateNucleusDiameter(mesh)
 				),
-				nucleusVolumes: nucleusMeshes.map((mesh) =>
-					calculateNucleusVolume(mesh)
-				),
+				nucleusVolumes: nucleusMeshes.map((mesh) => calculateNucleusVolume(mesh)),
 			};
-
-			globalLabels.current.forEach((labels, index) => {
-				newFeatureData.labels[index] = new Set(labels);
-			});
-
 			setFeatureData(newFeatureData);
 
 			scene.add(newContentGroup);
@@ -189,7 +210,11 @@ const Viewer3D = (props: {
 
 	// Adjust selections
 	useEffect(() => {
-		if (!polygonCoords || !polygonCoords.coords || polygonCoords.coords.length === 0) {
+		if (
+			!polygonCoords ||
+			!polygonCoords.coords ||
+			polygonCoords.coords.length === 0
+		) {
 			if (!select3D) {
 				setSelected([]);
 			}
@@ -274,17 +299,22 @@ const Viewer3D = (props: {
 			return;
 		}
 
-		const redIndex = globalLabelTypes.current.indexOf('red');
+		const redLabelType = globalLabelTypes.current.find(
+			(labelType) => labelType.name === 'red'
+		);
+		const redLabelName = redLabelType ? redLabelType.name : undefined;
 
 		content.children.forEach((child) => {
 			if (child.isMesh && child.name.includes('nucleus')) {
 				const nucleus = child as THREE.Mesh;
 				const material = nucleus.material as THREE.MeshStandardMaterial;
 				const nucleusIndex = parseInt(child.name.split('_')[1], 10);
-				const labels = featureData.labels[nucleusIndex] as Set<number>;
+				const nucleusLabelData = featureData.labels.find(
+					(l: any) => l.nucleus_index === nucleusIndex
+				);
 
 				const targetColorHex =
-					redIndex !== -1 && labels && labels.has(redIndex)
+					redLabelName && nucleusLabelData && nucleusLabelData[redLabelName] === 1
 						? 0xff0000
 						: 0x808080;
 
