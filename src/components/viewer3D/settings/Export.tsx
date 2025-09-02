@@ -67,64 +67,92 @@ const Export = (props: {
 
 				if (importedData.length === 0) {
 					console.warn('Imported labels.json is empty.');
-					globalLabels.current = [];
-					globalLabelTypes.current = [];
-					setFeatureData((prevData: any) => ({ ...prevData, labels: [] }));
 					return;
 				}
 
-				// Infer label types and find max index from imported data
+				// Get all new label names from the imported data
 				const importedLabelNames = new Set<string>();
-				const maxIndex = importedData.reduce((max, nucleus) => {
+				importedData.forEach((nucleus) => {
 					Object.keys(nucleus).forEach((key) => {
 						if (key !== 'nucleus_index') {
 							importedLabelNames.add(key);
 						}
 					});
-					return Math.max(max, nucleus.nucleus_index);
-				}, 0);
+				});
+
+				// Add new label types to globalLabelTypes if they don't exist
+				importedLabelNames.forEach((name) => {
+					if (!globalLabelTypes.current.some((lt) => lt.name === name)) {
+						const newId = globalLabelTypes.current.length;
+						globalLabelTypes.current.push({ id: newId, name, count: 0 });
+					}
+				});
 
 				// Create a map for quick lookup of imported data
 				const importedMap = new Map(
 					importedData.map((item) => [item.nucleus_index, item])
 				);
 
-				// Create a new "dense" array
-				const denseLabels = [];
-				for (let i = 0; i <= maxIndex; i++) {
-					const existingData = importedMap.get(i);
-					if (existingData) {
-						const completeData: { [key: string]: any } = { ...existingData };
-						importedLabelNames.forEach((name) => {
-							if (!(name in completeData)) {
-								completeData[name] = 0;
-							}
-						});
-						denseLabels.push(completeData);
+				// Find the maximum index from both existing and imported data
+				const maxExistingIndex =
+					globalLabels.current.length > 0
+						? globalLabels.current[globalLabels.current.length - 1].nucleus_index
+						: -1;
+				const maxImportedIndex = importedData.reduce(
+					(max, nucleus) => Math.max(max, nucleus.nucleus_index),
+					-1
+				);
+				const newSize = Math.max(maxExistingIndex, maxImportedIndex);
+
+				// Merge imported data into globalLabels
+				const newGlobalLabels = [...globalLabels.current];
+				for (let i = 0; i <= newSize; i++) {
+					const importedNucleusData = importedMap.get(i);
+					let existingNucleusData = newGlobalLabels.find(
+						(l) => l.nucleus_index === i
+					);
+
+					if (existingNucleusData) {
+						if (importedNucleusData) {
+							// Merge properties from imported data into existing data
+							Object.assign(existingNucleusData, importedNucleusData);
+						}
+					} else if (importedNucleusData) {
+						// Add new nucleus data if it doesn't exist
+						newGlobalLabels.push(importedNucleusData);
 					} else {
-						// Create a default entry for missing indices
-						const defaultEntry: { [key: string]: number | string } = {
-							nucleus_index: i,
-						};
-						importedLabelNames.forEach((name) => {
-							defaultEntry[name] = 0;
+						// Add a placeholder for missing indices
+						const placeholder: { nucleus_index: number, [key: string]: number } = { nucleus_index: i };
+						globalLabelTypes.current.forEach(lt => {
+							placeholder[lt.name] = 0;
 						});
-						denseLabels.push(defaultEntry);
+						newGlobalLabels.push(placeholder);
 					}
 				}
 
-				// Update global state
-				globalLabelTypes.current = Array.from(importedLabelNames).map(
-					(name, id) => ({ id, name, count: 0 })
-				);
-				globalLabels.current = denseLabels;
+				// Ensure all nuclei have all label types
+				newGlobalLabels.forEach(nucleus => {
+					globalLabelTypes.current.forEach(labelType => {
+						if (!(labelType.name in nucleus)) {
+							nucleus[labelType.name] = 0;
+						}
+					});
+				});
+
+
+				// Sort by nucleus_index to maintain order
+				newGlobalLabels.sort((a, b) => a.nucleus_index - b.nucleus_index);
+
+
+				globalLabels.current = newGlobalLabels;
 
 				setFeatureData((prevData: any) => ({
 					...prevData,
-					labels: denseLabels,
+					labels: [...newGlobalLabels],
 				}));
+
 			} catch (error) {
-				console.error('Error parsing labels.json:', error);
+				console.error('Error parsing or merging labels.json:', error);
 			}
 		};
 		reader.readAsText(file);
