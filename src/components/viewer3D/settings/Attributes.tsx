@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Disclosure } from '@headlessui/react';
-import { XIcon } from '@heroicons/react/solid';
 import Input from '../../interaction/Input';
 import NumberField from '../../interaction/NumberField';
 import { Mesh } from 'three';
@@ -33,19 +32,6 @@ const Attributes = (props: {
 	} = props;
 
 	const [attributeError, setLabelError] = useState<string | null>(null);
-	const [selectedNucleusAttributes, setSelectedNucleusData] = useState<{ [key: string]: number } | null>(null);
-
-	useEffect(() => {
-		if (selected.length === 1 && featureData?.labels) {
-			const selectedIndex = Number(selected[0].name.split('_')[1]);
-			const data = featureData.labels.find(
-				(l: any) => l.nucleus_index === selectedIndex
-			);
-			setSelectedNucleusData(data);
-		} else {
-			setSelectedNucleusData(null);
-		}
-	}, [selected, featureData]);
 
 	const commitInput = useCallback(
 		(attributeStr: string) => {
@@ -84,19 +70,36 @@ const Attributes = (props: {
 				selected.map((mesh: THREE.Mesh) => Number(mesh.name.split('_')[1]))
 			);
 
-			globalAttributes.current.forEach((nucleus) => {
+			const newLabels = globalAttributes.current.map((nucleus) => {
 				if (selectedIndices.has(nucleus.nucleus_index)) {
-					nucleus[attributeName] = value;
+					return {
+						...nucleus,
+						[attributeName]: value,
+					};
 				}
+				return nucleus;
 			});
+
+			globalAttributes.current = newLabels;
 
 			setFeatureData((prevData: any) => ({
 				...prevData,
-				labels: [...globalAttributes.current],
+				labels: newLabels,
 			}));
 		},
 		[selected, setFeatureData, globalAttributes]
 	);
+
+	const getDisplayValue = (attributeName: string) => {
+		if (selected.length === 1 && featureData?.labels) {
+			const selectedIndex = Number(selected[0].name.split('_')[1]);
+			const data = featureData.labels.find(
+				(l: any) => l.nucleus_index === selectedIndex
+			);
+			return data ? data[attributeName] : NaN;
+		}
+		return NaN;
+	};
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -131,44 +134,26 @@ const Attributes = (props: {
 							<div className="mt-2 text-sm text-red-600">{attributeError}</div>
 						)}
 						<div className="mt-4">
-							{selected.length === 1 && selectedNucleusAttributes ? (
-								<>
-									<div className="text-sm font-medium text-gray-700 mb-2">
-										Nucleus {selectedNucleusAttributes.nucleus_index} Attributes:
+							<div className="text-sm font-medium text-gray-700 mb-2">
+								Nucleus Attributes:
+							</div>
+							<div className="max-h-40 overflow-y-auto space-y-2">
+								{globalAttributeTypes.current.map((attributeType) => (
+									<div key={attributeType.id} className="flex items-center justify-between">
+										<span className="text-sm truncate mr-2">{attributeType.name}</span>
+										<div className="w-20">
+											<NumberField
+												value={getDisplayValue(attributeType.name)}
+												onChange={(value) => updateLabelValue(attributeType.name, value)}
+												disabled={selected.length === 0}
+											/>
+										</div>
 									</div>
-									<div className="max-h-40 overflow-y-auto space-y-2">
-										{globalAttributeTypes.current.map((attributeType) => (
-											<div key={attributeType.id} className="flex items-center justify-between">
-												<span className="text-sm truncate mr-2">{attributeType.name}</span>
-												<div className="w-20">
-													<NumberField
-														value={selectedNucleusAttributes[attributeType.name] || 0}
-														onChange={(value) => updateLabelValue(attributeType.name, value)}
-													/>
-												</div>
-											</div>
-										))}
-									</div>
-								</>
-							) : selected.length > 1 ? (
-								<div className="text-sm text-gray-500">
-									Multiple nuclei selected. Add or update labels for all selected nuclei.
-									<div className="max-h-40 overflow-y-auto space-y-2 mt-2">
-										{globalAttributeTypes.current.map((attributeType) => (
-											<div key={attributeType.id} className="flex items-center justify-between">
-												<span className="text-sm truncate mr-2">{attributeType.name}</span>
-												<div className="w-20">
-													<NumberField
-														onChange={(value) => updateLabelValue(attributeType.name, value)}
-													/>
-												</div>
-											</div>
-										))}
-									</div>
-								</div>
-							) : (
-								<div className="text-sm text-gray-500">
-									Select a nucleus to view and edit its labels.
+								))}
+							</div>
+							{selected.length === 0 && (
+								<div className="text-sm text-gray-500 mt-2">
+									Select a nucleus to edit its attributes.
 								</div>
 							)}
 						</div>
