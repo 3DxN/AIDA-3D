@@ -58,7 +58,11 @@ const Attributes = (props: {
 
 				globalAttributes.current.forEach((nucleus) => {
 					if (isMultiDimensional) {
-						nucleus[attributeName] = Array(dimensions[0]).fill(0).map(() => Array(dimensions[1] || 1).fill(0));
+						if (dimensions.length === 1) {
+							nucleus[attributeName] = Array(dimensions[0]).fill(0);
+						} else { // 2D array
+							nucleus[attributeName] = Array(dimensions[0]).fill(0).map(() => Array(dimensions[1]).fill(0));
+						}
 					} else {
 						nucleus[attributeName] = 0;
 					}
@@ -108,12 +112,16 @@ const Attributes = (props: {
 				(attr) => attr.name === attributeName
 			);
 			if (attribute) {
-				const isMultiDimensional = dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1);
+				const isMultiDimensional = dimensions.length > 0 && dimensions.some(d => d > 1) || dimensions.length > 1;
 				attribute.dimensions = isMultiDimensional ? dimensions : undefined;
 
 				globalAttributes.current.forEach((nucleus) => {
 					if (isMultiDimensional) {
-						nucleus[attributeName] = Array(dimensions[0]).fill(0).map(() => Array(dimensions[1] || 1).fill(0));
+						if (dimensions.length === 1) {
+							nucleus[attributeName] = Array(dimensions[0]).fill(0);
+						} else {
+							nucleus[attributeName] = Array(dimensions[0] || 1).fill(0).map(() => Array(dimensions[1] || 1).fill(0));
+						}
 					} else {
 						nucleus[attributeName] = 0;
 					}
@@ -138,10 +146,13 @@ const Attributes = (props: {
 			const newLabels = globalAttributes.current.map((nucleus) => {
 				if (selectedIndices.has(nucleus.nucleus_index)) {
 					if (indices) {
-						const newValue = [...nucleus[attributeName]];
+						const newValue = JSON.parse(JSON.stringify(nucleus[attributeName])); // Deep copy
 						if (indices.length === 1) {
 							newValue[indices[0]] = value;
-						} else {
+						} else if (indices.length === 2) {
+							if (!Array.isArray(newValue[indices[0]])) {
+								newValue[indices[0]] = [];
+							}
 							newValue[indices[0]][indices[1]] = value;
 						}
 						return { ...nucleus, [attributeName]: newValue };
@@ -172,10 +183,14 @@ const Attributes = (props: {
 			);
 
 			if (data && indices) {
+				const attrValue = data[attributeName];
+				if (!attrValue) return NaN;
 				if (indices.length === 1) {
-					return data[attributeName]?.[indices[0]];
+					return attrValue[indices[0]];
 				}
-				return data[attributeName]?.[indices[0]]?.[indices[1]];
+				if (indices.length === 2) {
+					return attrValue[indices[0]]?.[indices[1]];
+				}
 			}
 			return data ? data[attributeName] : NaN;
 		}
@@ -217,57 +232,67 @@ const Attributes = (props: {
 							<div className="text-sm font-medium text-gray-700 mb-2">
 								Nucleus Attributes:
 							</div>
-							<div className="max-h-40 overflow-y-auto space-y-2">
+							<div className="space-y-2">
 								{globalAttributeTypes.current.map((attributeType) => (
-									<div key={attributeType.id} className="flex items-center justify-between">
-										<span className="text-sm truncate mr-2">{attributeType.name}</span>
+									<div key={attributeType.id}>
 										{attributeType.dimensions ? (
-											<Menu as="div" className="relative inline-block text-left">
-												<div>
-													<Menu.Button className="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-indigo-500" disabled={selected.length === 0 || attributeType.readOnly}>
-														Edit
-														<ChevronDownIcon className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
-													</Menu.Button>
-												</div>
-												<Transition
-													as={Fragment}
-													enter="transition ease-out duration-100"
-													enterFrom="transform opacity-0 scale-95"
-													enterTo="transform opacity-100 scale-100"
-													leave="transition ease-in duration-75"
-													leaveFrom="transform opacity-100 scale-100"
-													leaveTo="transform opacity-0 scale-95"
-												>
-													<Menu.Items className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
-														<div className="py-1">
-															{Array.from({ length: attributeType.dimensions[0] }).map((_, i) => (
-																<div key={i} className="px-4 py-2">
-																	<div className="text-sm font-medium text-gray-900">Dimension {i + 1}</div>
-																	{Array.from({ length: attributeType.dimensions[1] || 1 }).map((_, j) => (
-																		<div key={j} className="flex items-center justify-between mt-1">
-																			<span className="text-sm">Field {j + 1}</span>
-																			<div className="w-20">
-																				<NumberField
-																					value={getDisplayValue(attributeType.name, [i, j])}
-																					onChange={(val) => updateLabelValue(attributeType.name, val, [i, j])}
-																					disabled={selected.length !== 1 || attributeType.readOnly}
-																				/>
-																			</div>
+											<Menu as="div" className="relative text-left">
+												{({ open }) => (
+													<>
+														<div className="flex items-center justify-between">
+															<span className="text-sm truncate mr-2">{attributeType.name}</span>
+															<Menu.Button className="inline-flex justify-center w-20 rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-indigo-500" disabled={selected.length === 0 || attributeType.readOnly}>
+																Edit
+																<ChevronDownIcon
+																	className={`${!open ? 'rotate-180' : ''} -mr-1 ml-2 h-5 w-5 transform transition-transform duration-200`}
+																	aria-hidden="true"
+																/>
+															</Menu.Button>
+														</div>
+														<Transition
+															as={Fragment}
+															enter="transition ease-out duration-100"
+															enterFrom="transform opacity-0 scale-95"
+															enterTo="transform opacity-100 scale-100"
+															leave="transition ease-in duration-75"
+															leaveFrom="transform opacity-100 scale-100"
+															leaveTo="transform opacity-0 scale-95"
+														>
+															<Menu.Items static className="mt-2 w-full rounded-md shadow-lg bg-gray-50 ring-1 ring-black ring-opacity-5 focus:outline-none">
+																<div className="py-1">
+																	{Array.from({ length: attributeType.dimensions[0] }).map((_, i) => (
+																		<div key={i} className="px-4 py-2">
+																			<div className="text-xs font-medium text-gray-700">Dimension {i + 1}</div>
+																			{Array.from({ length: attributeType.dimensions[1] || 1 }).map((_, j) => (
+																				<div key={j} className="flex items-center justify-between mt-1">
+																					<span className="text-xs text-gray-600">Field {j + 1}</span>
+																					<div className="w-20">
+																						<NumberField
+																							value={getDisplayValue(attributeType.name, [i, j])}
+																							onChange={(val) => updateLabelValue(attributeType.name, val, [i, j])}
+																							disabled={selected.length !== 1 || attributeType.readOnly}
+																						/>
+																					</div>
+																				</div>
+																			))}
 																		</div>
 																	))}
 																</div>
-															))}
-														</div>
-													</Menu.Items>
-												</Transition>
+															</Menu.Items>
+														</Transition>
+													</>
+												)}
 											</Menu>
 										) : (
-											<div className="w-20">
-												<NumberField
-													value={getDisplayValue(attributeType.name)}
-													onChange={(value) => updateLabelValue(attributeType.name, value)}
-													disabled={selected.length === 0 || attributeType.readOnly}
-												/>
+											<div className="flex items-center justify-between">
+												<span className="text-sm truncate mr-2">{attributeType.name}</span>
+												<div className="w-20">
+													<NumberField
+														value={getDisplayValue(attributeType.name)}
+														onChange={(value) => updateLabelValue(attributeType.name, value)}
+														disabled={selected.length === 0 || attributeType.readOnly}
+													/>
+												</div>
 											</div>
 										)}
 									</div>

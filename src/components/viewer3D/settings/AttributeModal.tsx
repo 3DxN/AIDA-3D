@@ -41,7 +41,7 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
 
     const handleAddClick = () => {
         if (newAttributeName.trim()) {
-            const dims = Array(newAttributeDims).fill(newAttributeFields);
+            const dims = newAttributeDims > 1 ? [newAttributeDims, newAttributeFields] : [newAttributeFields];
             onAdd(newAttributeName, dims);
             setNewAttributeName('');
             setNewAttributeDims(1);
