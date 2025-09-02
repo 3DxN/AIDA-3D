@@ -99,13 +99,13 @@ export function getNgffAxes(multiscales: OMEMultiscales[]): OMEAxes[] {
 }
 
 // Generate axis labels for data indexing
-export function getNgffAxisLabels(axes: OMEAxes[]): string[] {
+export function getNgffAxisAttributes(axes: OMEAxes[]): string[] {
   return axes.map(axis => axis.name)
 }
 
 // Parse OMERO metadata for visualization
 export function parseOmeroMeta(omero: OMEROMetadata | undefined, axes: OMEAxes[]): ProcessedOMEMetadata {
-  const axis_labels = getNgffAxisLabels(axes)
+  const axis_labels = getNgffAxisAttributes(axes)
   
   // Default selection (start at 0 for all dimensions)
   const defaultSelection: Record<string, number> = {}

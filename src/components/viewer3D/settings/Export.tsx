@@ -12,10 +12,10 @@ function classNames(...classes: any[]) {
 const Export = (props: {
 	renderer: WebGLRenderer;
 	content: Group;
-	globalLabels: React.MutableRefObject<
+	globalAttributes: React.MutableRefObject<
 		{ nucleus_index: number;[key: string]: number }[]
 	>;
-	globalLabelTypes: React.MutableRefObject<
+	globalAttributeTypes: React.MutableRefObject<
 		{ id: number; name: string; count: number }[]
 	>;
 	setFeatureData: (updater: (prevData: any) => any) => void;
@@ -23,27 +23,27 @@ const Export = (props: {
 	const {
 		renderer,
 		content,
-		globalLabels,
-		globalLabelTypes,
+		globalAttributes,
+		globalAttributeTypes,
 		setFeatureData,
 	} = props;
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
-		const output = JSON.stringify(globalLabels.current, null, 2);
+		const output = JSON.stringify(globalAttributes.current, null, 2);
 
 		const element = document.createElement('a');
 		element.setAttribute(
 			'href',
 			'data:text/plain;charset=utf-8,' + encodeURIComponent(output)
 		);
-		element.setAttribute('download', 'labels.json');
+		element.setAttribute('download', 'attributes.json');
 
 		element.style.display = 'none';
 		document.body.appendChild(element);
 		element.click();
 		document.body.removeChild(element);
-	}, [globalLabels]);
+	}, [globalAttributes]);
 
 	const handleImportClick = () => {
 		fileInputRef.current?.click();
@@ -62,29 +62,29 @@ const Export = (props: {
 				const importedData = JSON.parse(text);
 
 				if (!Array.isArray(importedData)) {
-					throw new Error('Invalid labels.json format: must be an array.');
+					throw new Error('Invalid attributes.json format: must be an array.');
 				}
 
 				if (importedData.length === 0) {
-					console.warn('Imported labels.json is empty.');
+					console.warn('Imported attributes.json is empty.');
 					return;
 				}
 
 				// Get all new label names from the imported data
-				const importedLabelNames = new Set<string>();
+				const importedAttributeNames = new Set<string>();
 				importedData.forEach((nucleus) => {
 					Object.keys(nucleus).forEach((key) => {
 						if (key !== 'nucleus_index') {
-							importedLabelNames.add(key);
+							importedAttributeNames.add(key);
 						}
 					});
 				});
 
-				// Add new label types to globalLabelTypes if they don't exist
-				importedLabelNames.forEach((name) => {
-					if (!globalLabelTypes.current.some((lt) => lt.name === name)) {
-						const newId = globalLabelTypes.current.length;
-						globalLabelTypes.current.push({ id: newId, name, count: 0 });
+				// Add new label types to globalAttributeTypes if they don't exist
+				importedAttributeNames.forEach((name) => {
+					if (!globalAttributeTypes.current.some((lt) => lt.name === name)) {
+						const newId = globalAttributeTypes.current.length;
+						globalAttributeTypes.current.push({ id: newId, name, count: 0 });
 					}
 				});
 
@@ -95,8 +95,8 @@ const Export = (props: {
 
 				// Find the maximum index from both existing and imported data
 				const maxExistingIndex =
-					globalLabels.current.length > 0
-						? globalLabels.current[globalLabels.current.length - 1].nucleus_index
+					globalAttributes.current.length > 0
+						? globalAttributes.current[globalAttributes.current.length - 1].nucleus_index
 						: -1;
 				const maxImportedIndex = importedData.reduce(
 					(max, nucleus) => Math.max(max, nucleus.nucleus_index),
@@ -104,55 +104,55 @@ const Export = (props: {
 				);
 				const newSize = Math.max(maxExistingIndex, maxImportedIndex);
 
-				// Merge imported data into globalLabels
-				const newGlobalLabels = [...globalLabels.current];
+				// Merge imported data into globalAttributes
+				const newglobalAttributes = [...globalAttributes.current];
 				for (let i = 0; i <= newSize; i++) {
-					const importedNucleusData = importedMap.get(i);
-					let existingNucleusData = newGlobalLabels.find(
+					const importedNucleusAttributes = importedMap.get(i);
+					let existingNucleusAttributes = newglobalAttributes.find(
 						(l) => l.nucleus_index === i
 					);
 
-					if (existingNucleusData) {
-						if (importedNucleusData) {
+					if (existingNucleusAttributes) {
+						if (importedNucleusAttributes) {
 							// Merge properties from imported data into existing data
-							Object.assign(existingNucleusData, importedNucleusData);
+							Object.assign(existingNucleusAttributes, importedNucleusAttributes);
 						}
-					} else if (importedNucleusData) {
+					} else if (importedNucleusAttributes) {
 						// Add new nucleus data if it doesn't exist
-						newGlobalLabels.push(importedNucleusData);
+						newglobalAttributes.push(importedNucleusAttributes);
 					} else {
 						// Add a placeholder for missing indices
 						const placeholder: { nucleus_index: number, [key: string]: number } = { nucleus_index: i };
-						globalLabelTypes.current.forEach(lt => {
+						globalAttributeTypes.current.forEach(lt => {
 							placeholder[lt.name] = 0;
 						});
-						newGlobalLabels.push(placeholder);
+						newglobalAttributes.push(placeholder);
 					}
 				}
 
 				// Ensure all nuclei have all label types
-				newGlobalLabels.forEach(nucleus => {
-					globalLabelTypes.current.forEach(labelType => {
-						if (!(labelType.name in nucleus)) {
-							nucleus[labelType.name] = 0;
+				newglobalAttributes.forEach(nucleus => {
+					globalAttributeTypes.current.forEach(attributeType => {
+						if (!(attributeType.name in nucleus)) {
+							nucleus[attributeType.name] = 0;
 						}
 					});
 				});
 
 
 				// Sort by nucleus_index to maintain order
-				newGlobalLabels.sort((a, b) => a.nucleus_index - b.nucleus_index);
+				newglobalAttributes.sort((a, b) => a.nucleus_index - b.nucleus_index);
 
 
-				globalLabels.current = newGlobalLabels;
+				globalAttributes.current = newglobalAttributes;
 
 				setFeatureData((prevData: any) => ({
 					...prevData,
-					labels: [...newGlobalLabels],
+					labels: [...newglobalAttributes],
 				}));
 
 			} catch (error) {
-				console.error('Error parsing or merging labels.json:', error);
+				console.error('Error parsing or merging attributes.json:', error);
 			}
 		};
 		reader.readAsText(file);
@@ -177,7 +177,7 @@ const Export = (props: {
 						>
 							<path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
 						</svg>
-						Import/Export Labels
+						Import/Export Attributes
 					</Disclosure.Button>
 					<Disclosure.Panel className="relative px-4 py-2 w-48">
 						<div className="flex flex-col space-y-2">
@@ -186,7 +186,7 @@ const Export = (props: {
 								type="button"
 								className="inline-flex items-center justify-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
 							>
-								Import labels.json
+								Import attributes.json
 								<UploadIcon
 									className="ml-2 -mr-0.5 h-4 w-4"
 									aria-hidden="true"
@@ -204,7 +204,7 @@ const Export = (props: {
 								type="button"
 								className="inline-flex items-center justify-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
 							>
-								Export labels.json
+								Export attributes.json
 								<SaveIcon
 									className="ml-2 -mr-0.5 h-4 w-4"
 									aria-hidden="true"

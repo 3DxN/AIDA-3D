@@ -1,4 +1,4 @@
-// src/components/viewer3D/settings/Labels.tsx
+// src/components/viewer3D/settings/Attributes.tsx
 
 import { useState, useEffect, useCallback } from 'react';
 import { Disclosure } from '@headlessui/react';
@@ -13,14 +13,14 @@ function classNames(...classes: any[]) {
 	return classes.filter(Boolean).join(' ');
 }
 
-const Labels = (props: {
+const Attributes = (props: {
 	featureData: any;
 	selected: Mesh[];
 	setFeatureData: (updater: (prevData: any) => any) => void;
-	globalLabels: React.MutableRefObject<
+	globalAttributes: React.MutableRefObject<
 		{ nucleus_index: number;[key: string]: number }[]
 	>;
-	globalLabelTypes: React.MutableRefObject<
+	globalAttributeTypes: React.MutableRefObject<
 		{ id: number; name: string; count: number }[]
 	>;
 }) => {
@@ -28,12 +28,12 @@ const Labels = (props: {
 		featureData,
 		selected,
 		setFeatureData,
-		globalLabels,
-		globalLabelTypes,
+		globalAttributes,
+		globalAttributeTypes,
 	} = props;
 
-	const [labelError, setLabelError] = useState<string | null>(null);
-	const [selectedNucleusData, setSelectedNucleusData] = useState<{ [key: string]: number } | null>(null);
+	const [attributeError, setLabelError] = useState<string | null>(null);
+	const [selectedNucleusAttributes, setSelectedNucleusData] = useState<{ [key: string]: number } | null>(null);
 
 	useEffect(() => {
 		if (selected.length === 1 && featureData?.labels) {
@@ -48,54 +48,54 @@ const Labels = (props: {
 	}, [selected, featureData]);
 
 	const commitInput = useCallback(
-		(labelStr: string) => {
+		(attributeStr: string) => {
 			setLabelError(null);
-			const labelName = labelStr.trim();
-			if (!labelName) return;
+			const attributeName = attributeStr.trim();
+			if (!attributeName) return;
 
-			let labelType = globalLabelTypes.current.find(
-				(lt) => lt.name === labelName
+			let attributeType = globalAttributeTypes.current.find(
+				(lt) => lt.name === attributeName
 			);
 
-			if (!labelType) {
-				if (globalLabelTypes.current.length >= MAX_LABELS) {
+			if (!attributeType) {
+				if (globalAttributeTypes.current.length >= MAX_LABELS) {
 					setLabelError(`Cannot add more than ${MAX_LABELS} label types.`);
 					return;
 				}
-				const newId = globalLabelTypes.current.length;
-				globalLabelTypes.current.push({ id: newId, name: labelName, count: 0 });
+				const newId = globalAttributeTypes.current.length;
+				globalAttributeTypes.current.push({ id: newId, name: attributeName, count: 0 });
 
-				globalLabels.current.forEach((nucleus) => {
-					nucleus[labelName] = 0;
+				globalAttributes.current.forEach((nucleus) => {
+					nucleus[attributeName] = 0;
 				});
 			}
 
 			setFeatureData((prevData: any) => ({
 				...prevData,
-				labels: [...globalLabels.current],
+				labels: [...globalAttributes.current],
 			}));
 		},
-		[setFeatureData, globalLabels, globalLabelTypes]
+		[setFeatureData, globalAttributes, globalAttributeTypes]
 	);
 
 	const updateLabelValue = useCallback(
-		(labelName: string, value: number) => {
+		(attributeName: string, value: number) => {
 			const selectedIndices = new Set(
 				selected.map((mesh: THREE.Mesh) => Number(mesh.name.split('_')[1]))
 			);
 
-			globalLabels.current.forEach((nucleus) => {
+			globalAttributes.current.forEach((nucleus) => {
 				if (selectedIndices.has(nucleus.nucleus_index)) {
-					nucleus[labelName] = value;
+					nucleus[attributeName] = value;
 				}
 			});
 
 			setFeatureData((prevData: any) => ({
 				...prevData,
-				labels: [...globalLabels.current],
+				labels: [...globalAttributes.current],
 			}));
 		},
-		[selected, setFeatureData, globalLabels]
+		[selected, setFeatureData, globalAttributes]
 	);
 
 	return (
@@ -117,33 +117,33 @@ const Labels = (props: {
 						>
 							<path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
 						</svg>
-						Labels
+						Attributes
 					</Disclosure.Button>
 					<Disclosure.Panel className="relative px-4 py-2 w-48">
 						<div>
 							<Input
 								commitInput={commitInput}
-								label={'Add label type'}
-								placeholder="New label name"
+								label={'Add attribute type'}
+								placeholder="New attribute name"
 							/>
 						</div>
-						{labelError && (
-							<div className="mt-2 text-sm text-red-600">{labelError}</div>
+						{attributeError && (
+							<div className="mt-2 text-sm text-red-600">{attributeError}</div>
 						)}
 						<div className="mt-4">
-							{selected.length === 1 && selectedNucleusData ? (
+							{selected.length === 1 && selectedNucleusAttributes ? (
 								<>
 									<div className="text-sm font-medium text-gray-700 mb-2">
-										Nucleus {selectedNucleusData.nucleus_index} Labels:
+										Nucleus {selectedNucleusAttributes.nucleus_index} Attributes:
 									</div>
 									<div className="max-h-40 overflow-y-auto space-y-2">
-										{globalLabelTypes.current.map((labelType) => (
-											<div key={labelType.id} className="flex items-center justify-between">
-												<span className="text-sm truncate mr-2">{labelType.name}</span>
+										{globalAttributeTypes.current.map((attributeType) => (
+											<div key={attributeType.id} className="flex items-center justify-between">
+												<span className="text-sm truncate mr-2">{attributeType.name}</span>
 												<div className="w-20">
 													<NumberField
-														value={selectedNucleusData[labelType.name] || 0}
-														onChange={(value) => updateLabelValue(labelType.name, value)}
+														value={selectedNucleusAttributes[attributeType.name] || 0}
+														onChange={(value) => updateLabelValue(attributeType.name, value)}
 													/>
 												</div>
 											</div>
@@ -154,12 +154,12 @@ const Labels = (props: {
 								<div className="text-sm text-gray-500">
 									Multiple nuclei selected. Add or update labels for all selected nuclei.
 									<div className="max-h-40 overflow-y-auto space-y-2 mt-2">
-										{globalLabelTypes.current.map((labelType) => (
-											<div key={labelType.id} className="flex items-center justify-between">
-												<span className="text-sm truncate mr-2">{labelType.name}</span>
+										{globalAttributeTypes.current.map((attributeType) => (
+											<div key={attributeType.id} className="flex items-center justify-between">
+												<span className="text-sm truncate mr-2">{attributeType.name}</span>
 												<div className="w-20">
 													<NumberField
-														onChange={(value) => updateLabelValue(labelType.name, value)}
+														onChange={(value) => updateLabelValue(attributeType.name, value)}
 													/>
 												</div>
 											</div>
@@ -179,4 +179,4 @@ const Labels = (props: {
 	);
 };
 
-export default Labels;
+export default Attributes;

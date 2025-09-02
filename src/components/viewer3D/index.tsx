@@ -47,10 +47,10 @@ const Viewer3D = (props: {
 	const [selected, setSelected] = useState<THREE.Mesh[]>([]);
 
 	// New label storage refs
-	const globalLabels = useRef<{ nucleus_index: number;[key: string]: number }[]>(
+	const globalAttributes = useRef<{ nucleus_index: number;[key: string]: number }[]>(
 		[]
 	);
-	const globalLabelTypes = useRef<{ id: number; name: string; count: number }[]>(
+	const globalAttributeTypes = useRef<{ id: number; name: string; count: number }[]>(
 		[]
 	);
 
@@ -152,13 +152,13 @@ const Viewer3D = (props: {
 			);
 			// Find the maximum index currently in memory
 			const maxExistingIndex =
-				globalLabels.current.length > 0
-					? globalLabels.current[globalLabels.current.length - 1].nucleus_index
+				globalAttributes.current.length > 0
+					? globalAttributes.current[globalAttributes.current.length - 1].nucleus_index
 					: -1;
 			const newSize = Math.max(maxNewIndex, maxExistingIndex);
 
 			if (newSize > -1) {
-				const currentLabelNames = globalLabelTypes.current.map((lt) => lt.name);
+				const currentLabelNames = globalAttributeTypes.current.map((lt) => lt.name);
 				// If the new max index is larger than what we have, expand the array
 				if (newSize > maxExistingIndex) {
 					for (let i = maxExistingIndex + 1; i <= newSize; i++) {
@@ -166,13 +166,13 @@ const Viewer3D = (props: {
 						currentLabelNames.forEach((name) => {
 							defaultLabelState[name] = 0;
 						});
-						globalLabels.current.push({ nucleus_index: i, ...defaultLabelState });
+						globalAttributes.current.push({ nucleus_index: i, ...defaultLabelState });
 					}
 				}
 			}
 
 			const newFeatureData = {
-				labels: globalLabels.current, // Always use the persistent, dense global array
+				labels: globalAttributes.current, // Always use the persistent, dense global array
 				segmentationConfidence: Array.from(
 					{ length: nucleusMeshes.length + 1 },
 					() => Math.random()
@@ -299,22 +299,22 @@ const Viewer3D = (props: {
 			return;
 		}
 
-		const redLabelType = globalLabelTypes.current.find(
-			(labelType) => labelType.name === 'red'
+		const redattributeType = globalAttributeTypes.current.find(
+			(attributeType) => attributeType.name === 'red'
 		);
-		const redLabelName = redLabelType ? redLabelType.name : undefined;
+		const redAttributeName = redattributeType ? redattributeType.name : undefined;
 
 		content.children.forEach((child) => {
 			if (child.isMesh && child.name.includes('nucleus')) {
 				const nucleus = child as THREE.Mesh;
 				const material = nucleus.material as THREE.MeshStandardMaterial;
 				const nucleusIndex = parseInt(child.name.split('_')[1], 10);
-				const nucleusLabelData = featureData.labels.find(
+				const nucleusAttributeData = featureData.labels.find(
 					(l: any) => l.nucleus_index === nucleusIndex
 				);
 
 				const targetColorHex =
-					redLabelName && nucleusLabelData && nucleusLabelData[redLabelName] === 1
+					redAttributeName && nucleusAttributeData && nucleusAttributeData[redAttributeName] === 1
 						? 0xff0000
 						: 0x808080;
 
@@ -357,8 +357,8 @@ const Viewer3D = (props: {
 				featureData={featureData}
 				selected={selected}
 				setFeatureData={setFeatureData}
-				globalLabels={globalLabels}
-				globalLabelTypes={globalLabelTypes}
+				globalAttributes={globalAttributes}
+				globalAttributeTypes={globalAttributeTypes}
 			/>
 		</div>
 	);

@@ -128,9 +128,9 @@ export const generateMeshesFromVoxelData = (input: Chunk<Uint32>) => {
 	// Accessor for the 1D strided array
 	const getValue = (z: number, y: number, x: number) => data[z * stride[0] + y * stride[1] + x * stride[2]];
 
-	const uniqueLabels = [...new Set(allVoxelValues)].filter(label => label > 0);
+	const uniqueAttributes = [...new Set(allVoxelValues)].filter(label => label > 0);
 
-	for (const label of uniqueLabels) {
+	for (const label of uniqueAttributes) {
 		let isOnBoundary = false;
 		const labelVoxels = [];
 

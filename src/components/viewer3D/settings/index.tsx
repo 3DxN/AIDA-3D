@@ -9,7 +9,7 @@ import Explode from './Explode';
 import ColorMap from './colorMaps';
 import Filter from './Filter';
 import Orientation from './Orientation';
-import Labels from './Labels';
+import Attributes from './Attributes';
 import Export from './Export';
 import SelectedIndices from './SelectedIndices';
 
@@ -23,8 +23,8 @@ export default function Settings(props: {
 	featureData: any;
 	selected: any[];
 	setFeatureData: (data: any) => void;
-	globalLabels: any;
-	globalLabelTypes: any;
+	globalAttributes: any;
+	globalAttributeTypes: any;
 }) {
 	const {
 		renderer,
@@ -34,8 +34,8 @@ export default function Settings(props: {
 		featureData,
 		selected,
 		setFeatureData,
-		globalLabels,
-		globalLabelTypes,
+		globalAttributes,
+		globalAttributeTypes,
 	} = props;
 
 	const [isOpen, setIsOpen] = useState(true);
@@ -97,18 +97,18 @@ export default function Settings(props: {
 						content={content}
 						featureData={featureData}
 					/>
-					<Labels
+					<Attributes
 						featureData={featureData}
 						selected={selected}
 						setFeatureData={setFeatureData}
-						globalLabels={globalLabels}
-						globalLabelTypes={globalLabelTypes}
+						globalAttributes={globalAttributes}
+						globalAttributeTypes={globalAttributeTypes}
 					/>
 					<Export
 						renderer={renderer}
 						content={content}
-						globalLabels={globalLabels}
-						globalLabelTypes={globalLabelTypes}
+						globalAttributes={globalAttributes}
+						globalAttributeTypes={globalAttributeTypes}
 						setFeatureData={setFeatureData}
 					/>
 				</div>
