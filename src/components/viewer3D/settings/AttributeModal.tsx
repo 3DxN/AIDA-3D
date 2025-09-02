@@ -4,19 +4,25 @@ import { useState } from 'react';
 import { XIcon } from '@heroicons/react/solid';
 import Input from '../../interaction/Input';
 import Switch from '../../interaction/Switch';
+import NumberField from '../../interaction/NumberField';
 
 interface AttributeModalProps {
     isOpen: boolean;
     onClose: () => void;
-    attributeTypes: { id: number; name: string; count: number, readOnly: boolean }[];
-    onAdd: (name: string) => void;
+    attributeTypes: { id: number; name: string; count: number, readOnly: boolean; dimensions?: number[]; }[];
+    onAdd: (name: string, dimensions: number[]) => void;
     onRemove: (name: string) => void;
     onToggleReadOnly: (name: string) => void;
+    onUpdateDimensions: (name: string, dimensions: number[]) => void;
 }
 
-const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onToggleReadOnly }: AttributeModalProps) => {
+const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onToggleReadOnly, onUpdateDimensions }: AttributeModalProps) => {
     if (!isOpen) return null;
     const [toRemove, setToRemove] = useState<Set<string>>(new Set());
+    const [newAttributeName, setNewAttributeName] = useState('');
+    const [newAttributeDims, setNewAttributeDims] = useState(1);
+    const [newAttributeFields, setNewAttributeFields] = useState(1);
+
 
     const handleCheckboxChange = (name: string) => {
         const newToRemove = new Set(toRemove);
@@ -33,9 +39,19 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
         setToRemove(new Set());
     };
 
+    const handleAddClick = () => {
+        if (newAttributeName.trim()) {
+            const dims = Array(newAttributeDims).fill(newAttributeFields);
+            onAdd(newAttributeName, dims);
+            setNewAttributeName('');
+            setNewAttributeDims(1);
+            setNewAttributeFields(1);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-lg p-6 w-1/2 max-w-2xl">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-1/2 max-w-2xl h-[32rem] flex flex-col">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-bold">Manage Attribute Types</h2>
                     <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
@@ -43,13 +59,42 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
                     </button>
                 </div>
                 <div className="mb-4">
-                    <Input
-                        commitInput={onAdd}
-                        label="Add new attribute type"
-                        placeholder="New attribute name"
-                    />
+                    <div className="flex items-end space-x-4">
+                        <div className="flex-grow">
+                            <Input
+                                value={newAttributeName}
+                                onChange={setNewAttributeName}
+                                commitInput={handleAddClick}
+                                label="Add new attribute type"
+                                placeholder="New attribute name"
+                            />
+                        </div>
+                        <div className="flex-shrink-0">
+                            <NumberField
+                                label="Dimensions"
+                                value={newAttributeDims}
+                                onChange={(val) => setNewAttributeDims(val || 1)}
+                            />
+                        </div>
+                        <div className="flex-shrink-0">
+                            <NumberField
+                                label={`Fields per Dim`}
+                                value={newAttributeFields}
+                                onChange={(val) => setNewAttributeFields(val || 1)}
+                            />
+                        </div>
+                        <button
+                            onClick={handleAddClick}
+                            className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 text-sm"
+                        >
+                            Add Attribute
+                        </button>
+                    </div>
                 </div>
-                <div>
+
+                <div className="border-t border-gray-200 my-4"></div>
+
+                <div className="flex-grow overflow-hidden flex flex-col">
                     <div className="grid grid-cols-3 gap-4 px-4 pb-2 border-b">
                         <h3 className="text-md font-semibold col-span-1">Attribute</h3>
                         <h3 className="text-md font-semibold col-span-1">Read-only</h3>
@@ -59,14 +104,14 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
                                     onClick={handleRemoveClick}
                                     className="w-full bg-red-500 text-white py-1 px-2 rounded hover:bg-red-600 text-sm"
                                 >
-                                    Remove for all nuclei
+                                    Remove ({toRemove.size})
                                 </button>
                             ) : (
-                                <h3 className="text-md font-semibold">Remove attribute type</h3>
+                                <h3 className="text-md font-semibold">Remove</h3>
                             )}
                         </div>
                     </div>
-                    <ul className="space-y-2 max-h-60 overflow-y-auto">
+                    <ul className="space-y-2 overflow-y-auto">
                         {attributeTypes.map((attr, index) => (
                             <li key={attr.id} className={`grid grid-cols-3 gap-4 items-center px-4 py-2 ${index % 2 === 0 ? 'bg-gray-50' : ''}`}>
                                 <span className="col-span-1">{attr.name}</span>

@@ -13,10 +13,10 @@ const Export = (props: {
 	renderer: WebGLRenderer;
 	content: Group;
 	globalAttributes: React.MutableRefObject<
-		{ nucleus_index: number;[key: string]: number }[]
+		{ nucleus_index: number;[key: string]: any }[]
 	>;
 	globalAttributeTypes: React.MutableRefObject<
-		{ id: number; name: string; count: number }[]
+		{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]
 	>;
 	setFeatureData: (updater: (prevData: any) => any) => void;
 }) => {
@@ -30,7 +30,10 @@ const Export = (props: {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
-		const output = JSON.stringify(globalAttributes.current, null, 2);
+		const output = JSON.stringify({
+			attributeTypes: globalAttributeTypes.current,
+			attributes: globalAttributes.current,
+		}, null, 2);
 
 		const element = document.createElement('a');
 		element.setAttribute(
@@ -43,7 +46,7 @@ const Export = (props: {
 		document.body.appendChild(element);
 		element.click();
 		document.body.removeChild(element);
-	}, [globalAttributes]);
+	}, [globalAttributes, globalAttributeTypes]);
 
 	const handleImportClick = () => {
 		fileInputRef.current?.click();
@@ -59,7 +62,10 @@ const Export = (props: {
 				const text = e.target?.result;
 				if (typeof text !== 'string') return;
 
-				const importedData = JSON.parse(text);
+				const imported = JSON.parse(text);
+				const importedData = imported.attributes;
+				const importedAttributeTypes = imported.attributeTypes;
+
 
 				if (!Array.isArray(importedData)) {
 					throw new Error('Invalid attributes.json format: must be an array.');
@@ -70,23 +76,7 @@ const Export = (props: {
 					return;
 				}
 
-				// Get all new label names from the imported data
-				const importedAttributeNames = new Set<string>();
-				importedData.forEach((nucleus) => {
-					Object.keys(nucleus).forEach((key) => {
-						if (key !== 'nucleus_index') {
-							importedAttributeNames.add(key);
-						}
-					});
-				});
-
-				// Add new label types to globalAttributeTypes if they don't exist
-				importedAttributeNames.forEach((name) => {
-					if (!globalAttributeTypes.current.some((lt) => lt.name === name)) {
-						const newId = globalAttributeTypes.current.length;
-						globalAttributeTypes.current.push({ id: newId, name, count: 0 });
-					}
-				});
+				globalAttributeTypes.current = importedAttributeTypes;
 
 				// Create a map for quick lookup of imported data
 				const importedMap = new Map(
@@ -122,9 +112,13 @@ const Export = (props: {
 						newglobalAttributes.push(importedNucleusAttributes);
 					} else {
 						// Add a placeholder for missing indices
-						const placeholder: { nucleus_index: number, [key: string]: number } = { nucleus_index: i };
+						const placeholder: { nucleus_index: number, [key: string]: any } = { nucleus_index: i };
 						globalAttributeTypes.current.forEach(lt => {
-							placeholder[lt.name] = 0;
+							if (lt.dimensions) {
+								placeholder[lt.name] = Array(lt.dimensions[0]).fill(0).map(() => Array(lt.dimensions[1] || 1).fill(0));
+							} else {
+								placeholder[lt.name] = 0;
+							}
 						});
 						newglobalAttributes.push(placeholder);
 					}
@@ -134,7 +128,11 @@ const Export = (props: {
 				newglobalAttributes.forEach(nucleus => {
 					globalAttributeTypes.current.forEach(attributeType => {
 						if (!(attributeType.name in nucleus)) {
-							nucleus[attributeType.name] = 0;
+							if (attributeType.dimensions) {
+								nucleus[attributeType.name] = Array(attributeType.dimensions[0]).fill(0).map(() => Array(attributeType.dimensions[1] || 1).fill(0));
+							} else {
+								nucleus[attributeType.name] = 0;
+							}
 						}
 					});
 				});

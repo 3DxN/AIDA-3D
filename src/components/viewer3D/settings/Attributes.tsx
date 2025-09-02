@@ -1,10 +1,12 @@
 // src/components/viewer3D/settings/Attributes.tsx
 
-import { useState, useCallback } from 'react';
-import { Disclosure } from '@headlessui/react';
+import { useState, useCallback, Fragment } from 'react';
+import { Disclosure, Menu, Transition } from '@headlessui/react';
 import NumberField from '../../interaction/NumberField';
 import AttributeModal from './AttributeModal';
 import { Mesh } from 'three';
+import { ChevronDownIcon } from '@heroicons/react/solid';
+
 
 const MAX_LABELS = 256;
 
@@ -17,10 +19,10 @@ const Attributes = (props: {
 	selected: Mesh[];
 	setFeatureData: (updater: (prevData: any) => any) => void;
 	globalAttributes: React.MutableRefObject<
-		{ nucleus_index: number;[key: string]: number }[]
+		{ nucleus_index: number;[key: string]: any }[]
 	>;
 	globalAttributeTypes: React.MutableRefObject<
-		{ id: number; name: string; count: number; readOnly: boolean }[]
+		{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]
 	>;
 }) => {
 	const {
@@ -36,7 +38,7 @@ const Attributes = (props: {
 
 
 	const addAttributeType = useCallback(
-		(attributeStr: string) => {
+		(attributeStr: string, dimensions: number[]) => {
 			setLabelError(null);
 			const attributeName = attributeStr.trim();
 			if (!attributeName) return;
@@ -51,10 +53,15 @@ const Attributes = (props: {
 					return;
 				}
 				const newId = globalAttributeTypes.current.length;
-				globalAttributeTypes.current.push({ id: newId, name: attributeName, count: 0, readOnly: false });
+				const isMultiDimensional = dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1);
+				globalAttributeTypes.current.push({ id: newId, name: attributeName, count: 0, readOnly: false, dimensions: isMultiDimensional ? dimensions : undefined });
 
 				globalAttributes.current.forEach((nucleus) => {
-					nucleus[attributeName] = 0;
+					if (isMultiDimensional) {
+						nucleus[attributeName] = Array(dimensions[0]).fill(0).map(() => Array(dimensions[1] || 1).fill(0));
+					} else {
+						nucleus[attributeName] = 0;
+					}
 				});
 			}
 
@@ -95,15 +102,50 @@ const Attributes = (props: {
 		[setFeatureData, globalAttributeTypes]
 	);
 
+	const updateAttributeDimensions = useCallback(
+		(attributeName: string, dimensions: number[]) => {
+			const attribute = globalAttributeTypes.current.find(
+				(attr) => attr.name === attributeName
+			);
+			if (attribute) {
+				const isMultiDimensional = dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1);
+				attribute.dimensions = isMultiDimensional ? dimensions : undefined;
+
+				globalAttributes.current.forEach((nucleus) => {
+					if (isMultiDimensional) {
+						nucleus[attributeName] = Array(dimensions[0]).fill(0).map(() => Array(dimensions[1] || 1).fill(0));
+					} else {
+						nucleus[attributeName] = 0;
+					}
+				});
+
+				setFeatureData((prevData: any) => ({
+					...prevData,
+					labels: [...globalAttributes.current],
+				}));
+			}
+		},
+		[setFeatureData, globalAttributes, globalAttributeTypes]
+	);
+
 
 	const updateLabelValue = useCallback(
-		(attributeName: string, value: number) => {
+		(attributeName: string, value: any, indices?: number[]) => {
 			const selectedIndices = new Set(
 				selected.map((mesh: THREE.Mesh) => Number(mesh.name.split('_')[1]))
 			);
 
 			const newLabels = globalAttributes.current.map((nucleus) => {
 				if (selectedIndices.has(nucleus.nucleus_index)) {
+					if (indices) {
+						const newValue = [...nucleus[attributeName]];
+						if (indices.length === 1) {
+							newValue[indices[0]] = value;
+						} else {
+							newValue[indices[0]][indices[1]] = value;
+						}
+						return { ...nucleus, [attributeName]: newValue };
+					}
 					return {
 						...nucleus,
 						[attributeName]: value,
@@ -122,12 +164,19 @@ const Attributes = (props: {
 		[selected, setFeatureData, globalAttributes]
 	);
 
-	const getDisplayValue = (attributeName: string) => {
+	const getDisplayValue = (attributeName: string, indices?: number[]) => {
 		if (selected.length === 1 && featureData?.labels) {
 			const selectedIndex = Number(selected[0].name.split('_')[1]);
 			const data = featureData.labels.find(
 				(l: any) => l.nucleus_index === selectedIndex
 			);
+
+			if (data && indices) {
+				if (indices.length === 1) {
+					return data[attributeName]?.[indices[0]];
+				}
+				return data[attributeName]?.[indices[0]]?.[indices[1]];
+			}
 			return data ? data[attributeName] : NaN;
 		}
 		return NaN;
@@ -172,13 +221,55 @@ const Attributes = (props: {
 								{globalAttributeTypes.current.map((attributeType) => (
 									<div key={attributeType.id} className="flex items-center justify-between">
 										<span className="text-sm truncate mr-2">{attributeType.name}</span>
-										<div className="w-20">
-											<NumberField
-												value={getDisplayValue(attributeType.name)}
-												onChange={(value) => updateLabelValue(attributeType.name, value)}
-												disabled={selected.length === 0 || attributeType.readOnly}
-											/>
-										</div>
+										{attributeType.dimensions ? (
+											<Menu as="div" className="relative inline-block text-left">
+												<div>
+													<Menu.Button className="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-indigo-500" disabled={selected.length === 0 || attributeType.readOnly}>
+														Edit
+														<ChevronDownIcon className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
+													</Menu.Button>
+												</div>
+												<Transition
+													as={Fragment}
+													enter="transition ease-out duration-100"
+													enterFrom="transform opacity-0 scale-95"
+													enterTo="transform opacity-100 scale-100"
+													leave="transition ease-in duration-75"
+													leaveFrom="transform opacity-100 scale-100"
+													leaveTo="transform opacity-0 scale-95"
+												>
+													<Menu.Items className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
+														<div className="py-1">
+															{Array.from({ length: attributeType.dimensions[0] }).map((_, i) => (
+																<div key={i} className="px-4 py-2">
+																	<div className="text-sm font-medium text-gray-900">Dimension {i + 1}</div>
+																	{Array.from({ length: attributeType.dimensions[1] || 1 }).map((_, j) => (
+																		<div key={j} className="flex items-center justify-between mt-1">
+																			<span className="text-sm">Field {j + 1}</span>
+																			<div className="w-20">
+																				<NumberField
+																					value={getDisplayValue(attributeType.name, [i, j])}
+																					onChange={(val) => updateLabelValue(attributeType.name, val, [i, j])}
+																					disabled={selected.length !== 1 || attributeType.readOnly}
+																				/>
+																			</div>
+																		</div>
+																	))}
+																</div>
+															))}
+														</div>
+													</Menu.Items>
+												</Transition>
+											</Menu>
+										) : (
+											<div className="w-20">
+												<NumberField
+													value={getDisplayValue(attributeType.name)}
+													onChange={(value) => updateLabelValue(attributeType.name, value)}
+													disabled={selected.length === 0 || attributeType.readOnly}
+												/>
+											</div>
+										)}
 									</div>
 								))}
 							</div>
@@ -196,6 +287,7 @@ const Attributes = (props: {
 						onAdd={addAttributeType}
 						onRemove={removeAttributeType}
 						onToggleReadOnly={toggleReadOnly}
+						onUpdateDimensions={updateAttributeDimensions}
 					/>
 				</>
 			)}
