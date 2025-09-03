@@ -70,13 +70,20 @@ const Export = (props: {
 					throw new Error('Invalid attributes.json format.');
 				}
 
-				if (importedData.length === 0) {
+				if (importedData.length === 0 && importedAttributeTypes.length === 0) {
 					console.warn('Imported attributes.json is empty.');
 					return;
 				}
 
-				// Replace existing attribute types and add new ones
-				globalAttributeTypes.current = importedAttributeTypes;
+				// Merge attribute types
+				const newAttributeTypesMap = new Map(
+					globalAttributeTypes.current.map((attr) => [attr.name, attr])
+				);
+				importedAttributeTypes.forEach((attr: any) => {
+					newAttributeTypesMap.set(attr.name, attr);
+				});
+				globalAttributeTypes.current = Array.from(newAttributeTypesMap.values());
+
 
 				// Create a map for quick lookup of imported attributes
 				const importedAttributesMap = new Map(
@@ -95,27 +102,25 @@ const Export = (props: {
 				);
 
 				const newGlobalAttributes = Array.from({ length: maxNucleusIndex + 1 }, (_, i) => {
-					const importedNucleus = importedAttributesMap.get(i);
-					if (importedNucleus) {
-						return importedNucleus;
-					}
-					const existingNucleus = existingAttributesMap.get(i);
-					if (existingNucleus) {
-						return existingNucleus;
-					}
-					const newNucleus: { nucleus_index: number;[key: string]: any } = { nucleus_index: i };
+					const existingNucleus = existingAttributesMap.get(i) || { nucleus_index: i };
+					const importedNucleus = importedAttributesMap.get(i) || { nucleus_index: i };
+
+					const mergedNucleus = { ...existingNucleus, ...importedNucleus };
+
 					for (const attrType of globalAttributeTypes.current) {
-						if (attrType.dimensions) {
-							if (attrType.dimensions.length === 1) {
-								newNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0);
+						if (!(attrType.name in mergedNucleus)) {
+							if (attrType.dimensions) {
+								if (attrType.dimensions.length === 1) {
+									mergedNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0);
+								} else {
+									mergedNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0).map(() => Array(attrType.dimensions[1]).fill(0));
+								}
 							} else {
-								newNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0).map(() => Array(attrType.dimensions[1]).fill(0));
+								mergedNucleus[attrType.name] = 0; // Or some default value
 							}
-						} else {
-							newNucleus[attrType.name] = 0; // Or some default value
 						}
 					}
-					return newNucleus;
+					return mergedNucleus;
 				});
 
 				globalAttributes.current = newGlobalAttributes;
