@@ -66,9 +66,8 @@ const Export = (props: {
 				const importedData = imported.attributes;
 				const importedAttributeTypes = imported.attributeTypes;
 
-
-				if (!Array.isArray(importedData)) {
-					throw new Error('Invalid attributes.json format: must be an array.');
+				if (!Array.isArray(importedData) || !Array.isArray(importedAttributeTypes)) {
+					throw new Error('Invalid attributes.json format.');
 				}
 
 				if (importedData.length === 0) {
@@ -76,77 +75,41 @@ const Export = (props: {
 					return;
 				}
 
+				// Replace existing attribute types and add new ones
 				globalAttributeTypes.current = importedAttributeTypes;
 
-				// Create a map for quick lookup of imported data
-				const importedMap = new Map(
+				// Create a map for quick lookup of imported attributes
+				const importedAttributesMap = new Map(
 					importedData.map((item) => [item.nucleus_index, item])
 				);
 
-				// Find the maximum index from both existing and imported data
-				const maxExistingIndex =
-					globalAttributes.current.length > 0
-						? globalAttributes.current[globalAttributes.current.length - 1].nucleus_index
-						: -1;
-				const maxImportedIndex = importedData.reduce(
-					(max, nucleus) => Math.max(max, nucleus.nucleus_index),
-					-1
+				// Directly use the imported attributes, ensuring all nuclei are represented
+				const maxNucleusIndex = Math.max(
+					globalAttributes.current.length > 0 ? globalAttributes.current[globalAttributes.current.length - 1].nucleus_index : -1,
+					importedData.reduce((max, nucleus) => Math.max(max, nucleus.nucleus_index), -1)
 				);
-				const newSize = Math.max(maxExistingIndex, maxImportedIndex);
 
-				// Merge imported data into globalAttributes
-				const newglobalAttributes = [...globalAttributes.current];
-				for (let i = 0; i <= newSize; i++) {
-					const importedNucleusAttributes = importedMap.get(i);
-					let existingNucleusAttributes = newglobalAttributes.find(
-						(l) => l.nucleus_index === i
-					);
-
-					if (existingNucleusAttributes) {
-						if (importedNucleusAttributes) {
-							// Merge properties from imported data into existing data
-							Object.assign(existingNucleusAttributes, importedNucleusAttributes);
-						}
-					} else if (importedNucleusAttributes) {
-						// Add new nucleus data if it doesn't exist
-						newglobalAttributes.push(importedNucleusAttributes);
-					} else {
-						// Add a placeholder for missing indices
-						const placeholder: { nucleus_index: number, [key: string]: any } = { nucleus_index: i };
-						globalAttributeTypes.current.forEach(lt => {
-							if (lt.dimensions) {
-								placeholder[lt.name] = Array(lt.dimensions[0]).fill(0).map(() => Array(lt.dimensions[1] || 1).fill(0));
-							} else {
-								placeholder[lt.name] = 0;
-							}
-						});
-						newglobalAttributes.push(placeholder);
+				const newGlobalAttributes = Array.from({ length: maxNucleusIndex + 1 }, (_, i) => {
+					const importedNucleus = importedAttributesMap.get(i);
+					if (importedNucleus) {
+						return importedNucleus;
 					}
-				}
-
-				// Ensure all nuclei have all label types
-				newglobalAttributes.forEach(nucleus => {
-					globalAttributeTypes.current.forEach(attributeType => {
-						if (!(attributeType.name in nucleus)) {
-							if (attributeType.dimensions) {
-								nucleus[attributeType.name] = Array(attributeType.dimensions[0]).fill(0).map(() => Array(attributeType.dimensions[1] || 1).fill(0));
-							} else {
-								nucleus[attributeType.name] = 0;
-							}
-						}
-					});
+					const existingNucleus = globalAttributes.current.find(n => n.nucleus_index === i);
+					if (existingNucleus) {
+						return existingNucleus;
+					}
+					const newNucleus = { nucleus_index: i };
+					for (const attrType of globalAttributeTypes.current) {
+						newNucleus[attrType.name] = 0; // Or some default value
+					}
+					return newNucleus;
 				});
 
-
-				// Sort by nucleus_index to maintain order
-				newglobalAttributes.sort((a, b) => a.nucleus_index - b.nucleus_index);
-
-
-				globalAttributes.current = newglobalAttributes;
+				globalAttributes.current = newGlobalAttributes;
 
 				setFeatureData((prevData: any) => ({
 					...prevData,
-					labels: [...newglobalAttributes],
+					labels: [...newGlobalAttributes],
 				}));
 
 			} catch (error) {
