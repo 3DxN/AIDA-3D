@@ -75,8 +75,14 @@ const Export = (props: {
 					return;
 				}
 
-				// Replace existing attribute types and add new ones
-				globalAttributeTypes.current = importedAttributeTypes;
+				// Update attribute types: add new ones, keep existing ones.
+				const existingTypeNames = new Set(globalAttributeTypes.current.map(t => t.name));
+				importedAttributeTypes.forEach((importedType: { name: string; }) => {
+					if (!existingTypeNames.has(importedType.name)) {
+						globalAttributeTypes.current.push(importedType);
+					}
+				});
+
 
 				// Create a map for quick lookup of imported attributes
 				const importedAttributesMap = new Map(
@@ -86,23 +92,17 @@ const Export = (props: {
 				// Directly use the imported attributes, ensuring all nuclei are represented
 				const maxNucleusIndex = Math.max(
 					globalAttributes.current.length > 0 ? globalAttributes.current[globalAttributes.current.length - 1].nucleus_index : -1,
-					importedData.reduce((max, nucleus) => Math.max(max, nucleus.nucleus_index), -1)
+					importedData.reduce((max: any, nucleus: { nucleus_index: any; }) => Math.max(max, nucleus.nucleus_index), -1)
 				);
 
 				const newGlobalAttributes = Array.from({ length: maxNucleusIndex + 1 }, (_, i) => {
 					const importedNucleus = importedAttributesMap.get(i);
-					if (importedNucleus) {
-						return importedNucleus;
-					}
-					const existingNucleus = globalAttributes.current.find(n => n.nucleus_index === i);
-					if (existingNucleus) {
-						return existingNucleus;
-					}
-					const newNucleus = { nucleus_index: i };
-					for (const attrType of globalAttributeTypes.current) {
-						newNucleus[attrType.name] = 0; // Or some default value
-					}
-					return newNucleus;
+					const existingNucleus = globalAttributes.current.find(n => n.nucleus_index === i) || { nucleus_index: i };
+
+					// Merge existing and imported attributes, imported takes precedence
+					const mergedNucleus = { ...existingNucleus, ...importedNucleus };
+
+					return mergedNucleus;
 				});
 
 				globalAttributes.current = newGlobalAttributes;
