@@ -89,6 +89,8 @@ export default function Settings(props: {
 						content={content}
 						featureData={featureData}
 						selected={selected}
+						globalAttributes={globalAttributes}
+						globalAttributeTypes={globalAttributeTypes}
 					/>
 					<Orientation
 						renderer={renderer}
