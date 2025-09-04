@@ -40,7 +40,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
     };
 
     const handleLoadExample = () => {
-        const exampleUrl = 'http:/141.147.64.20:5500/';
+        const exampleUrl = 'http://141.147.64.20:5500';
         setSource(exampleUrl);
 
         // Set our flag to true and start loading the store.
