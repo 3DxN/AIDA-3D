@@ -30,9 +30,37 @@ const Export = (props: {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
+		const attributeTypesForExport = globalAttributeTypes.current.map(attr => {
+			const { count, ...rest } = attr;
+			if (rest.dimensions && rest.dimensions.length === 1 && rest.dimensions[0] === 1) {
+				delete rest.dimensions;
+			}
+			return rest;
+		});
+
+		const attributesForExport = globalAttributes.current.map(nucleus => {
+			const newNucleus: any = { nucleus_index: nucleus.nucleus_index };
+			for (const key in nucleus) {
+				if (key !== 'nucleus_index') {
+					const attrType = globalAttributeTypes.current.find(at => at.name === key);
+					if (attrType && (!attrType.dimensions || (attrType.dimensions.length === 1 && attrType.dimensions[0] === 1))) {
+						if (Array.isArray(nucleus[key]) && nucleus[key].length === 1) {
+							newNucleus[key] = nucleus[key][0];
+						} else {
+							newNucleus[key] = nucleus[key];
+						}
+					} else {
+						newNucleus[key] = nucleus[key];
+					}
+				}
+			}
+			return newNucleus;
+		});
+
+
 		const output = JSON.stringify({
-			attributeTypes: globalAttributeTypes.current,
-			attributes: globalAttributes.current,
+			attributeTypes: attributeTypesForExport,
+			attributes: attributesForExport,
 		}, null, 2);
 
 		const element = document.createElement('a');
@@ -80,7 +108,7 @@ const Export = (props: {
 					globalAttributeTypes.current.map((attr) => [attr.name, attr])
 				);
 				importedAttributeTypes.forEach((attr: any) => {
-					newAttributeTypesMap.set(attr.name, attr);
+					newAttributeTypesMap.set(attr.name, { ...attr, count: 0 });
 				});
 				globalAttributeTypes.current = Array.from(newAttributeTypesMap.values());
 
@@ -112,11 +140,13 @@ const Export = (props: {
 							if (attrType.dimensions) {
 								if (attrType.dimensions.length === 1) {
 									mergedNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0);
-								} else {
+								} else if (attrType.dimensions.length === 2) {
 									mergedNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0).map(() => Array(attrType.dimensions[1]).fill(0));
+								} else if (attrType.dimensions.length === 3) {
+									mergedNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0).map(() => Array(attrType.dimensions[1]).fill(0).map(() => Array(attrType.dimensions[2]).fill(0)));
 								}
 							} else {
-								mergedNucleus[attrType.name] = 0; // Or some default value
+								mergedNucleus[attrType.name] = 0;
 							}
 						}
 					}

@@ -1,3 +1,5 @@
+// src/components/viewer3D/settings/Filter.tsx
+
 import { Fragment, useState, useEffect, useCallback } from 'react';
 import { Disclosure, Listbox, Transition } from '@headlessui/react';
 import { CheckIcon, SelectorIcon } from '@heroicons/react/solid';
@@ -26,8 +28,6 @@ const Filter = (props: {
 	const [min, setMin] = useState(0);
 	const [max, setMax] = useState(1);
 	const [values, setValues] = useState([0, 0]);
-	const [normalizedMap, setNormalizedMap] = useState(null);
-	const [resetToMinMax, setResetToMinMax] = useState<[number, number] | null>(null);
 
 	// When new attribute types are available, update the list of features.
 	useEffect(() => {
@@ -121,7 +121,7 @@ const Filter = (props: {
 			renderer.render(scene, camera);
 		}
 
-		// Reset slider values to min max
+		// Reset slider values to min max by forcing a re-render of the component with a new key
 		if (featureMap) {
 			setFeatureMap(JSON.parse(JSON.stringify(featureMap)));
 		}
@@ -137,14 +137,12 @@ const Filter = (props: {
 				const mapMax = Math.max(...values);
 				const mapMin = Math.min(...values);
 
-				setNormalizedMap(values);
 				setMax(mapMax);
 				setMin(mapMin);
-				setResetToMinMax([mapMin, mapMax]);
 				setValues([mapMin, mapMax]);
 			}
 		}
-	}, [content, renderer, scene, camera, featureMap, featureData, globalAttributes]);
+	}, [featureMap, featureData, content, globalAttributes]);
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -252,13 +250,13 @@ const Filter = (props: {
 							<div className="mt-4 flex items-center ">
 								<div className="text-sm">{values[0].toPrecision(2)}</div>
 								<RangeSlider
+									key={featureMap.value}
 									minValue={min}
 									maxValue={max}
 									defaultValue={[min, max]}
 									step={(max - min) / 100 || 0.01}
 									aria-label="adjust filter range"
 									onValuesUpdate={onValuesUpdate}
-									resetToMinMax={resetToMinMax}
 								/>
 								<div className="text-sm">{values[1].toPrecision(2)}</div>
 							</div>

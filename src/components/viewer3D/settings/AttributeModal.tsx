@@ -4,13 +4,12 @@ import { useState } from 'react';
 import { XIcon } from '@heroicons/react/solid';
 import Input from '../../interaction/Input';
 import Switch from '../../interaction/Switch';
-import NumberField from '../../interaction/NumberField';
 
 interface AttributeModalProps {
     isOpen: boolean;
     onClose: () => void;
     attributeTypes: { id: number; name: string; count: number, readOnly: boolean; dimensions?: number[]; }[];
-    onAdd: (name: string, dimensions: number[]) => void;
+    onAdd: (name: string, dimensions: string) => void;
     onRemove: (name: string) => void;
     onToggleReadOnly: (name: string) => void;
     onUpdateDimensions: (name: string, dimensions: number[]) => void;
@@ -20,8 +19,7 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
     if (!isOpen) return null;
     const [toRemove, setToRemove] = useState<Set<string>>(new Set());
     const [newAttributeName, setNewAttributeName] = useState('');
-    const [newAttributeDims, setNewAttributeDims] = useState(1);
-    const [newAttributeFields, setNewAttributeFields] = useState(1);
+    const [newAttributeDims, setNewAttributeDims] = useState('1');
 
 
     const handleCheckboxChange = (name: string) => {
@@ -41,11 +39,9 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
 
     const handleAddClick = () => {
         if (newAttributeName.trim()) {
-            const dims = newAttributeDims > 1 ? [newAttributeDims, newAttributeFields] : [newAttributeFields];
-            onAdd(newAttributeName, dims);
+            onAdd(newAttributeName, newAttributeDims);
             setNewAttributeName('');
-            setNewAttributeDims(1);
-            setNewAttributeFields(1);
+            setNewAttributeDims('1');
         }
     };
 
@@ -70,17 +66,11 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
                             />
                         </div>
                         <div className="flex-shrink-0">
-                            <NumberField
-                                label="Dimensions"
+                            <Input
+                                label="Dimensions (e.g., 1, 3, 2x3)"
                                 value={newAttributeDims}
-                                onChange={(val) => setNewAttributeDims(val || 1)}
-                            />
-                        </div>
-                        <div className="flex-shrink-0">
-                            <NumberField
-                                label={`Fields per Dim`}
-                                value={newAttributeFields}
-                                onChange={(val) => setNewAttributeFields(val || 1)}
+                                onChange={setNewAttributeDims}
+                                commitInput={handleAddClick}
                             />
                         </div>
                         <button

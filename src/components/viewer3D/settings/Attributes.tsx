@@ -38,10 +38,12 @@ const Attributes = (props: {
 
 
 	const addAttributeType = useCallback(
-		(attributeStr: string, dimensions: number[]) => {
+		(attributeStr: string, dimensionsStr: string) => {
 			setLabelError(null);
 			const attributeName = attributeStr.trim();
 			if (!attributeName) return;
+
+			const dimensions = dimensionsStr.toLowerCase().split(/[x*]/).map(Number).filter(n => !isNaN(n) && n > 0);
 
 			let attributeType = globalAttributeTypes.current.find(
 				(lt) => lt.name === attributeName
@@ -53,15 +55,17 @@ const Attributes = (props: {
 					return;
 				}
 				const newId = globalAttributeTypes.current.length;
-				const isMultiDimensional = dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1);
+				const isMultiDimensional = dimensions.length > 0 && dimensions.some(d => d > 1) || dimensions.length > 1;
 				globalAttributeTypes.current.push({ id: newId, name: attributeName, count: 0, readOnly: false, dimensions: isMultiDimensional ? dimensions : undefined });
 
 				globalAttributes.current.forEach((nucleus) => {
 					if (isMultiDimensional) {
 						if (dimensions.length === 1) {
 							nucleus[attributeName] = Array(dimensions[0]).fill(0);
-						} else { // 2D array
+						} else if (dimensions.length === 2) {
 							nucleus[attributeName] = Array(dimensions[0]).fill(0).map(() => Array(dimensions[1]).fill(0));
+						} else if (dimensions.length === 3) {
+							nucleus[attributeName] = Array(dimensions[0]).fill(0).map(() => Array(dimensions[1]).fill(0).map(() => Array(dimensions[2]).fill(0)));
 						}
 					} else {
 						nucleus[attributeName] = 0;
@@ -154,6 +158,14 @@ const Attributes = (props: {
 								newValue[indices[0]] = [];
 							}
 							newValue[indices[0]][indices[1]] = value;
+						} else if (indices.length === 3) {
+							if (!Array.isArray(newValue[indices[0]])) {
+								newValue[indices[0]] = [];
+							}
+							if (!Array.isArray(newValue[indices[0]][indices[1]])) {
+								newValue[indices[0]][indices[1]] = [];
+							}
+							newValue[indices[0]][indices[1]][indices[2]] = value;
 						}
 						return { ...nucleus, [attributeName]: newValue };
 					}
@@ -190,6 +202,9 @@ const Attributes = (props: {
 				}
 				if (indices.length === 2) {
 					return attrValue[indices[0]]?.[indices[1]];
+				}
+				if (indices.length === 3) {
+					return attrValue[indices[0]]?.[indices[1]]?.[indices[2]];
 				}
 			}
 			return data ? data[attributeName] : NaN;
