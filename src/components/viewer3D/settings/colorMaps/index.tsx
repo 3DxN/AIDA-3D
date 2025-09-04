@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect } from 'react'
 import { Disclosure, Listbox, Transition, Switch } from '@headlessui/react'
 import { CheckIcon, SelectorIcon } from '@heroicons/react/solid'
-import { Camera, Scene, WebGLRenderer, Group } from 'three'
+import { Camera, Scene, WebGLRenderer, Group, Color } from 'three'
 import * as d3 from 'd3'
 
 import ColorMap from './ColorMap'
@@ -91,6 +91,7 @@ const ColorMaps = (props: {
 	renderer: WebGLRenderer
 	scene: Scene
 	camera: Camera
+	featureData: any;
 }) => {
 	const { content, scene, camera, renderer, featureData } = props
 
@@ -106,7 +107,7 @@ const ColorMaps = (props: {
 			colorScale: colorScales[11],
 			normalise: true,
 		},
-	])
+	]);
 	const [activeColorMapIndex, setActiveColorMapIndex] = useState(0)
 
 	const deleteColorMap = (index: number) => {
@@ -132,48 +133,59 @@ const ColorMaps = (props: {
 	// Update 3D mesh colors
 	useEffect(() => {
 		if (featureData && content) {
-			content.children.forEach((child, index) => {
+			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
-					// Combine colors from all maps
-					let color = colorMaps[0].colorScale.value(
-						(() => {
-							const featureValues = featureData[colorMaps[0].featureMap.value]
-							const mapMax = Math.max(...featureValues)
-							const mapMin = Math.min(...featureValues)
+					const nucleus = child as THREE.Mesh;
+					let finalColor: Color | string = new Color();
 
-							const featureValue = colorMaps[0].normalise
-								? normalize(mapMin, mapMax)(featureValues[index])
-								: featureValues[index]
+					if (colorMaps.length === 0) {
+						// If no color maps, revert to the default color based on label
+						const label = parseInt(child.name.split('_')[1]);
+						finalColor.setHSL(label / 10, 0.8, 0.6);
+					} else {
+						// Otherwise, calculate color from the active color maps
+						const nucleusIndex = parseInt(child.name.split('_')[1]);
+						let blendedColor: d3.Color | null = null;
 
-							return featureValue
-						})()
-					)
+						colorMaps.forEach((colorMap, i) => {
+							const featureValues = featureData[colorMap.featureMap.value];
+							if (!featureValues || featureValues[nucleusIndex] === undefined) return;
 
-					for (let i = 1; i < colorMaps.length; i++) {
-						const colorMap = colorMaps[i]
-						const featureValues = featureData[colorMap.featureMap.value]
-						const mapMax = Math.max(...featureValues)
-						const mapMin = Math.min(...featureValues)
+							const mapMax = Math.max(...featureValues);
+							const mapMin = Math.min(...featureValues);
 
-						const featureValue = colorMap.normalise
-							? normalize(mapMin, mapMax)(featureValues[index])
-							: featureValues[index]
+							const featureValue = colorMap.normalise
+								? normalize(mapMin, mapMax)(featureValues[nucleusIndex])
+								: featureValues[nucleusIndex];
 
-						color = d3.interpolate(
-							color,
-							colorMap.colorScale.value(featureValue)
-						)(featureValue)
+							const currentColor = d3.color(colorMap.colorScale.value(featureValue));
+
+							if (!blendedColor) {
+								blendedColor = currentColor;
+							} else {
+								// Simple additive blending - you can change the logic here if needed
+								blendedColor.r = Math.min(255, blendedColor.r + currentColor.r);
+								blendedColor.g = Math.min(255, blendedColor.g + currentColor.g);
+								blendedColor.b = Math.min(255, blendedColor.b + currentColor.b);
+							}
+						});
+
+						if (blendedColor) {
+							finalColor = blendedColor.hex();
+						} else {
+							// Fallback if something went wrong
+							const label = parseInt(child.name.split('_')[1]);
+							finalColor.setHSL(label / 10, 0.8, 0.6);
+						}
 					}
 
-					const nucleus = child
-					const newMaterial = nucleus.material.clone()
-					newMaterial.color.setStyle(color)
-
-					nucleus.material = newMaterial
+					// Apply the new color
+					const newMaterial = (nucleus.material as THREE.MeshStandardMaterial).clone();
+					newMaterial.color.set(finalColor);
+					nucleus.material = newMaterial;
 				}
-			})
-
-			renderer.render(scene, camera)
+			});
+			renderer.render(scene, camera);
 		}
 	}, [
 		content,
@@ -181,9 +193,8 @@ const ColorMaps = (props: {
 		scene,
 		camera,
 		featureData,
-		activeColorMapIndex,
-		colorMaps,
-	])
+		colorMaps, // Dependency array now only contains colorMaps
+	]);
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -207,232 +218,235 @@ const ColorMaps = (props: {
 						Color Maps
 					</Disclosure.Button>
 					<Disclosure.Panel className="relative px-4 py-2 w-48">
-						{/* Change feature map */}
-						<Listbox
-							value={colorMaps[activeColorMapIndex].featureMap}
-							onChange={(value) => {
-								setColorMaps((prev) => {
-									const newColorMaps = [...prev]
-									newColorMaps[activeColorMapIndex].featureMap = value
-									return newColorMaps
-								})
-							}}
-						>
-							{({ open }) => (
-								<>
-									<Listbox.Label className="block text-sm font-medium text-gray-700">
-										Feature
-									</Listbox.Label>
-									<div className="mt-1 relative">
-										<Listbox.Button className="relative w-full border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
-											<span className="block truncate">
-												{colorMaps[activeColorMapIndex].featureMap.name}
-											</span>
-											<span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-												<SelectorIcon
-													className="h-5 w-5 text-gray-400"
-													aria-hidden="true"
-												/>
-											</span>
-										</Listbox.Button>
+						{/* Only render controls if a color map exists */}
+						{colorMaps.length > 0 && colorMaps[activeColorMapIndex] && (
+							<>
+								{/* Change feature map */}
+								<Listbox
+									value={colorMaps[activeColorMapIndex].featureMap}
+									onChange={(value) => {
+										setColorMaps((prev) => {
+											const newColorMaps = [...prev]
+											newColorMaps[activeColorMapIndex].featureMap = value
+											return newColorMaps
+										})
+									}}
+								>
+									{({ open }) => (
+										<>
+											<Listbox.Label className="block text-sm font-medium text-gray-700">
+												Feature
+											</Listbox.Label>
+											<div className="mt-1 relative">
+												<Listbox.Button className="relative w-full border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
+													<span className="block truncate">
+														{colorMaps[activeColorMapIndex].featureMap.name}
+													</span>
+													<span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+														<SelectorIcon
+															className="h-5 w-5 text-gray-400"
+															aria-hidden="true"
+														/>
+													</span>
+												</Listbox.Button>
 
-										<Transition
-											show={open}
-											as={Fragment}
-											leave="transition ease-in duration-100"
-											leaveFrom="opacity-100"
-											leaveTo="opacity-0"
-										>
-											<Listbox.Options
-												static
-												className="mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
-											>
-												{features.map((setting, index) => (
-													<Listbox.Option
-														key={index}
-														className={({ active }) =>
-															classNames(
-																active
-																	? 'text-white bg-teal-600'
-																	: 'text-gray-900',
-																'cursor-default select-none relative py-2 pl-3 pr-9'
-															)
-														}
-														value={setting}
+												<Transition
+													show={open}
+													as={Fragment}
+													leave="transition ease-in duration-100"
+													leaveFrom="opacity-100"
+													leaveTo="opacity-0"
+												>
+													<Listbox.Options
+														className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
 													>
-														{({ selected, active }) => (
-															<>
-																<span
-																	className={classNames(
-																		selected ? 'font-semibold' : 'font-normal',
-																		'block truncate'
-																	)}
-																>
-																	{setting.name}
-																</span>
+														{features.map((setting, index) => (
+															<Listbox.Option
+																key={index}
+																className={({ active }) =>
+																	classNames(
+																		active
+																			? 'text-white bg-teal-600'
+																			: 'text-gray-900',
+																		'cursor-default select-none relative py-2 pl-3 pr-9'
+																	)
+																}
+																value={setting}
+															>
+																{({ selected, active }) => (
+																	<>
+																		<span
+																			className={classNames(
+																				selected ? 'font-semibold' : 'font-normal',
+																				'block truncate'
+																			)}
+																		>
+																			{setting.name}
+																		</span>
 
-																{selected ? (
-																	<span
-																		className={classNames(
-																			active ? 'text-white' : 'text-teal-600',
-																			'absolute inset-y-0 right-0 flex items-center pr-4'
-																		)}
-																	>
-																		<CheckIcon
-																			className="h-5 w-5"
-																			aria-hidden="true"
-																		/>
-																	</span>
-																) : null}
-															</>
-														)}
-													</Listbox.Option>
-												))}
-											</Listbox.Options>
-										</Transition>
-									</div>
-								</>
-							)}
-						</Listbox>
+																		{selected ? (
+																			<span
+																				className={classNames(
+																					active ? 'text-white' : 'text-teal-600',
+																					'absolute inset-y-0 right-0 flex items-center pr-4'
+																				)}
+																			>
+																				<CheckIcon
+																					className="h-5 w-5"
+																					aria-hidden="true"
+																				/>
+																			</span>
+																		) : null}
+																	</>
+																)}
+															</Listbox.Option>
+														))}
+													</Listbox.Options>
+												</Transition>
+											</div>
+										</>
+									)}
+								</Listbox>
 
-						{/* Change D3 color scale */}
-						<Listbox
-							value={colorMaps[activeColorMapIndex].colorScale}
-							onChange={(value) => {
-								setColorMaps((prev) => {
-									const newColorMaps = [...prev]
-									newColorMaps[activeColorMapIndex].colorScale = value
-									return newColorMaps
-								})
-							}}
-						>
-							{({ open }) => (
-								<>
-									<Listbox.Label className="block text-sm font-medium text-gray-700 mt-4">
-										Color Scale
-									</Listbox.Label>
-									<div className="mt-1 relative">
-										<Listbox.Button className="bg-white relative w-full border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
-											<span className="block truncate">
-												{colorMaps[activeColorMapIndex].colorScale.name}
-											</span>
-											<span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-												<SelectorIcon
-													className="h-5 w-5 text-gray-400"
-													aria-hidden="true"
-												/>
-											</span>
-										</Listbox.Button>
+								{/* Change D3 color scale */}
+								<Listbox
+									value={colorMaps[activeColorMapIndex].colorScale}
+									onChange={(value) => {
+										setColorMaps((prev) => {
+											const newColorMaps = [...prev]
+											newColorMaps[activeColorMapIndex].colorScale = value
+											return newColorMaps
+										})
+									}}
+								>
+									{({ open }) => (
+										<>
+											<Listbox.Label className="block text-sm font-medium text-gray-700 mt-4">
+												Color Scale
+											</Listbox.Label>
+											<div className="mt-1 relative">
+												<Listbox.Button className="bg-white relative w-full border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
+													<span className="block truncate">
+														{colorMaps[activeColorMapIndex].colorScale.name}
+													</span>
+													<span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+														<SelectorIcon
+															className="h-5 w-5 text-gray-400"
+															aria-hidden="true"
+														/>
+													</span>
+												</Listbox.Button>
 
-										<Transition
-											show={open}
-											as={Fragment}
-											leave="transition ease-in duration-100"
-											leaveFrom="opacity-100"
-											leaveTo="opacity-0"
-										>
-											<Listbox.Options
-												static
-												className="mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
-											>
-												{colorScales.map((scale, index) => (
-													<Listbox.Option
-														key={index}
-														className={({ active }) =>
-															classNames(
-																active
-																	? 'text-white bg-teal-600'
-																	: 'text-gray-900',
-																'cursor-default select-none relative py-2 pl-3 pr-9'
-															)
-														}
-														value={scale}
+												<Transition
+													show={open}
+													as={Fragment}
+													leave="transition ease-in duration-100"
+													leaveFrom="opacity-100"
+													leaveTo="opacity-0"
+												>
+													<Listbox.Options
+														className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
 													>
-														{({ selected, active }) => (
-															<>
-																<span
-																	className={classNames(
-																		selected ? 'font-semibold' : 'font-normal',
-																		'block truncate'
-																	)}
-																>
-																	{scale.name}
-																</span>
+														{colorScales.map((scale, index) => (
+															<Listbox.Option
+																key={index}
+																className={({ active }) =>
+																	classNames(
+																		active
+																			? 'text-white bg-teal-600'
+																			: 'text-gray-900',
+																		'cursor-default select-none relative py-2 pl-3 pr-9'
+																	)
+																}
+																value={scale}
+															>
+																{({ selected, active }) => (
+																	<>
+																		<span
+																			className={classNames(
+																				selected ? 'font-semibold' : 'font-normal',
+																				'block truncate'
+																			)}
+																		>
+																			{scale.name}
+																		</span>
 
-																{selected ? (
-																	<span
-																		className={classNames(
-																			active ? 'text-white' : 'text-teal-600',
-																			'absolute inset-y-0 right-0 flex items-center pr-4'
-																		)}
-																	>
-																		<CheckIcon
-																			className="h-5 w-5"
-																			aria-hidden="true"
-																		/>
-																	</span>
-																) : null}
-															</>
-														)}
-													</Listbox.Option>
-												))}
-											</Listbox.Options>
-										</Transition>
-									</div>
-								</>
-							)}
-						</Listbox>
+																		{selected ? (
+																			<span
+																				className={classNames(
+																					active ? 'text-white' : 'text-teal-600',
+																					'absolute inset-y-0 right-0 flex items-center pr-4'
+																				)}
+																			>
+																				<CheckIcon
+																					className="h-5 w-5"
+																					aria-hidden="true"
+																				/>
+																			</span>
+																		) : null}
+																	</>
+																)}
+															</Listbox.Option>
+														))}
+													</Listbox.Options>
+												</Transition>
+											</div>
+										</>
+									)}
+								</Listbox>
 
-						{/* Normalise color map, between max-min values. */}
-						<Switch.Group as="div" className="flex items-center mt-4">
-							<Switch.Label
-								as="span"
-								className="flex-grow flex flex-col pr-2"
-								passive
-							>
-								<span className="text-sm font-medium text-gray-900">
-									Normalise
-								</span>
-								<span className="text-xs text-gray-500">
-									Bound range to min-max feature values
-								</span>
-							</Switch.Label>
-							<Switch
-								checked={colorMaps[activeColorMapIndex].normalise}
-								onChange={(value) => {
-									setColorMaps((prev) => {
-										const newColorMaps = [...prev]
-										newColorMaps[activeColorMapIndex].normalise = value
-										return newColorMaps
-									})
-								}}
-								className="flex-shrink-0 group relative rounded-full inline-flex items-center justify-center h-5 w-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-							>
-								<span className="sr-only">Normalise color map</span>
-								<span
-									aria-hidden="true"
-									className="pointer-events-none absolute bg-white w-full h-full rounded-md"
-								/>
-								<span
-									aria-hidden="true"
-									className={classNames(
-										colorMaps[activeColorMapIndex].normalise
-											? 'bg-teal-600'
-											: 'bg-gray-200',
-										'pointer-events-none absolute h-4 w-9 mx-auto rounded-full transition-colors ease-in-out duration-200'
-									)}
-								/>
-								<span
-									aria-hidden="true"
-									className={classNames(
-										colorMaps[activeColorMapIndex].normalise
-											? 'translate-x-5'
-											: 'translate-x-0',
-										'pointer-events-none absolute left-0 inline-block h-5 w-5 border border-gray-200 rounded-full bg-white shadow transform ring-0 transition-transform ease-in-out duration-200'
-									)}
-								/>
-							</Switch>
-						</Switch.Group>
+								{/* Normalise color map, between max-min values. */}
+								<Switch.Group as="div" className="flex items-center mt-4">
+									<Switch.Label
+										as="span"
+										className="flex-grow flex flex-col pr-2"
+										passive
+									>
+										<span className="text-sm font-medium text-gray-900">
+											Normalise
+										</span>
+										<span className="text-xs text-gray-500">
+											Bound range to min-max feature values
+										</span>
+									</Switch.Label>
+									<Switch
+										checked={colorMaps[activeColorMapIndex].normalise}
+										onChange={(value) => {
+											setColorMaps((prev) => {
+												const newColorMaps = [...prev]
+												newColorMaps[activeColorMapIndex].normalise = value
+												return newColorMaps
+											})
+										}}
+										className="flex-shrink-0 group relative rounded-full inline-flex items-center justify-center h-5 w-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+									>
+										<span className="sr-only">Normalise color map</span>
+										<span
+											aria-hidden="true"
+											className="pointer-events-none absolute bg-white w-full h-full rounded-md"
+										/>
+										<span
+											aria-hidden="true"
+											className={classNames(
+												colorMaps[activeColorMapIndex].normalise
+													? 'bg-teal-600'
+													: 'bg-gray-200',
+												'pointer-events-none absolute h-4 w-9 mx-auto rounded-full transition-colors ease-in-out duration-200'
+											)}
+										/>
+										<span
+											aria-hidden="true"
+											className={classNames(
+												colorMaps[activeColorMapIndex].normalise
+													? 'translate-x-5'
+													: 'translate-x-0',
+												'pointer-events-none absolute left-0 inline-block h-5 w-5 border border-gray-200 rounded-full bg-white shadow transform ring-0 transition-transform ease-in-out duration-200'
+											)}
+										/>
+									</Switch>
+								</Switch.Group>
+							</>
+						)}
 
 						{/* List of active color maps */}
 						<div className="max-h-40 overflow-y-auto mt-4">

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid'
 
-import { WebGLRenderer, Scene, Camera, Group } from 'three'
+import { WebGLRenderer, Scene, Camera, Group, Mesh } from 'three'
 
 import Clipping from './Clipping'
 import Explode from './Explode'
@@ -10,6 +10,7 @@ import Filter from './Filter'
 import Orientation from './Orientation'
 import Labels from './Labels'
 import Export from './Export'
+import SelectedIndices from './SelectedIndices' // Import the new component
 
 import { resizeRendererToDisplaySize } from '../utils'
 
@@ -18,8 +19,11 @@ export default function Settings(props: {
 	scene: Scene
 	camera: Camera
 	content: Group
+	featureData: any
+	selected: any[]
+	setFeatureData: (data: any) => void;
 }) {
-	const { renderer, scene, camera, content, featureData, selected } = props
+	const { renderer, scene, camera, content, featureData, selected, setFeatureData } = props
 
 	const [isOpen, setIsOpen] = useState(true)
 
@@ -41,7 +45,7 @@ export default function Settings(props: {
 
 			{/* Content */}
 			{isOpen && (
-				<div className="bg-white border-l border-gray-200 h-screen shadow text-gray-800 flex flex-col divide-y">
+				<div className="bg-white border-l border-gray-200 h-screen shadow text-gray-800 flex flex-col divide-y overflow-y-auto">
 					{/* Close button */}
 					<button
 						onClick={() => {
@@ -53,6 +57,7 @@ export default function Settings(props: {
 						Settings
 						<ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
 					</button>
+					<SelectedIndices selected={selected} />
 					<Clipping renderer={renderer} scene={scene} camera={camera} />
 					<Explode
 						renderer={renderer}
@@ -89,11 +94,10 @@ export default function Settings(props: {
 						content={content}
 						featureData={featureData}
 						selected={selected}
+						setFeatureData={setFeatureData}
 					/>
 					<Export
 						renderer={renderer}
-						scene={scene}
-						camera={camera}
 						content={content}
 						featureData={featureData}
 					/>

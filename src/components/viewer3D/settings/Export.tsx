@@ -57,7 +57,12 @@ const Export = (props: { content: Group; renderer: WebGLRenderer }) => {
 
 		// Add nuclei indices to feature data
 		filteredFeatureData.nucleusIndex = nucleiIndices
-
+		// Convert label Sets to Arrays for serialization
+		if (filteredFeatureData.labels) {
+			filteredFeatureData.labels = filteredFeatureData.labels.map((labelSet) =>
+				labelSet ? Array.from(labelSet) : []
+			)
+		}
 		// Prepare output as either JSON or CSV
 		let output = ''
 		if (fileType === 'json') {

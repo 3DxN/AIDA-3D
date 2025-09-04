@@ -124,18 +124,19 @@ const Filter = (props: {
 
 	// Color maps
 	useEffect(() => {
-		if (featureData && content && featureMap) {
+		if (featureData && content && featureMap && featureData[featureMap.value]) {
 			const chosenMap = featureData[featureMap.value]
 
-			const mapMax = Math.max(...chosenMap)
-			const mapMin = Math.min(...chosenMap)
+			if (chosenMap && chosenMap.length > 0) {
+				const mapMax = Math.max(...chosenMap)
+				const mapMin = Math.min(...chosenMap)
 
-			setNormalizedMap(chosenMap)
-			setMax(mapMax)
-			setMin(mapMin)
-			setResetToMinMax([mapMin, mapMax])
-
-			setValues([mapMin, mapMax])
+				setNormalizedMap(chosenMap)
+				setMax(mapMax)
+				setMin(mapMin)
+				setResetToMinMax([mapMin, mapMax])
+				setValues([mapMin, mapMax])
+			}
 		}
 	}, [content, renderer, scene, camera, featureMap, featureData])
 

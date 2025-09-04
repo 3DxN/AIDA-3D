@@ -26,17 +26,17 @@ export default function Menu() {
 						<Popover.Panel className="absolute -mt-8 z-10 transform translate-x-10 md:translate-x-12 px-2 w-screen max-w-xs sm:px-0">
 							<div className="rounded-sm shadow-lg ring-1 ring-black ring-opacity-5 overflow-hidden">
 								<div className="relative grid bg-white">
-									<Link href="/local">
+									<Link href="/local" legacyBehavior>
 										<a className="px-8 py-1 block transition ease-in-out duration-150 hover:bg-teal-700 hover:text-white">
 											Back to dashboard
 										</a>
 									</Link>
-									<Link href="/local">
+									<Link href="/local" legacyBehavior>
 										<a className="px-8 py-1 block transition ease-in-out duration-150 hover:bg-teal-700 hover:text-white">
 											Export JSON
 										</a>
 									</Link>
-									<Link href="/local">
+									<Link href="/local" legacyBehavior>
 										<a className="px-8 py-1 block transition ease-in-out duration-150 hover:bg-teal-700 hover:text-white">
 											Github
 										</a>

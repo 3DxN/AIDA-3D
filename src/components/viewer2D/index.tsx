@@ -16,10 +16,12 @@ import Stroke from 'ol/style/Stroke'
 
 import { parseDzi } from '../../lib/utils/parseDzi'
 import parseFeature from '../../lib/utils/parseFeature'
+import { useZarrStore } from '../../lib/contexts/ZarrStoreContext'
 
 import Toolbar from './toolbar'
 import MapView from './MapView'
 import Settings from './settings'
+import ZarrViewer from './zarr'
 
 // Types
 import { Annotation } from '../../types/annotation'
@@ -31,8 +33,15 @@ const Viewer = (props: {
 	setPolygonCoords: (coords: [number, number][]) => void
 	select3D: boolean
 }) => {
-	const { imageUrls, annotationData, setTile, setPolygonCoords, select3D } =
-		props
+	const { imageUrls, annotationData, setTile, setPolygonCoords, select3D } = props
+
+	// Check if Zarr data is loaded
+	const { hasLoadedArray, msInfo } = useZarrStore()
+
+	// If Zarr data is loaded, render the Zarr viewer instead
+	if (hasLoadedArray && msInfo) {
+		return <ZarrViewer />
+	}
 
 	const [map, setMap] = useState<Map>()
 

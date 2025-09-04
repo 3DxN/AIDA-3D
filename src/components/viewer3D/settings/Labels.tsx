@@ -35,7 +35,7 @@ const findCommon = (sets) => {
 }
 
 const Labels = (props) => {
-	const { featureData, selected } = props
+	const { featureData, selected, setFeatureData } = props
 
 	const [commonLabels, setCommonLabels] = useState(new Set())
 	const [existingLabels, setExistingLabels] = useState(new Set<string>())
@@ -73,49 +73,45 @@ const Labels = (props) => {
 
 	const commitInput = useCallback(
 		(label) => {
-			if (!featureData.labels) featureData.labels = []
-			for (const mesh of selected) {
-				// TODO: Use a index, or uuid for each mesh, extracting from name seems
-				//       liable to go wrong.
+			const newLabels = [...(featureData.labels || [])]
+				for (const mesh of selected) {
 				const index = Number(mesh.name.split('_')[1])
-
-				if (!featureData.labels[index]) featureData.labels[index] = new Set()
-				featureData.labels[index].add(label)
+				if (!newLabels[index]) newLabels[index] = new Set()
+				const updatedLabels = new Set(newLabels[index])
+					updatedLabels.add(label)
+					newLabels[index] = updatedLabels
 			}
-
+			const newFeatureData = { ...featureData, labels: newLabels }
+			setFeatureData(newFeatureData)
 			setCommonLabels(
-				(commonLabels) => new Set([...commonLabels.values(), label])
+			(commonLabels) => new Set([...commonLabels.values(), label])
 			)
-			setExistingLabels(
-				(existingLabels) => new Set([...existingLabels.values(), label])
-			)
+setExistingLabels(
+	(existingLabels) => new Set([...existingLabels.values(), label])
+)
 		},
-		[selected, featureData]
+		[selected, featureData, setFeatureData]
 	)
 
 	const removeLabel = useCallback(
 		(label) => {
-			if (!featureData.labels) featureData.labels = []
+			const newLabels = [...(featureData.labels || [])];
 			for (const mesh of selected) {
-				// TODO: Use a index, or uuid for each mesh, extracting from name seems
-				//       liable to go wrong.
-				const index = Number(mesh.name.split('_')[1])
-
-				if (!featureData.labels[index]) featureData.labels[index] = new Set()
-				featureData.labels[index].delete(label)
+				const index = Number(mesh.name.split('_')[1]);
+				const updatedLabels = new Set(newLabels[index]);
+				updatedLabels.delete(label);
+				newLabels[index] = updatedLabels;
 			}
-
+			const newFeatureData = { ...featureData, labels: newLabels };
+			setFeatureData(newFeatureData);
 			setCommonLabels((commonLabels) => {
-				commonLabels.delete(label)
-				return new Set([...commonLabels.values()])
-			})
-			setExistingLabels((existingLabels) => {
-				existingLabels.delete(label)
-				return new Set([...existingLabels.values()])
-			})
+				const newCommonLabels = new Set(commonLabels);
+				newCommonLabels.delete(label);
+				return newCommonLabels
+			});
 		},
-		[selected, featureData]
-	)
+		[selected, featureData, setFeatureData]
+	);
 
 	return (
 		<Disclosure className="shadow-sm" as="div">

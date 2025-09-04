@@ -225,18 +225,23 @@ const Toolbar = (props: {
 
 		polygon.on('drawend', (e) => {
 			if (selectedFeature.current) {
-				activePolygon.current = e.feature
-				const coords = e.feature.getGeometry().getCoordinates()
+				activePolygon.current = e.feature;
+				const coords = e.feature.getGeometry().getCoordinates();
 
 				// Account for tile offset
-				const featureExtent = selectedFeature.current.getGeometry()?.getExtent()
+				const featureExtent = selectedFeature.current.getGeometry()?.getExtent();
 				const polygonCoords = coords[0].map((coord) => [
 					coord[0] - featureExtent[0],
 					coord[1] - featureExtent[1],
-				])
-				setPolygonCoords(polygonCoords)
+				]);
+
+				// NEW: Check for Shift or Control key on the original browser event
+				const shouldAccumulate = e.originalEvent.shiftKey || e.originalEvent.ctrlKey;
+
+				// Pass an object instead of just the coordinates
+				setPolygonCoords({ coords: polygonCoords, accumulate: shouldAccumulate });
 			}
-		})
+		});
 		polygon.on('drawend', setClass)
 
 		map
@@ -547,7 +552,7 @@ const Toolbar = (props: {
 	return (
 		<div className="absolute left-0 top-0 z-20 flex flex-col m-1">
 			{/* File menu */}
-			<Link href="/local">
+			<Link href="/local" legacyBehavior>
 				<a className="p-2 mb-2 shadow bg-teal-600 text-white rounded-md flex justify-center text-base font-medium hover:bg-teal-500 focus:outline-none focus:ring-2 ring-inset focus:ring-teal-500">
 					<MenuIcon className="h-4 w-4" aria-hidden="true" />
 				</a>
