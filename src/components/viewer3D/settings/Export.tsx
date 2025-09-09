@@ -30,26 +30,20 @@ const Export = (props: {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
-		const attributeTypesForExport = globalAttributeTypes.current.map(attr => {
-			const { count, ...rest } = attr;
-			return rest;
-		});
-
 		const attributesForExport = globalAttributes.current.map(nucleus => {
 			const newNucleus: any = { nucleus_index: nucleus.nucleus_index };
 			for (const key in nucleus) {
 				if (key !== 'nucleus_index') {
-					newNucleus[key] = nucleus[key];
+					if (typeof nucleus[key] === 'number') {
+						newNucleus[key] = nucleus[key];
+					}
 				}
 			}
 			return newNucleus;
 		});
 
 
-		const output = JSON.stringify({
-			attributeTypes: attributeTypesForExport,
-			attributes: attributesForExport,
-		}, null, 2);
+		const output = JSON.stringify(attributesForExport, null, 2);
 
 		const element = document.createElement('a');
 		element.setAttribute(
@@ -62,7 +56,7 @@ const Export = (props: {
 		document.body.appendChild(element);
 		element.click();
 		document.body.removeChild(element);
-	}, [globalAttributes, globalAttributeTypes]);
+	}, [globalAttributes]);
 
 	const handleImportClick = () => {
 		fileInputRef.current?.click();
@@ -78,26 +72,33 @@ const Export = (props: {
 				const text = e.target?.result;
 				if (typeof text !== 'string') return;
 
-				const imported = JSON.parse(text);
-				const importedData = imported.attributes;
-				const importedAttributeTypes = imported.attributeTypes;
+				const importedData = JSON.parse(text);
 
-				if (!Array.isArray(importedData) || !Array.isArray(importedAttributeTypes)) {
-					throw new Error('Invalid attributes.json format.');
+				if (!Array.isArray(importedData)) {
+					throw new Error('Invalid attributes.json format. Expected an array of objects.');
 				}
 
-				if (importedData.length === 0 && importedAttributeTypes.length === 0) {
+				if (importedData.length === 0) {
 					console.warn('Imported attributes.json is empty.');
 					return;
 				}
 
-				// Merge attribute types
-				const newAttributeTypesMap = new Map(
-					globalAttributeTypes.current.map((attr) => [attr.name, attr])
-				);
-				importedAttributeTypes.forEach((attr: any) => {
-					newAttributeTypesMap.set(attr.name, { ...attr, count: 0 });
+				const newAttributeTypesMap = new Map<string, { id: number; name: string; count: number; readOnly: boolean }>();
+				globalAttributeTypes.current.forEach(attr => newAttributeTypesMap.set(attr.name, attr));
+
+				importedData.forEach(nucleus => {
+					Object.keys(nucleus).forEach(key => {
+						if (key !== 'nucleus_index' && typeof nucleus[key] === 'number' && !newAttributeTypesMap.has(key)) {
+							newAttributeTypesMap.set(key, {
+								id: newAttributeTypesMap.size,
+								name: key,
+								count: 0,
+								readOnly: false
+							});
+						}
+					});
 				});
+
 				globalAttributeTypes.current = Array.from(newAttributeTypesMap.values());
 
 

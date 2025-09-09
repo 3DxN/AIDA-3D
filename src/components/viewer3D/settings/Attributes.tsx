@@ -1,10 +1,11 @@
 // src/components/viewer3D/settings/Attributes.tsx
 
-import { useState, useCallback } from 'react';
-import { Disclosure } from '@headlessui/react';
+import { useState, useCallback, Fragment } from 'react';
+import { Disclosure, Menu, Transition } from '@headlessui/react';
 import NumberField from '../../interaction/NumberField';
 import AttributeModal from './AttributeModal';
 import { Mesh } from 'three';
+import { ChevronDownIcon } from '@heroicons/react/solid';
 
 
 const MAX_LABELS = 256;
@@ -128,7 +129,6 @@ const Attributes = (props: {
 			const data = featureData.labels.find(
 				(l: any) => l.nucleus_index === selectedIndex
 			);
-
 			return data ? data[attributeName] : NaN;
 		}
 		return NaN;
