@@ -285,9 +285,15 @@ const Attributes = (props: {
 							<div className="mt-2 text-sm text-red-600">{attributeError}</div>
 						)}
 						<div className="mt-4">
-							<div className="text-sm font-medium text-gray-700 mb-2">
-								Nucleus Attributes:
-							</div>
+							{selected.length === 0 ? (
+								<div className="text-sm text-gray-500 mb-2">
+									Select a nucleus.
+								</div>
+							) : (
+								<div className="text-sm font-medium text-gray-700 mb-2">
+									Nucleus Attributes:
+								</div>
+							)}
 							<div className="space-y-2">
 								{globalAttributeTypes.current.map((attributeType) => (
 									<div key={attributeType.id}>
@@ -297,8 +303,11 @@ const Attributes = (props: {
 													<>
 														<div className="flex items-center justify-between">
 															<span className="text-sm truncate mr-2">{attributeType.name}</span>
-															<Menu.Button className="inline-flex justify-center w-20 rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-indigo-500" disabled={selected.length === 0 || attributeType.readOnly}>
-																Edit
+															<Menu.Button
+																className="inline-flex justify-center w-20 rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+																disabled={selected.length === 0}
+															>
+																View
 																<ChevronDownIcon
 																	className={`${!open ? 'rotate-180' : ''} -mr-1 ml-2 h-5 w-5 transform transition-transform duration-200`}
 																	aria-hidden="true"
@@ -338,7 +347,7 @@ const Attributes = (props: {
 													<NumberField
 														value={getDisplayValue(attributeType.name)}
 														onChange={(value) => updateLabelValue(attributeType.name, value)}
-														disabled={selected.length === 0 || attributeType.readOnly}
+														disabled={selected.length !== 1 || attributeType.readOnly}
 													/>
 												</div>
 											</div>
@@ -346,11 +355,6 @@ const Attributes = (props: {
 									</div>
 								))}
 							</div>
-							{selected.length === 0 && (
-								<div className="text-sm text-gray-500 mt-2">
-									Select a nucleus to edit its attributes.
-								</div>
-							)}
 						</div>
 					</Disclosure.Panel>
 					<AttributeModal
