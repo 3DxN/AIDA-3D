@@ -1,5 +1,3 @@
-// src/components/viewer3D/settings/AttributeModal.tsx
-
 import { useState } from 'react';
 import { XIcon } from '@heroicons/react/solid';
 import Input from '../../interaction/Input';
@@ -8,16 +6,18 @@ import Switch from '../../interaction/Switch';
 interface AttributeModalProps {
     isOpen: boolean;
     onClose: () => void;
-    attributeTypes: { id: number; name: string; count: number, readOnly: boolean; }[];
-    onAdd: (name: string) => void;
+    attributeTypes: { id: number; name: string; count: number, readOnly: boolean; dimensions?: number[]; }[];
+    onAdd: (name: string, dimensions: string) => void;
     onRemove: (name: string) => void;
     onToggleReadOnly: (name: string) => void;
+    onUpdateDimensions: (name: string, dimensions: number[]) => void;
 }
 
-const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onToggleReadOnly }: AttributeModalProps) => {
+const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onToggleReadOnly, onUpdateDimensions }: AttributeModalProps) => {
     if (!isOpen) return null;
     const [toRemove, setToRemove] = useState<Set<string>>(new Set());
     const [newAttributeName, setNewAttributeName] = useState('');
+    const [newAttributeDims, setNewAttributeDims] = useState('');
 
 
     const handleCheckboxChange = (name: string) => {
@@ -37,8 +37,9 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
 
     const handleAddClick = () => {
         if (newAttributeName.trim()) {
-            onAdd(newAttributeName);
+            onAdd(newAttributeName, newAttributeDims);
             setNewAttributeName('');
+            setNewAttributeDims('');
         }
     };
 
@@ -60,6 +61,15 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
                                 commitInput={handleAddClick}
                                 label="Add new attribute type"
                                 placeholder="New attribute name"
+                            />
+                        </div>
+                        <div className="flex-shrink-0">
+                            <Input
+                                label="Dimensions (e.g., 3, 3x3)"
+                                value={newAttributeDims}
+                                onChange={setNewAttributeDims}
+                                commitInput={handleAddClick}
+                                placeholder="Leave blank for single value"
                             />
                         </div>
                         <button

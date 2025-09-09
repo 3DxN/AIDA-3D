@@ -1,5 +1,3 @@
-// src/components/viewer3D/settings/Export.tsx
-
 import { useCallback, useRef } from 'react';
 import { Disclosure } from '@headlessui/react';
 import { SaveIcon, UploadIcon } from '@heroicons/react/solid';
@@ -9,6 +7,20 @@ function classNames(...classes: any[]) {
 	return classes.filter(Boolean).join(' ');
 }
 
+const getDimensions = (arr: any): number[] => {
+	if (!Array.isArray(arr)) {
+		return [];
+	}
+	const dims: number[] = [];
+	let current = arr;
+	while (Array.isArray(current)) {
+		dims.push(current.length);
+		current = current[0];
+	}
+	return dims;
+};
+
+
 const Export = (props: {
 	renderer: WebGLRenderer;
 	content: Group;
@@ -16,7 +28,7 @@ const Export = (props: {
 		{ nucleus_index: number;[key: string]: any }[]
 	>;
 	globalAttributeTypes: React.MutableRefObject<
-		{ id: number; name: string; count: number; readOnly: boolean }[]
+		{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]
 	>;
 	setFeatureData: (updater: (prevData: any) => any) => void;
 }) => {
@@ -30,20 +42,7 @@ const Export = (props: {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
-		const attributesForExport = globalAttributes.current.map(nucleus => {
-			const newNucleus: any = { nucleus_index: nucleus.nucleus_index };
-			for (const key in nucleus) {
-				if (key !== 'nucleus_index') {
-					if (typeof nucleus[key] === 'number') {
-						newNucleus[key] = nucleus[key];
-					}
-				}
-			}
-			return newNucleus;
-		});
-
-
-		const output = JSON.stringify(attributesForExport, null, 2);
+		const output = JSON.stringify(globalAttributes.current, null, 2);
 
 		const element = document.createElement('a');
 		element.setAttribute(
@@ -83,21 +82,30 @@ const Export = (props: {
 					return;
 				}
 
-				const newAttributeTypesMap = new Map<string, { id: number; name: string; count: number; readOnly: boolean }>();
-				globalAttributeTypes.current.forEach(attr => newAttributeTypesMap.set(attr.name, attr));
+				// Merge attribute types
+				const newAttributeTypesMap = new Map(
+					globalAttributeTypes.current.map((attr) => [attr.name, attr])
+				);
 
-				importedData.forEach(nucleus => {
-					Object.keys(nucleus).forEach(key => {
-						if (key !== 'nucleus_index' && typeof nucleus[key] === 'number' && !newAttributeTypesMap.has(key)) {
+				if (importedData.length > 0) {
+					const sample = importedData[0];
+					Object.keys(sample).forEach(key => {
+						if (key !== 'nucleus_index' && !newAttributeTypesMap.has(key)) {
+							const value = sample[key];
+							const isArray = Array.isArray(value);
+							const dimensions = isArray ? getDimensions(value) : undefined;
+							const isMultiDimensional = isArray && (dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1));
+
 							newAttributeTypesMap.set(key, {
 								id: newAttributeTypesMap.size,
 								name: key,
 								count: 0,
-								readOnly: false
+								readOnly: false,
+								dimensions: isMultiDimensional ? dimensions : undefined
 							});
 						}
 					});
-				});
+				}
 
 				globalAttributeTypes.current = Array.from(newAttributeTypesMap.values());
 
@@ -126,7 +134,19 @@ const Export = (props: {
 
 					for (const attrType of globalAttributeTypes.current) {
 						if (!(attrType.name in mergedNucleus)) {
-							mergedNucleus[attrType.name] = 0;
+							if (attrType.dimensions) {
+								const createNestedArray = (dims: number[]): any => {
+									if (dims.length === 1) {
+										return Array(dims[0]).fill(0);
+									}
+									const dim = dims[0];
+									const rest = dims.slice(1);
+									return Array(dim).fill(0).map(() => createNestedArray(rest));
+								};
+								mergedNucleus[attrType.name] = createNestedArray(attrType.dimensions);
+							} else {
+								mergedNucleus[attrType.name] = 0;
+							}
 						}
 					}
 					return mergedNucleus;
