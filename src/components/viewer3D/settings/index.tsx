@@ -81,6 +81,8 @@ export default function Settings(props: {
 						camera={camera}
 						content={content}
 						featureData={featureData}
+						globalAttributes={globalAttributes}
+						globalAttributeTypes={globalAttributeTypes}
 					/>
 					<Filter
 						renderer={renderer}
