@@ -16,7 +16,7 @@ const Export = (props: {
 		{ nucleus_index: number;[key: string]: any }[]
 	>;
 	globalAttributeTypes: React.MutableRefObject<
-		{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]
+		{ id: number; name: string; count: number; readOnly: boolean }[]
 	>;
 	setFeatureData: (updater: (prevData: any) => any) => void;
 }) => {
@@ -32,9 +32,6 @@ const Export = (props: {
 	const exportData = useCallback(() => {
 		const attributeTypesForExport = globalAttributeTypes.current.map(attr => {
 			const { count, ...rest } = attr;
-			if (rest.dimensions && rest.dimensions.length === 1 && rest.dimensions[0] === 1) {
-				delete rest.dimensions;
-			}
 			return rest;
 		});
 
@@ -42,16 +39,7 @@ const Export = (props: {
 			const newNucleus: any = { nucleus_index: nucleus.nucleus_index };
 			for (const key in nucleus) {
 				if (key !== 'nucleus_index') {
-					const attrType = globalAttributeTypes.current.find(at => at.name === key);
-					if (attrType && (!attrType.dimensions || (attrType.dimensions.length === 1 && attrType.dimensions[0] === 1))) {
-						if (Array.isArray(nucleus[key]) && nucleus[key].length === 1) {
-							newNucleus[key] = nucleus[key][0];
-						} else {
-							newNucleus[key] = nucleus[key];
-						}
-					} else {
-						newNucleus[key] = nucleus[key];
-					}
+					newNucleus[key] = nucleus[key];
 				}
 			}
 			return newNucleus;
@@ -137,17 +125,7 @@ const Export = (props: {
 
 					for (const attrType of globalAttributeTypes.current) {
 						if (!(attrType.name in mergedNucleus)) {
-							if (attrType.dimensions) {
-								if (attrType.dimensions.length === 1) {
-									mergedNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0);
-								} else if (attrType.dimensions.length === 2) {
-									mergedNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0).map(() => Array(attrType.dimensions[1]).fill(0));
-								} else if (attrType.dimensions.length === 3) {
-									mergedNucleus[attrType.name] = Array(attrType.dimensions[0]).fill(0).map(() => Array(attrType.dimensions[1]).fill(0).map(() => Array(attrType.dimensions[2]).fill(0)));
-								}
-							} else {
-								mergedNucleus[attrType.name] = 0;
-							}
+							mergedNucleus[attrType.name] = 0;
 						}
 					}
 					return mergedNucleus;

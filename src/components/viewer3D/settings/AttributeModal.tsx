@@ -8,18 +8,16 @@ import Switch from '../../interaction/Switch';
 interface AttributeModalProps {
     isOpen: boolean;
     onClose: () => void;
-    attributeTypes: { id: number; name: string; count: number, readOnly: boolean; dimensions?: number[]; }[];
-    onAdd: (name: string, dimensions: string) => void;
+    attributeTypes: { id: number; name: string; count: number, readOnly: boolean; }[];
+    onAdd: (name: string) => void;
     onRemove: (name: string) => void;
     onToggleReadOnly: (name: string) => void;
-    onUpdateDimensions: (name: string, dimensions: number[]) => void;
 }
 
-const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onToggleReadOnly, onUpdateDimensions }: AttributeModalProps) => {
+const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onToggleReadOnly }: AttributeModalProps) => {
     if (!isOpen) return null;
     const [toRemove, setToRemove] = useState<Set<string>>(new Set());
     const [newAttributeName, setNewAttributeName] = useState('');
-    const [newAttributeDims, setNewAttributeDims] = useState('1');
 
 
     const handleCheckboxChange = (name: string) => {
@@ -39,9 +37,8 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
 
     const handleAddClick = () => {
         if (newAttributeName.trim()) {
-            onAdd(newAttributeName, newAttributeDims);
+            onAdd(newAttributeName);
             setNewAttributeName('');
-            setNewAttributeDims('1');
         }
     };
 
@@ -63,14 +60,6 @@ const AttributeModal = ({ isOpen, onClose, attributeTypes, onAdd, onRemove, onTo
                                 commitInput={handleAddClick}
                                 label="Add new attribute type"
                                 placeholder="New attribute name"
-                            />
-                        </div>
-                        <div className="flex-shrink-0">
-                            <Input
-                                label="Dimensions (e.g., 1, 3, 2x3)"
-                                value={newAttributeDims}
-                                onChange={setNewAttributeDims}
-                                commitInput={handleAddClick}
                             />
                         </div>
                         <button
