@@ -134,8 +134,8 @@ const Filter = (props: {
 			const values = globalAttributes.current.map(attr => attr[attributeName]).filter(val => typeof val === 'number');
 
 			if (values && values.length > 0) {
-				const mapMax = Math.max(...values);
-				const mapMin = Math.min(...values);
+				const mapMax = values.reduce((a, b) => Math.max(a, b), -Infinity);
+				const mapMin = values.reduce((a, b) => Math.min(a, b), Infinity);
 
 				setMax(mapMax);
 				setMin(mapMin);
