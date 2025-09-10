@@ -40,7 +40,7 @@ const SelectedIndices = (props: { selected: Mesh[] }) => {
 								<ul className="list-disc pl-5">
 									{selectedIndices.map((index) => (
 										<li key={index} className="text-sm">
-											Index: {index}
+											label-value: {index}
 										</li>
 									))}
 								</ul>
