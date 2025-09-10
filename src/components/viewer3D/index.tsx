@@ -136,6 +136,8 @@ const Viewer3D = (props: {
 					color: new THREE.Color('grey'),
 					metalness: 0.1,
 					roughness: 0.5,
+					transparent: true,
+					opacity: 1.0
 				});
 
 				const mesh = new THREE.Mesh(geometry, material);

@@ -38,6 +38,17 @@ const Orientation = (props: {
 					object.visible = orientationsActive
 				}
 			})
+
+			// Make nuclei transparent when axes are shown
+			content.traverse((object) => {
+				if ((object as THREE.Mesh).isMesh && object.name.includes('nucleus')) {
+					const mesh = object as THREE.Mesh
+					const material = mesh.material as THREE.MeshStandardMaterial
+					material.transparent = orientationsActive
+					material.opacity = orientationsActive ? 0.2 : 1.0
+				}
+			})
+
 			renderer.render(scene, camera)
 		}
 	}, [orientationsActive, content, scene, renderer, camera])
@@ -54,9 +65,9 @@ const Orientation = (props: {
 			})
 			toRemove.forEach((child) => scene.remove(child))
 
-			const xMaterial = new LineBasicMaterial({ color: 'red' })
-			const yMaterial = new LineBasicMaterial({ color: 'green' })
-			const zMaterial = new LineBasicMaterial({ color: 'blue' })
+			const xMaterial = new LineBasicMaterial({ color: 'red', linewidth: 3 })
+			const yMaterial = new LineBasicMaterial({ color: 'green', linewidth: 3 })
+			const zMaterial = new LineBasicMaterial({ color: 'blue', linewidth: 3 })
 
 			const nuclei = content.children.filter((child) =>
 				child.name.includes('nucleus')
