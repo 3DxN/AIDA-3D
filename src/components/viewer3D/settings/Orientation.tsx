@@ -28,14 +28,36 @@ const Orientation = (props: {
 
 	const [orientationsActive, setOrientationsActive] = useState(false)
 	const [showOrientationInfo, setShowOrientationInfo] = useState(false)
+	const [nucleiVisibilityKey, setNucleiVisibilityKey] = useState(0)
 
-	// Toggle nucleus visibility
+	// Monitor nucleus visibility changes to update axes
+	useEffect(() => {
+		if (content) {
+			const checkVisibility = () => {
+				setNucleiVisibilityKey(prev => prev + 1)
+			}
+			
+			// Check every 100ms for visibility changes - this ensures axes update when filters change
+			const interval = setInterval(checkVisibility, 100)
+			
+			return () => clearInterval(interval)
+		}
+	}, [content])
+
+	// Toggle nucleus visibility and update axes visibility based on nucleus visibility
 	useEffect(() => {
 		if (content) {
 			// Lines are now direct children of the scene
 			scene.traverse((object) => {
 				if (object.name.includes('orientation')) {
-					object.visible = orientationsActive
+					// Check if this axis belongs to a visible nucleus
+					const nucleusIndex = object.name.split('-')[0]
+					const nucleus = content.children.find(child => 
+						child.name === `nucleus_${nucleusIndex}`
+					) as Mesh
+					
+					// Axis is visible only if orientationsActive is true AND the nucleus is visible
+					object.visible = orientationsActive && nucleus && nucleus.visible
 				}
 			})
 
@@ -51,7 +73,7 @@ const Orientation = (props: {
 
 			renderer.render(scene, camera)
 		}
-	}, [orientationsActive, content, scene, renderer, camera])
+	}, [orientationsActive, content, scene, renderer, camera, nucleiVisibilityKey])
 
 	// Draw orientations
 	useEffect(() => {
