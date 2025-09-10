@@ -42,14 +42,20 @@ const Export = (props: {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
-		const output = JSON.stringify(globalProperties.current, null, 2);
+		// Transform nucleus_index to label-value for export
+		const exportData = globalProperties.current.map(item => {
+			const { nucleus_index, ...rest } = item;
+			return { 'label-value': nucleus_index, ...rest };
+		});
+		
+		const output = JSON.stringify(exportData, null, 2);
 
 		const element = document.createElement('a');
-		element.setProperty(
+		element.setAttribute(
 			'href',
 			'data:text/plain;charset=utf-8,' + encodeURIComponent(output)
 		);
-		element.setProperty('download', 'properties.json');
+		element.setAttribute('download', 'properties.json');
 
 		element.style.display = 'none';
 		document.body.appendChild(element);
@@ -71,16 +77,24 @@ const Export = (props: {
 				const text = e.target?.result;
 				if (typeof text !== 'string') return;
 
-				const importedData = JSON.parse(text);
+				const rawImportedData = JSON.parse(text);
 
-				if (!Array.isArray(importedData)) {
+				if (!Array.isArray(rawImportedData)) {
 					throw new Error('Invalid properties.json format. Expected an array of objects.');
 				}
 
-				if (importedData.length === 0) {
+				if (rawImportedData.length === 0) {
 					console.warn('Imported properties.json is empty.');
 					return;
 				}
+
+				// Transform label-value to nucleus_index for internal use
+				const importedData = rawImportedData.map(item => {
+					const { 'label-value': labelValue, ...rest } = item;
+					// Use label-value if present, otherwise fall back to nucleus_index for backward compatibility
+					const nucleus_index = labelValue !== undefined ? labelValue : item.nucleus_index;
+					return { nucleus_index, ...rest };
+				});
 
 				// Merge property types
 				const newPropertyTypesMap = new Map(
