@@ -125,7 +125,7 @@ export interface OMEImageLabel {
   }>;
 }
 
-// Complete OME-Zarr attributes interface
+// Complete OME-Zarr properties interface
 export default interface OMEAttrs extends IStringAny {
   multiscales?: OMEMultiscales[];
   omero?: OMEROMetadata;

@@ -20,7 +20,7 @@ type VivPixelData = {
  * Source: https://github.com/hms-dbmi/vizarr/blob/main/src/ZarrPixelSource.ts
  */
 export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
-  readonly labels: viv.Attributes<Array<string>>;
+  readonly labels: viv.Properties<Array<string>>;
   readonly tileSize: number;
   readonly dtype: viv.SupportedDtype;
   readonly #arr: zarr.Array<zarr.NumberDataType | zarr.BigintDataType, zarr.Readable>;
@@ -40,7 +40,7 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
 
   constructor(
     arr: zarr.Array<zarr.DataType, zarr.Readable>,
-    options: { labels: viv.Attributes<Array<string>>; tileSize: number },
+    options: { labels: viv.Properties<Array<string>>; tileSize: number },
   ) {
     assert(arr.is("number") || arr.is("bigint"), `Unsupported viv dtype: ${arr.dtype}`);
     this.#arr = arr;

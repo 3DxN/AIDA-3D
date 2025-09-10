@@ -95,7 +95,7 @@ const Orientation = (props: {
 					// Calculate the nucleus center in WORLD coordinates
 					let c: Vector3
 					if (nucleusData.center) {
-						// If center is in attributes, transform it from voxel-space to world-space
+						// If center is in properties, transform it from voxel-space to world-space
 						c = new Vector3(...nucleusData.center).applyMatrix4(
 							contentMatrixWorld
 						)
@@ -186,7 +186,7 @@ const Orientation = (props: {
 					<Disclosure.Panel className="relative px-4 py-2 w-48">
 						{showOrientationInfo && (
 							<div className="text-xs text-gray-500 mb-2">
-								Add axes/orientation info in attributes to see orientation.
+								Add axes/orientation info in properties to see orientation.
 							</div>
 						)}
 						<div className="ml-2 mt-2 flex justify-between items-center">

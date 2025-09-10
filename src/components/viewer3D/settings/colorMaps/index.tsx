@@ -82,10 +82,10 @@ const ColorMaps = (props: {
 	scene: THREE.Scene;
 	camera: THREE.Camera;
 	featureData: any;
-	globalAttributeTypes: React.MutableRefObject<
+	globalPropertyTypes: React.MutableRefObject<
 		{ id: number; name: string; count: number; readOnly: boolean; dimensions?: number[] }[]
 	>;
-	globalAttributes: React.MutableRefObject<
+	globalProperties: React.MutableRefObject<
 		{ nucleus_index: number;[key: string]: any }[]
 	>;
 }) => {
@@ -95,8 +95,8 @@ const ColorMaps = (props: {
 		camera,
 		renderer,
 		featureData,
-		globalAttributeTypes,
-		globalAttributes,
+		globalPropertyTypes,
+		globalProperties,
 	} = props;
 
 	const [features, setFeatures] = useState<{ name: string; value: string }[]>([]);
@@ -115,23 +115,23 @@ const ColorMaps = (props: {
 	};
 
 	useEffect(() => {
-		if (globalAttributeTypes && globalAttributeTypes.current) {
-			const attributeFeatures = globalAttributeTypes.current
-				.filter((attr) => !attr.dimensions) // Filter for single-dimensional attributes
+		if (globalPropertyTypes && globalPropertyTypes.current) {
+			const propertyFeatures = globalPropertyTypes.current
+				.filter((attr) => !attr.dimensions) // Filter for single-dimensional properties
 				.map((attr) => ({ name: attr.name, value: attr.name }));
-			setFeatures(attributeFeatures);
+			setFeatures(propertyFeatures);
 
-			if (colorMaps.length === 0 && attributeFeatures.length > 0) {
+			if (colorMaps.length === 0 && propertyFeatures.length > 0) {
 				setColorMaps([
 					{
-						featureMap: attributeFeatures[0],
+						featureMap: propertyFeatures[0],
 						colorScale: colorScales[4], // Blues
 						normalise: true,
 					},
 				]);
 			}
 		}
-	}, [featureData, globalAttributeTypes, colorMaps.length]);
+	}, [featureData, globalPropertyTypes, colorMaps.length]);
 
 	// Update 3D mesh colors
 	useEffect(() => {
@@ -140,7 +140,7 @@ const ColorMaps = (props: {
 			!renderer ||
 			!scene ||
 			!camera ||
-			!globalAttributes.current
+			!globalProperties.current
 		) {
 			return;
 		}
@@ -159,7 +159,7 @@ const ColorMaps = (props: {
 		}
 
 		const featureName = activeColorMap.featureMap.value;
-		const allValues = globalAttributes.current
+		const allValues = globalProperties.current
 			.map((attr) => attr[featureName])
 			.filter((v): v is number => typeof v === 'number');
 
@@ -176,16 +176,16 @@ const ColorMaps = (props: {
 				const nucleus = child as THREE.Mesh;
 				const material = nucleus.material as THREE.MeshStandardMaterial;
 				const nucleusIndex = parseInt(child.name.split('_')[1], 10);
-				const nucleusAttributeData = globalAttributes.current.find(
+				const nucleusPropertyData = globalProperties.current.find(
 					(l) => l.nucleus_index === nucleusIndex
 				);
 
-				if (!nucleusAttributeData) {
+				if (!nucleusPropertyData) {
 					material.color.set(0x808080); // Default grey
 					return;
 				}
 
-				const value = nucleusAttributeData[featureName];
+				const value = nucleusPropertyData[featureName];
 
 				if (typeof value !== 'number') {
 					material.color.set(0x808080);
@@ -204,7 +204,7 @@ const ColorMaps = (props: {
 	}, [
 		colorMaps,
 		activeColorMapIndex,
-		globalAttributes,
+		globalProperties,
 		content,
 		renderer,
 		scene,

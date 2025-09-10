@@ -24,10 +24,10 @@ const getDimensions = (arr: any): number[] => {
 const Export = (props: {
 	renderer: WebGLRenderer;
 	content: Group;
-	globalAttributes: React.MutableRefObject<
+	globalProperties: React.MutableRefObject<
 		{ nucleus_index: number;[key: string]: any }[]
 	>;
-	globalAttributeTypes: React.MutableRefObject<
+	globalPropertyTypes: React.MutableRefObject<
 		{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]
 	>;
 	setFeatureData: (updater: (prevData: any) => any) => void;
@@ -35,27 +35,27 @@ const Export = (props: {
 	const {
 		renderer,
 		content,
-		globalAttributes,
-		globalAttributeTypes,
+		globalProperties,
+		globalPropertyTypes,
 		setFeatureData,
 	} = props;
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
-		const output = JSON.stringify(globalAttributes.current, null, 2);
+		const output = JSON.stringify(globalProperties.current, null, 2);
 
 		const element = document.createElement('a');
-		element.setAttribute(
+		element.setProperty(
 			'href',
 			'data:text/plain;charset=utf-8,' + encodeURIComponent(output)
 		);
-		element.setAttribute('download', 'attributes.json');
+		element.setProperty('download', 'properties.json');
 
 		element.style.display = 'none';
 		document.body.appendChild(element);
 		element.click();
 		document.body.removeChild(element);
-	}, [globalAttributes]);
+	}, [globalProperties]);
 
 	const handleImportClick = () => {
 		fileInputRef.current?.click();
@@ -74,30 +74,30 @@ const Export = (props: {
 				const importedData = JSON.parse(text);
 
 				if (!Array.isArray(importedData)) {
-					throw new Error('Invalid attributes.json format. Expected an array of objects.');
+					throw new Error('Invalid properties.json format. Expected an array of objects.');
 				}
 
 				if (importedData.length === 0) {
-					console.warn('Imported attributes.json is empty.');
+					console.warn('Imported properties.json is empty.');
 					return;
 				}
 
-				// Merge attribute types
-				const newAttributeTypesMap = new Map(
-					globalAttributeTypes.current.map((attr) => [attr.name, attr])
+				// Merge property types
+				const newPropertyTypesMap = new Map(
+					globalPropertyTypes.current.map((attr) => [attr.name, attr])
 				);
 
 				if (importedData.length > 0) {
 					const sample = importedData[0];
 					Object.keys(sample).forEach(key => {
-						if (key !== 'nucleus_index' && !newAttributeTypesMap.has(key)) {
+						if (key !== 'nucleus_index' && !newPropertyTypesMap.has(key)) {
 							const value = sample[key];
 							const isArray = Array.isArray(value);
 							const dimensions = isArray ? getDimensions(value) : undefined;
 							const isMultiDimensional = isArray && (dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1));
 
-							newAttributeTypesMap.set(key, {
-								id: newAttributeTypesMap.size,
+							newPropertyTypesMap.set(key, {
+								id: newPropertyTypesMap.size,
 								name: key,
 								count: 0,
 								readOnly: false,
@@ -107,32 +107,32 @@ const Export = (props: {
 					});
 				}
 
-				globalAttributeTypes.current = Array.from(newAttributeTypesMap.values());
+				globalPropertyTypes.current = Array.from(newPropertyTypesMap.values());
 
 
-				// Create a map for quick lookup of imported attributes
-				const importedAttributesMap = new Map(
+				// Create a map for quick lookup of imported properties
+				const importedPropertiesMap = new Map(
 					importedData.map((item) => [item.nucleus_index, item])
 				);
 
-				// Create a map for quick lookup of existing attributes
-				const existingAttributesMap = new Map(
-					globalAttributes.current.map((item) => [item.nucleus_index, item])
+				// Create a map for quick lookup of existing properties
+				const existingPropertiesMap = new Map(
+					globalProperties.current.map((item) => [item.nucleus_index, item])
 				);
 
-				// Directly use the imported attributes, ensuring all nuclei are represented
+				// Directly use the imported properties, ensuring all nuclei are represented
 				const maxNucleusIndex = Math.max(
-					globalAttributes.current.length > 0 ? globalAttributes.current[globalAttributes.current.length - 1].nucleus_index : -1,
+					globalProperties.current.length > 0 ? globalProperties.current[globalProperties.current.length - 1].nucleus_index : -1,
 					importedData.reduce((max, nucleus) => Math.max(max, nucleus.nucleus_index), -1)
 				);
 
-				const newGlobalAttributes = Array.from({ length: maxNucleusIndex + 1 }, (_, i) => {
-					const existingNucleus = existingAttributesMap.get(i) || { nucleus_index: i };
-					const importedNucleus = importedAttributesMap.get(i) || { nucleus_index: i };
+				const newGlobalProperties = Array.from({ length: maxNucleusIndex + 1 }, (_, i) => {
+					const existingNucleus = existingPropertiesMap.get(i) || { nucleus_index: i };
+					const importedNucleus = importedPropertiesMap.get(i) || { nucleus_index: i };
 
 					const mergedNucleus = { ...existingNucleus, ...importedNucleus };
 
-					for (const attrType of globalAttributeTypes.current) {
+					for (const attrType of globalPropertyTypes.current) {
 						if (!(attrType.name in mergedNucleus)) {
 							if (attrType.dimensions) {
 								const createNestedArray = (dims: number[]): any => {
@@ -152,15 +152,15 @@ const Export = (props: {
 					return mergedNucleus;
 				});
 
-				globalAttributes.current = newGlobalAttributes;
+				globalProperties.current = newGlobalProperties;
 
 				setFeatureData((prevData: any) => ({
 					...prevData,
-					labels: [...newGlobalAttributes],
+					labels: [...newGlobalProperties],
 				}));
 
 			} catch (error) {
-				console.error('Error parsing or merging attributes.json:', error);
+				console.error('Error parsing or merging properties.json:', error);
 			}
 		};
 		reader.readAsText(file);
@@ -185,7 +185,7 @@ const Export = (props: {
 						>
 							<path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
 						</svg>
-						Import/Export Attributes
+						Import/Export Properties
 					</Disclosure.Button>
 					<Disclosure.Panel className="relative px-4 py-2 w-48">
 						<div className="flex flex-col space-y-2">
@@ -194,7 +194,7 @@ const Export = (props: {
 								type="button"
 								className="inline-flex items-center justify-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
 							>
-								Import attributes.json
+								Import properties.json
 								<UploadIcon
 									className="ml-2 -mr-0.5 h-4 w-4"
 									aria-hidden="true"
@@ -212,7 +212,7 @@ const Export = (props: {
 								type="button"
 								className="inline-flex items-center justify-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
 							>
-								Export attributes.json
+								Export properties.json
 								<SaveIcon
 									className="ml-2 -mr-0.5 h-4 w-4"
 									aria-hidden="true"

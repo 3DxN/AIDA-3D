@@ -13,7 +13,7 @@ export function calculateNucleusVolume(mesh: THREE.Mesh): number {
         return 0;
     }
 
-    const position = geometry.attributes.position as THREE.BufferAttribute;
+    const position = geometry.attributes.position as THREE.BufferProperty;
     let volume = 0.0;
 
     for (let i = 0; i < position.count; i += 3) {

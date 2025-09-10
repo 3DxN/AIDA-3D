@@ -18,10 +18,10 @@ const Filter = (props: {
 	camera: Camera;
 	featureData: any;
 	selected: Mesh[];
-	globalAttributes: React.MutableRefObject<{ nucleus_index: number;[key: string]: any }[]>;
-	globalAttributeTypes: React.MutableRefObject<{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]>;
+	globalProperties: React.MutableRefObject<{ nucleus_index: number;[key: string]: any }[]>;
+	globalPropertyTypes: React.MutableRefObject<{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]>;
 }) => {
-	const { content, scene, camera, renderer, featureData, selected, globalAttributes, globalAttributeTypes } = props;
+	const { content, scene, camera, renderer, featureData, selected, globalProperties, globalPropertyTypes } = props;
 
 	const [featureMap, setFeatureMap] = useState<{ name: string, value: string } | null>(null);
 	const [features, setFeatures] = useState<{ name: string, value: string }[]>([]);
@@ -29,28 +29,28 @@ const Filter = (props: {
 	const [max, setMax] = useState(1);
 	const [values, setValues] = useState([0, 0]);
 
-	// When new attribute types are available, update the list of features.
+	// When new property types are available, update the list of features.
 	useEffect(() => {
-		if (globalAttributeTypes && globalAttributeTypes.current) {
-			const attributeFeatures = globalAttributeTypes.current
-				.filter(attr => !attr.dimensions) // Filter out multi-dimensional attributes for the slider
+		if (globalPropertyTypes && globalPropertyTypes.current) {
+			const propertyFeatures = globalPropertyTypes.current
+				.filter(attr => !attr.dimensions) // Filter out multi-dimensional properties for the slider
 				.map(attr => ({ name: attr.name, value: attr.name }));
-			setFeatures(attributeFeatures);
+			setFeatures(propertyFeatures);
 
 			// If there's no feature selected, or the selected one is no longer valid, select the first one.
-			if (!featureMap || !attributeFeatures.some(f => f.value === featureMap.value)) {
-				setFeatureMap(attributeFeatures.length > 0 ? attributeFeatures[0] : null);
+			if (!featureMap || !propertyFeatures.some(f => f.value === featureMap.value)) {
+				setFeatureMap(propertyFeatures.length > 0 ? propertyFeatures[0] : null);
 			}
 		}
-		// Rerun this effect when featureData changes, as this indicates attributes may have changed.
-	}, [featureData, globalAttributeTypes, featureMap]);
+		// Rerun this effect when featureData changes, as this indicates properties may have changed.
+	}, [featureData, globalPropertyTypes, featureMap]);
 
 	const onValuesUpdate = useCallback(
 		(rangeValues) => {
-			if (content && featureData && featureMap && globalAttributes.current) {
-				const attributeName = featureMap.value;
-				const attributeValues = globalAttributes.current.reduce((acc, curr) => {
-					acc[curr.nucleus_index] = curr[attributeName];
+			if (content && featureData && featureMap && globalProperties.current) {
+				const propertyName = featureMap.value;
+				const propertyValues = globalProperties.current.reduce((acc, curr) => {
+					acc[curr.nucleus_index] = curr[propertyName];
 					return acc;
 				}, {} as { [key: number]: number });
 
@@ -58,7 +58,7 @@ const Filter = (props: {
 					if (child.isMesh && child.name.includes('nucleus')) {
 						const nucleus = child as Mesh;
 						const nucleusIndex = parseInt(child.name.split('_')[1], 10);
-						const value = attributeValues[nucleusIndex];
+						const value = propertyValues[nucleusIndex];
 						if (value < rangeValues[0] || value > rangeValues[1])
 							nucleus.visible = false;
 						else
@@ -69,7 +69,7 @@ const Filter = (props: {
 				renderer.render(scene, camera);
 			}
 		},
-		[renderer, content, featureMap, camera, scene, featureData, globalAttributes]
+		[renderer, content, featureMap, camera, scene, featureData, globalProperties]
 	);
 
 
@@ -127,11 +127,11 @@ const Filter = (props: {
 		}
 	}, [content, renderer, scene, camera, featureMap]);
 
-	// Set slider min/max based on the selected attribute
+	// Set slider min/max based on the selected property
 	useEffect(() => {
-		if (featureData && content && featureMap && globalAttributes.current) {
-			const attributeName = featureMap.value;
-			const values = globalAttributes.current.map(attr => attr[attributeName]).filter(val => typeof val === 'number');
+		if (featureData && content && featureMap && globalProperties.current) {
+			const propertyName = featureMap.value;
+			const values = globalProperties.current.map(attr => attr[propertyName]).filter(val => typeof val === 'number');
 
 			if (values && values.length > 0) {
 				const mapMax = values.reduce((a, b) => Math.max(a, b), -Infinity);
@@ -142,7 +142,7 @@ const Filter = (props: {
 				setValues([mapMin, mapMax]);
 			}
 		}
-	}, [featureMap, featureData, content, globalAttributes]);
+	}, [featureMap, featureData, content, globalProperties]);
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -172,7 +172,7 @@ const Filter = (props: {
 								{({ open }) => (
 									<>
 										<Listbox.Label className="block text-sm font-medium text-gray-700">
-											By attribute
+											By property
 										</Listbox.Label>
 										<div className="mt-1 relative">
 											<Listbox.Button className="bg-white relative w-full border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 sm:text-sm">

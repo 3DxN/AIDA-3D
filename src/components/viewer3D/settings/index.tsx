@@ -9,7 +9,7 @@ import Explode from './Explode';
 import ColorMap from './colorMaps';
 import Filter from './Filter';
 import Orientation from './Orientation';
-import Attributes from './Attributes';
+import Properties from './Properties';
 import Export from './Export';
 import SelectedIndices from './SelectedIndices';
 
@@ -23,8 +23,8 @@ export default function Settings(props: {
 	featureData: any;
 	selected: any[];
 	setFeatureData: (data: any) => void;
-	globalAttributes: any;
-	globalAttributeTypes: any;
+	globalProperties: any;
+	globalPropertyTypes: any;
 }) {
 	const {
 		renderer,
@@ -34,8 +34,8 @@ export default function Settings(props: {
 		featureData,
 		selected,
 		setFeatureData,
-		globalAttributes,
-		globalAttributeTypes,
+		globalProperties,
+		globalPropertyTypes,
 	} = props;
 
 	const [isOpen, setIsOpen] = useState(true);
@@ -81,8 +81,8 @@ export default function Settings(props: {
 						camera={camera}
 						content={content}
 						featureData={featureData}
-						globalAttributes={globalAttributes}
-						globalAttributeTypes={globalAttributeTypes}
+						globalProperties={globalProperties}
+						globalPropertyTypes={globalPropertyTypes}
 					/>
 					<Filter
 						renderer={renderer}
@@ -91,8 +91,8 @@ export default function Settings(props: {
 						content={content}
 						featureData={featureData}
 						selected={selected}
-						globalAttributes={globalAttributes}
-						globalAttributeTypes={globalAttributeTypes}
+						globalProperties={globalProperties}
+						globalPropertyTypes={globalPropertyTypes}
 					/>
 					<Orientation
 						renderer={renderer}
@@ -101,18 +101,18 @@ export default function Settings(props: {
 						content={content}
 						featureData={featureData}
 					/>
-					<Attributes
+					<Properties
 						featureData={featureData}
 						selected={selected}
 						setFeatureData={setFeatureData}
-						globalAttributes={globalAttributes}
-						globalAttributeTypes={globalAttributeTypes}
+						globalProperties={globalProperties}
+						globalPropertyTypes={globalPropertyTypes}
 					/>
 					<Export
 						renderer={renderer}
 						content={content}
-						globalAttributes={globalAttributes}
-						globalAttributeTypes={globalAttributeTypes}
+						globalProperties={globalProperties}
+						globalPropertyTypes={globalPropertyTypes}
 						setFeatureData={setFeatureData}
 					/>
 				</div>
