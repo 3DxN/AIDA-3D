@@ -1,6 +1,6 @@
 import { Switch } from '@headlessui/react'
 
-function classNames(...classes) {
+function classNames(...classes: any[]) {
 	return classes.filter(Boolean).join(' ')
 }
 
@@ -14,7 +14,7 @@ export default function CustomLabelExample(props: {
 	return (
 		<Switch
 			checked={enabled}
-			onChange={() => onChange(enabled)}
+			onChange={onChange}
 			className="flex-shrink-0 group relative rounded-full inline-flex items-center justify-center h-5 w-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
 		>
 			<span className="sr-only">Use setting</span>
