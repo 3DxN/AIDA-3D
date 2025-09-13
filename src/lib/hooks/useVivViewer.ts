@@ -11,6 +11,7 @@ import {
 import ZarrPixelSource from '../ext/ZarrPixelSource'
 import { FrameView, FRAME_VIEW_ID } from '../../components/viewer2D/zarr/map/FrameView'
 import { useResizeObserver } from './useResizeObserver'
+import { useViewer2DData } from '../contexts/Viewer2DDataContext'
 
 import type * as viv from "@vivjs/types"
 import type { Layer, View } from 'deck.gl'
@@ -27,6 +28,8 @@ export default function useVivViewer(
     navigationState: NavigationState,
     root: zarrita.Location<zarrita.FetchStore> | null
 ): VivViewerState & VivViewerComputed & VivViewerActions {
+
+    const { setVivViewState } = useViewer2DData();
 
     // Core state
     const [vivLoaders, setVivLoaders] = useState<ZarrPixelSource[]>([])
@@ -234,13 +237,14 @@ export default function useVivViewer(
         if (viewId === DETAIL_VIEW_ID) {
             // Always update the ref to track current state
             detailViewStateRef.current = viewState
+            setVivViewState(viewState);
 
             // Only update controlled state if we're not manually panning to avoid feedback loop
             if (!isManuallyPanning) {
                 setControlledDetailViewState(viewState)
             }
         }
-    }, [isManuallyPanning])
+    }, [isManuallyPanning, setVivViewState])
 
     return {
         // State

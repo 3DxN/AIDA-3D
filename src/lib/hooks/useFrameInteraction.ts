@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react'
-import { OVERVIEW_VIEW_ID } from '@hms-dbmi/viv'
-import * as zarrita from 'zarrita'
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { OVERVIEW_VIEW_ID, DETAIL_VIEW_ID } from '@hms-dbmi/viv'
 
 import {
     getCursorForDragMode,
@@ -8,6 +7,9 @@ import {
     createFrameOverlayLayers,
     FRAME_VIEW_ID
 } from '../../components/viewer2D/zarr/map/FrameView'
+import { useViewer2DData } from '../contexts/Viewer2DDataContext'
+import { useNucleusSelection } from '../contexts/NucleusSelectionContext'
+
 
 import type { PickingInfo } from 'deck.gl'
 import type { DragMode, FrameInteractionState } from '../../types/viewer2D/frame'
@@ -21,21 +23,31 @@ import { NavigationState } from '../../types/viewer2D/navState'
  * Handles dragging, resizing, and interaction with frame handles.
  */
 export function useFrameInteraction(
-    frameCenter: [number, number],
-    frameSize: [number, number],
-    frameZDepth: number,
-    setFrameCenter: (center: [number, number]) => void,
-    setFrameSize: (size: [number, number]) => void,
-    msInfo: IMultiscaleInfo,
-    cellposeData: zarrita.Chunk<zarrita.DataType> | null,
-    navigationState: NavigationState,
-    // Additional dependencies for full deck event handling
     detailViewStateRef: React.RefObject<VivViewState | null>,
     setIsManuallyPanning: (panning: boolean) => void,
     setDetailViewDrag: (drag: VivDetailViewState) => void,
     detailViewDrag: VivDetailViewState,
     setControlledDetailViewState: (state: VivViewState) => void,
 ) {
+    const {
+        frameCenter,
+        frameSize,
+        frameZDepth,
+        setFrameCenter,
+        setFrameSize,
+        msInfo,
+        frameBoundCellposeData,
+        navigationState,
+    } = useViewer2DData();
+
+    const {
+        selectedNucleiIndices,
+        addSelectedNucleus,
+        removeSelectedNucleus,
+        setSelectedNucleiIndices,
+        clearSelection,
+    } = useNucleusSelection();
+
     const [frameInteraction, setFrameInteraction] = useState<FrameInteractionState>({
         isDragging: false,
         dragMode: 'none',
@@ -274,40 +286,93 @@ export function useFrameInteraction(
 
     // Complete onClick handler combining frame and overview interactions
     const onClick = useCallback((info: PickingInfo) => {
-        // Handle frame clicks first
         const frameHandled = handleClick(info);
         if (frameHandled) {
             return true;
         }
 
-        // Handle overview clicks
         if (info.viewport && info.viewport.id === OVERVIEW_VIEW_ID && info.coordinate) {
-            const [x, y] = info.coordinate
-            setFrameCenter([x, y])
-            // Let Viv handle the view state naturally
+            const [x, y] = info.coordinate;
+            setFrameCenter([x, y]);
             return true;
         }
 
-        // For all other cases, let default behavior handle it
+        if (info.viewport && info.viewport.id === DETAIL_VIEW_ID && info.coordinate && frameBoundCellposeData && navigationState) {
+            const [clickX, clickY] = info.coordinate;
+
+            const frameStartX = Math.floor(frameCenter[0] - frameSize[0] / 2);
+            const frameStartY = Math.floor(frameCenter[1] - frameSize[1] / 2);
+
+            const localX = Math.floor(clickX - frameStartX);
+            const localY = Math.floor(clickY - frameStartY);
+
+            const { data, shape } = frameBoundCellposeData;
+            if (!shape || shape.length < 3) return false;
+
+            const [zCount, height, width] = shape;
+            const { zSlice } = navigationState;
+            const startZ = Math.max(0, zSlice - frameZDepth);
+            const zIndexInChunk = zSlice - startZ;
+
+            if (
+                localX >= 0 && localX < width &&
+                localY >= 0 && localY < height &&
+                zIndexInChunk >= 0 && zIndexInChunk < zCount
+            ) {
+                const index = zIndexInChunk * height * width + localY * width + localX;
+                const nucleusIndex = (data as any)[index];
+
+                const sourceEvent = info.sourceEvent || {};
+                const shiftKey = sourceEvent.shiftKey || false;
+                const ctrlKey = sourceEvent.ctrlKey || false;
+
+                if (nucleusIndex > 0) {
+                    if (shiftKey) {
+                        if (selectedNucleiIndices.includes(nucleusIndex)) {
+                            removeSelectedNucleus(nucleusIndex);
+                        } else {
+                            addSelectedNucleus(nucleusIndex);
+                        }
+                    } else if (ctrlKey) {
+                        const lastSelected = selectedNucleiIndices.length > 0 ? selectedNucleiIndices[selectedNucleiIndices.length - 1] : null;
+                        const newSelection = [];
+                        if (lastSelected !== null) {
+                            newSelection.push(lastSelected);
+                        }
+                        if (nucleusIndex !== lastSelected) {
+                            newSelection.push(nucleusIndex);
+                        }
+                        setSelectedNucleiIndices(newSelection);
+                    } else {
+                        setSelectedNucleiIndices([nucleusIndex]);
+                    }
+                } else {
+                    if (!shiftKey && !ctrlKey) {
+                        clearSelection();
+                    }
+                }
+                return true;
+            }
+        }
+
         return false;
-    }, [handleClick, OVERVIEW_VIEW_ID, setFrameCenter]);
+    }, [
+        handleClick, setFrameCenter, frameBoundCellposeData, frameCenter,
+        frameSize, navigationState, frameZDepth, selectedNucleiIndices,
+        addSelectedNucleus, removeSelectedNucleus, clearSelection, setSelectedNucleiIndices
+    ]);
+
 
     return {
         frameInteraction,
-        setFrameInteraction,
         hoveredHandle,
-        setHoveredHandle,
-        handleFrameInteraction,
         handleHover,
-        handleDrag,
-        handleDragEnd,
-        handleClick,
         getCursor,
         frameOverlayLayers,
         // Complete deck event handlers
         onDragStart,
         onDrag,
         onDragEnd,
-        onClick
+        onClick,
     };
 }

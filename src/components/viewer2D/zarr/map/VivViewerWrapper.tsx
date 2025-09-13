@@ -13,12 +13,8 @@ const VivViewerWrapper: React.FC = () => {
     const { root, msInfo } = useZarrStore()
     const {
         navigationState,
-        frameCenter,
-        frameSize,
-        frameZDepth,
         setFrameCenter,
         setFrameSize,
-        frameBoundCellposeData
     } = useViewer2DData()
 
     // Early return if required data not available
@@ -53,14 +49,6 @@ const VivViewerWrapper: React.FC = () => {
         onDragEnd,
         onClick
     } = useFrameInteraction(
-        frameCenter,
-        frameSize,
-        frameZDepth,
-        setFrameCenter,
-        setFrameSize,
-        msInfo,
-        frameBoundCellposeData, // keep for potential future use, but not for overlay
-        navigationState,
         detailViewStateRef,
         setIsManuallyPanning,
         setDetailViewDrag,
