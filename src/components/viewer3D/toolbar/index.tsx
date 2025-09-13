@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+import { useNucleusSelection } from '../../../lib/contexts/NucleusSelectionContext'
 
 // FIX: Added missing types and the setSelected prop definition
 const Tools = (props: {
@@ -9,11 +10,12 @@ const Tools = (props: {
 	scene: THREE.Scene
 	camera: THREE.Camera
 	setSelect3D: (select3D: boolean) => void
-	setSelected: React.Dispatch<React.SetStateAction<THREE.Mesh[]>>
 }) => {
-	const { renderer, scene, camera, content, setSelect3D, setSelected } = props
+	const { renderer, scene, camera, content, setSelect3D } = props
 
 	const [orbitControls, setOrbitControls] = useState<OrbitControls | null>(null)
+	const { selectedNucleiIndices, setSelectedNucleiIndices, addSelectedNucleus, removeSelectedNucleus, clearSelection } = useNucleusSelection();
+
 
 	// Initialise orbit controls
 	useEffect(() => {
@@ -128,54 +130,38 @@ const Tools = (props: {
 
 			const firstIntersection = findFirstIntersection(raycaster, pointer)
 			const clickedObject = firstIntersection ? (firstIntersection.object as THREE.Mesh) : null
+			const clickedIndex = clickedObject ? Number(clickedObject.name.split('_')[1]) : null;
+
 
 			setSelect3D((value) => !value)
 
-			setSelected((prevSelected) => {
-				// Create a mutable set for easier logic
-				const currentSelectionSet = new Set(prevSelected)
-
-				if (event.shiftKey) {
-					// Shift-click: Add or remove from the current selection
-					if (clickedObject) {
-						if (currentSelectionSet.has(clickedObject)) {
-							currentSelectionSet.delete(clickedObject)
-						} else {
-							currentSelectionSet.add(clickedObject)
-						}
-					}
-				} else if (event.ctrlKey) {
-					// Ctrl-click: Select only the last and current item (or just current if none selected)
-					const lastSelected = prevSelected.length > 0 ? prevSelected[prevSelected.length - 1] : null
-					currentSelectionSet.clear()
-					if (lastSelected) currentSelectionSet.add(lastSelected)
-					if (clickedObject && clickedObject !== lastSelected) {
-						currentSelectionSet.add(clickedObject)
-					}
-				} else {
-					// Default click: Select only the clicked object
-					currentSelectionSet.clear()
-					if (clickedObject) {
-						currentSelectionSet.add(clickedObject)
+			if (event.shiftKey) {
+				// Shift-click: Add or remove from the current selection
+				if (clickedIndex !== null) {
+					if (selectedNucleiIndices.includes(clickedIndex)) {
+						removeSelectedNucleus(clickedIndex);
+					} else {
+						addSelectedNucleus(clickedIndex);
 					}
 				}
+			} else if (event.ctrlKey) {
+				// Ctrl-click: Select only the last and current item (or just current if none selected)
+				const lastSelected = selectedNucleiIndices.length > 0 ? selectedNucleiIndices[selectedNucleiIndices.length - 1] : null
+				const newSelection = [];
+				if (lastSelected !== null) newSelection.push(lastSelected);
+				if (clickedIndex !== null && clickedIndex !== lastSelected) {
+					newSelection.push(clickedIndex)
+				}
+				setSelectedNucleiIndices(newSelection);
 
-				const newSelection = Array.from(currentSelectionSet)
-
-				// Update materials (turn off all old, turn on all new)
-				const newSelectionIds = new Set(newSelection.map(item => item.uuid));
-				content.traverse(child => {
-					if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).material) {
-						const material = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-						if (material.emissive) {
-							material.emissive.set(newSelectionIds.has(child.uuid) ? 0xffffff : 0x000000);
-						}
-					}
-				})
-				renderer.render(scene, camera);
-
-				return newSelection
-			})
+			} else {
+				// Default click: Select only the clicked object
+				if (clickedIndex !== null) {
+					setSelectedNucleiIndices([clickedIndex]);
+				} else {
+					clearSelection();
+				}
+			}
 		}
 
 		canvas.addEventListener('pointerdown', onPointerDown)
@@ -187,10 +173,9 @@ const Tools = (props: {
 			canvas.removeEventListener('pointermove', onPointerMove)
 			canvas.removeEventListener('pointerup', onPointerUp)
 		}
-	}, [camera, scene, renderer, orbitControls, content, setSelected, setSelect3D])
+	}, [camera, scene, renderer, orbitControls, content, setSelect3D, addSelectedNucleus, removeSelectedNucleus, clearSelection, selectedNucleiIndices, setSelectedNucleiIndices])
 
 	return null
 }
 
 export default Tools
-// FIX: Removed extra closing brace that was here

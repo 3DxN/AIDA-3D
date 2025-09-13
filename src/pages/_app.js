@@ -5,6 +5,7 @@ import Head from 'next/head'
 
 import { ZarrStoreProvider } from '../lib/contexts/ZarrStoreContext'
 import { Viewer2DDataProvider } from '../lib/contexts/Viewer2DDataContext'
+import { NucleusSelectionProvider } from '../lib/contexts/NucleusSelectionContext'
 
 
 function MyApp({ Component, pageProps }) {
@@ -15,7 +16,9 @@ function MyApp({ Component, pageProps }) {
 			</Head>
 			<ZarrStoreProvider>
 				<Viewer2DDataProvider>
-					<Component {...pageProps} />
+					<NucleusSelectionProvider>
+						<Component {...pageProps} />
+					</NucleusSelectionProvider>
 				</Viewer2DDataProvider>
 			</ZarrStoreProvider>
 		</>

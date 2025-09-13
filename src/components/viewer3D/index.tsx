@@ -10,6 +10,7 @@ import { generateMeshesFromVoxelData } from './algorithms/marchingCubes';
 import { calculateNucleusVolume } from './algorithms/nucleusVolume';
 import { calculateNucleusDiameter } from './algorithms/nucleusDiameter';
 import { useViewer2DData } from '../../lib/contexts/Viewer2DDataContext';
+import { useNucleusSelection } from '../../lib/contexts/NucleusSelectionContext';
 
 import Settings from './settings';
 import Toolbar from './toolbar';
@@ -44,7 +45,9 @@ const Viewer3D = (props: {
 	);
 	const [isLoading, setIsLoading] = useState(false);
 	const [featureData, setFeatureData] = useState<any>(null);
-	const [selected, setSelected] = useState<THREE.Mesh[]>([]);
+	const { selectedNucleiIndices, setSelectedNucleiIndices } = useNucleusSelection();
+	const selectedMeshes = useRef<THREE.Mesh[]>([]);
+
 
 	// New label storage refs
 	const globalProperties = useRef<{ nucleus_index: number;[key: string]: number }[]>(
@@ -218,13 +221,13 @@ const Viewer3D = (props: {
 			polygonCoords.coords.length === 0
 		) {
 			if (!select3D) {
-				setSelected([]);
+				setSelectedNucleiIndices([]);
 			}
 			return;
 		}
 
 		if (!polygonCoords.accumulate) {
-			setSelected([]);
+			setSelectedNucleiIndices([]);
 		}
 
 		if (!content) return;
@@ -272,28 +275,38 @@ const Viewer3D = (props: {
 			}
 		});
 
-		setSelected((prevSelected) => {
-			const combined = [...prevSelected, ...selectedNuclei];
+		const newSelectedIndices = selectedNuclei.map(mesh => Number(mesh.name.split('_')[1]));
+
+		setSelectedNucleiIndices(prevSelectedIndices => {
+			const combined = [...prevSelectedIndices, ...newSelectedIndices];
 			return [...new Set(combined)];
 		});
-	}, [polygonCoords, content, renderer, select3D]);
+
+	}, [polygonCoords, content, renderer, select3D, setSelectedNucleiIndices]);
 
 	// Render selections
 	useEffect(() => {
 		if (renderer && scene && camera && content) {
+			const selectedMeshesList: THREE.Mesh[] = [];
 			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as THREE.Mesh;
-					const isSelected = selected.includes(nucleus);
+					const nucleusIndex = Number(nucleus.name.split('_')[1]);
+					const isSelected = selectedNucleiIndices.includes(nucleusIndex);
 					(nucleus.material as THREE.MeshStandardMaterial).emissive.set(
 						isSelected ? 0xffffff : 0x000000
 					);
+					if (isSelected) {
+						selectedMeshesList.push(nucleus);
+					}
 				}
 			});
 
+			selectedMeshes.current = selectedMeshesList;
 			renderer.render(scene, camera);
 		}
-	}, [selected, renderer, scene, camera, content]);
+	}, [selectedNucleiIndices, renderer, scene, camera, content]);
+
 
 	// Update colors based on labels
 	useEffect(() => {
@@ -347,7 +360,6 @@ const Viewer3D = (props: {
 					scene={scene}
 					renderer={renderer}
 					content={content}
-					setSelected={(sel) => setSelected(sel as THREE.Mesh[])}
 					setSelect3D={setSelect3D}
 				/>
 			)}
@@ -357,7 +369,7 @@ const Viewer3D = (props: {
 				camera={camera}
 				content={content}
 				featureData={featureData}
-				selected={selected}
+				selected={selectedMeshes.current}
 				setFeatureData={setFeatureData}
 				globalProperties={globalProperties}
 				globalPropertyTypes={globalPropertyTypes}

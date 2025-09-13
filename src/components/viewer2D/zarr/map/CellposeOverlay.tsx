@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext';
+import { useNucleusSelection } from '../../../../lib/contexts/NucleusSelectionContext';
 import { VivViewState } from '../../../../types/viewer2D/vivViewer';
 
 interface CellposeOverlayProps {
@@ -16,6 +17,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
         frameCenter,
         frameSize
     } = useViewer2DData();
+    const { selectedNucleiIndices } = useNucleusSelection();
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -60,11 +62,25 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 const imageData = new Uint8ClampedArray(width * height * 4);
 
                 for (let i = 0; i < sliceData.length; i++) {
-                    const isNucleus = sliceData[i] > 0;
-                    imageData[i * 4] = isNucleus ? 255 : 0;     // R (White)
-                    imageData[i * 4 + 1] = isNucleus ? 255 : 0; // G
-                    imageData[i * 4 + 2] = isNucleus ? 255 : 0; // B
-                    imageData[i * 4 + 3] = isNucleus ? 178 : 0; // A (70% opacity)
+                    const nucleusIndex = sliceData[i];
+                    const isNucleus = nucleusIndex > 0;
+                    const isSelected = selectedNucleiIndices.includes(nucleusIndex);
+
+                    if (isNucleus) {
+                        if (isSelected) {
+                            imageData[i * 4] = 255;     // R (Yellow)
+                            imageData[i * 4 + 1] = 255; // G
+                            imageData[i * 4 + 2] = 0;   // B
+                            imageData[i * 4 + 3] = 255; // A (100% opacity)
+                        } else {
+                            imageData[i * 4] = 255;     // R (White)
+                            imageData[i * 4 + 1] = 255; // G
+                            imageData[i * 4 + 2] = 255; // B
+                            imageData[i * 4 + 3] = 178; // A (70% opacity)
+                        }
+                    } else {
+                        imageData[i * 4 + 3] = 0; // Transparent
+                    }
                 }
 
                 // --- 3. Draw the slice onto the canvas ---
@@ -74,7 +90,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 });
             }
         }
-    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameZDepth, frameCenter, frameSize]);
+    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameZDepth, frameCenter, frameSize, selectedNucleiIndices]);
 
     return (
         <canvas
