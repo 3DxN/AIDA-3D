@@ -9,6 +9,7 @@ import {
 } from '../../components/viewer2D/zarr/map/FrameView'
 import { useViewer2DData } from '../contexts/Viewer2DDataContext'
 import { useNucleusSelection } from '../contexts/NucleusSelectionContext'
+import { useZarrStore } from '../contexts/ZarrStoreContext'
 
 
 import type { PickingInfo } from 'deck.gl'
@@ -35,10 +36,11 @@ export function useFrameInteraction(
         frameZDepth,
         setFrameCenter,
         setFrameSize,
-        msInfo,
         frameBoundCellposeData,
         navigationState,
     } = useViewer2DData();
+
+    const { msInfo } = useZarrStore();
 
     const {
         selectedNucleiIndices,
@@ -56,6 +58,17 @@ export function useFrameInteraction(
         startFrameSize: [0, 0]
     })
     const [hoveredHandle, setHoveredHandle] = useState<string | null>(null)
+
+    // Context selection box state
+    const [selectionBox, setSelectionBox] = useState<{
+        isDragging: boolean,
+        startPos: [number, number],
+        currentPos: [number, number]
+    }>({
+        isDragging: false,
+        startPos: [0, 0],
+        currentPos: [0, 0]
+    })
 
     // Handle frame interactions (handles and move area are pickable)
     const handleFrameInteraction = useCallback((info: PickingInfo) => {
@@ -192,6 +205,47 @@ export function useFrameInteraction(
         });
     }, [msInfo, frameCenter, frameSize, hoveredHandle]);
 
+    // Handle selection box area selection
+    const handleSelectionBoxAreaSelection = useCallback((startCoord: [number, number], endCoord: [number, number]) => {
+        if (!frameBoundCellposeData || !navigationState) return;
+
+        const frameStartX = Math.floor(frameCenter[0] - frameSize[0] / 2);
+        const frameStartY = Math.floor(frameCenter[1] - frameSize[1] / 2);
+
+        // Convert screen coordinates to frame-relative coordinates
+        const minX = Math.min(startCoord[0], endCoord[0]) - frameStartX;
+        const maxX = Math.max(startCoord[0], endCoord[0]) - frameStartX;
+        const minY = Math.min(startCoord[1], endCoord[1]) - frameStartY;
+        const maxY = Math.max(startCoord[1], endCoord[1]) - frameStartY;
+
+        const { data, shape } = frameBoundCellposeData;
+        if (!shape || shape.length < 3) return;
+
+        const [zCount, height, width] = shape;
+        const { zSlice } = navigationState;
+        const startZ = Math.max(0, zSlice - frameZDepth);
+        const zIndexInChunk = zSlice - startZ;
+
+        if (zIndexInChunk < 0 || zIndexInChunk >= zCount) return;
+
+        const selectedNuclei = new Set<number>();
+
+        // Iterate through the selection box area
+        for (let y = Math.max(0, Math.floor(minY)); y < Math.min(height, Math.ceil(maxY)); y++) {
+            for (let x = Math.max(0, Math.floor(minX)); x < Math.min(width, Math.ceil(maxX)); x++) {
+                const index = zIndexInChunk * height * width + y * width + x;
+                const nucleusIndex = (data as any)[index];
+
+                if (nucleusIndex > 0) {
+                    selectedNuclei.add(nucleusIndex);
+                }
+            }
+        }
+
+        // Update selection
+        setSelectedNucleiIndices(Array.from(selectedNuclei));
+    }, [frameBoundCellposeData, navigationState, frameCenter, frameSize, frameZDepth, setSelectedNucleiIndices]);
+
     // Complete onDragStart handler combining frame and view interactions
     const onDragStart = useCallback((info: PickingInfo) => {
         // Handle frame interactions first (highest priority)
@@ -202,6 +256,20 @@ export function useFrameInteraction(
                 if (handled) {
                     return true; // Stop propagation - we're handling this
                 }
+            }
+        }
+
+        // Check if we should start selection box (when shift is held and in detail view)
+        if (info.coordinate && info.viewport?.id === DETAIL_VIEW_ID) {
+            // Access original event through the event property of the info object
+            const originalEvent = (info as any).srcEvent || (info as any).originalEvent;
+            if (originalEvent && originalEvent.shiftKey) {
+                setSelectionBox({
+                    isDragging: true,
+                    startPos: [info.coordinate[0], info.coordinate[1]],
+                    currentPos: [info.coordinate[0], info.coordinate[1]]
+                });
+                return true; // Stop propagation - we're handling selection
             }
         }
 
@@ -233,6 +301,15 @@ export function useFrameInteraction(
             return true;
         }
 
+        // Handle selection box dragging
+        if (selectionBox.isDragging && info.coordinate) {
+            setSelectionBox(prev => ({
+                ...prev,
+                currentPos: [info.coordinate![0], info.coordinate![1]]
+            }));
+            return true; // Stop propagation
+        }
+
         // Handle manual detail view panning
         if (detailViewDrag.isDragging && info.coordinate) {
             const [currentX, currentY] = info.coordinate;
@@ -261,7 +338,7 @@ export function useFrameInteraction(
         }
 
         return false; // Allow default behavior
-    }, [handleDrag, detailViewDrag, detailViewStateRef, setControlledDetailViewState]);
+    }, [handleDrag, detailViewDrag, detailViewStateRef, setControlledDetailViewState, selectionBox.isDragging]);
 
     // Complete onDragEnd handler combining frame and view interactions
     const onDragEnd = useCallback(() => {
@@ -269,6 +346,20 @@ export function useFrameInteraction(
         const frameHandled = handleDragEnd();
         if (frameHandled) {
             return true;
+        }
+
+        // Handle selection box end
+        if (selectionBox.isDragging) {
+            // Perform the selection based on the final box area
+            handleSelectionBoxAreaSelection(selectionBox.startPos, selectionBox.currentPos);
+
+            // Reset selection box state
+            setSelectionBox({
+                isDragging: false,
+                startPos: [0, 0],
+                currentPos: [0, 0]
+            });
+            return true; // Stop propagation
         }
 
         if (detailViewDrag.isDragging) {
@@ -282,7 +373,7 @@ export function useFrameInteraction(
         }
 
         return false; // Allow default behavior
-    }, [handleDragEnd, detailViewDrag, setIsManuallyPanning, setDetailViewDrag]);
+    }, [handleDragEnd, detailViewDrag, setIsManuallyPanning, setDetailViewDrag, selectionBox, handleSelectionBoxAreaSelection]);
 
     // Complete onClick handler combining frame and overview interactions
     const onClick = useCallback((info: PickingInfo) => {
@@ -322,9 +413,9 @@ export function useFrameInteraction(
                 const index = zIndexInChunk * height * width + localY * width + localX;
                 const nucleusIndex = (data as any)[index];
 
-                const sourceEvent = info.sourceEvent || {};
-                const shiftKey = sourceEvent.shiftKey || false;
-                const ctrlKey = sourceEvent.ctrlKey || false;
+                const originalEvent = (info as any).srcEvent || (info as any).originalEvent || {};
+                const shiftKey = originalEvent.shiftKey || false;
+                const ctrlKey = originalEvent.ctrlKey || false;
 
                 if (nucleusIndex > 0) {
                     if (shiftKey) {
@@ -369,6 +460,7 @@ export function useFrameInteraction(
         handleHover,
         getCursor,
         frameOverlayLayers,
+        selectionBox,
         // Complete deck event handlers
         onDragStart,
         onDrag,

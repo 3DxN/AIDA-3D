@@ -7,6 +7,7 @@ import { useFrameInteraction } from '../../../../lib/hooks/useFrameInteraction'
 import useVivViewer from '../../../../lib/hooks/useVivViewer'
 import useFrameInitialisation from '../../../../lib/hooks/useFrameInitialisation'
 import { CellposeOverlay } from './CellposeOverlay'
+import { SelectionBox } from '../../overlay/SelectionBox'
 
 
 const VivViewerWrapper: React.FC = () => {
@@ -44,6 +45,7 @@ const VivViewerWrapper: React.FC = () => {
         handleHover,
         getCursor,
         frameOverlayLayers,
+        selectionBox,
         onDragStart,
         onDrag,
         onDragEnd,
@@ -121,6 +123,10 @@ const VivViewerWrapper: React.FC = () => {
             />
             <CellposeOverlay
                 viewState={controlledDetailViewState}
+                containerSize={containerDimensions}
+            />
+            <SelectionBox
+                selectionBox={selectionBox}
                 containerSize={containerDimensions}
             />
         </div>
