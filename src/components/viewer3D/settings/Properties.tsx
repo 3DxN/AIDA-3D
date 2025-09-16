@@ -242,15 +242,15 @@ const Properties = (props: {
 						if (value && Array.isArray(value)) {
 							value = value[index];
 						} else {
-							return NaN; // Path is invalid
+							return 0; // Return 0 instead of NaN for better UX
 						}
 					}
-					return typeof value === 'number' ? value : NaN;
+					return typeof value === 'number' ? value : 0;
 				}
-				return data[propertyName];
+				return typeof data[propertyName] === 'number' ? data[propertyName] : 0;
 			}
 		}
-		return NaN;
+		return 0; // Return 0 instead of NaN when no single nucleus is selected
 	};
 
 	return (
@@ -287,7 +287,11 @@ const Properties = (props: {
 						<div className="mt-4">
 							{selected.length === 0 ? (
 								<div className="text-sm text-gray-500 mb-2">
-									Select a nucleus.
+									Select a nucleus to edit properties.
+								</div>
+							) : selected.length > 1 ? (
+								<div className="text-sm text-gray-500 mb-2">
+									Select exactly one nucleus to edit properties. ({selected.length} selected)
 								</div>
 							) : (
 								<div className="text-sm font-medium text-gray-700 mb-2">
@@ -302,7 +306,12 @@ const Properties = (props: {
 												{({ open }) => (
 													<>
 														<div className="flex items-center justify-between">
-															<span className="text-sm truncate mr-2">{propertyType.name}</span>
+															<span className="text-sm truncate mr-2">
+																{propertyType.name}
+																{propertyType.readOnly && (
+																	<span className="ml-1 text-xs text-gray-400">(read-only)</span>
+																)}
+															</span>
 															<Menu.Button
 																className="inline-flex justify-center w-20 rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
 																disabled={selected.length === 0}
@@ -342,7 +351,12 @@ const Properties = (props: {
 											</Menu>
 										) : (
 											<div className="flex items-center justify-between">
-												<span className="text-sm truncate mr-2">{propertyType.name}</span>
+												<span className="text-sm truncate mr-2">
+													{propertyType.name}
+													{propertyType.readOnly && (
+														<span className="ml-1 text-xs text-gray-400">(read-only)</span>
+													)}
+												</span>
 												<div className="w-20">
 													<NumberField
 														value={getDisplayValue(propertyType.name)}

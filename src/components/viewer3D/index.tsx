@@ -49,6 +49,7 @@ const Viewer3D = (props: {
 	const { selectedNucleiIndices, setSelectedNucleiIndices } = useNucleusSelection();
 	const { updateNucleusColors } = useNucleusColor();
 	const selectedMeshes = useRef<THREE.Mesh[]>([]);
+	const [selectedMeshesState, setSelectedMeshesState] = useState<THREE.Mesh[]>([]);
 
 
 	// New label storage refs
@@ -305,6 +306,7 @@ const Viewer3D = (props: {
 			});
 
 			selectedMeshes.current = selectedMeshesList;
+			setSelectedMeshesState(selectedMeshesList);
 			renderer.render(scene, camera);
 		}
 	}, [selectedNucleiIndices, renderer, scene, camera, content]);
@@ -379,7 +381,7 @@ const Viewer3D = (props: {
 				camera={camera}
 				content={content}
 				featureData={featureData}
-				selected={selectedMeshes.current}
+				selected={selectedMeshesState}
 				setFeatureData={setFeatureData}
 				globalProperties={globalProperties}
 				globalPropertyTypes={globalPropertyTypes}
