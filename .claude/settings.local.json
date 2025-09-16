@@ -5,7 +5,8 @@
       "Bash(npm run lint)",
       "Bash(npm run typecheck:*)",
       "Bash(npm run:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)"
     ],
     "deny": [],
     "ask": []

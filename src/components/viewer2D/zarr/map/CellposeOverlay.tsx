@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext';
 import { useNucleusSelection } from '../../../../lib/contexts/NucleusSelectionContext';
+import { useNucleusColor } from '../../../../lib/contexts/NucleusColorContext';
 import { VivViewState } from '../../../../types/viewer2D/vivViewer';
 
 interface CellposeOverlayProps {
@@ -18,6 +19,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
         frameSize
     } = useViewer2DData();
     const { selectedNucleiIndices } = useNucleusSelection();
+    const { getNucleusColor } = useNucleusColor();
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -67,16 +69,32 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                     const isSelected = selectedNucleiIndices.includes(nucleusIndex);
 
                     if (isNucleus) {
-                        if (isSelected) {
-                            imageData[i * 4] = 255;     // R (Yellow)
-                            imageData[i * 4 + 1] = 255; // G
-                            imageData[i * 4 + 2] = 0;   // B
-                            imageData[i * 4 + 3] = 255; // A (100% opacity)
+                        // Get color from 3D viewer, fallback to default colors
+                        const threeDColor = getNucleusColor(nucleusIndex);
+
+                        if (threeDColor) {
+                            // Use 3D viewer color
+                            const r = Math.floor(threeDColor.r * 255);
+                            const g = Math.floor(threeDColor.g * 255);
+                            const b = Math.floor(threeDColor.b * 255);
+
+                            imageData[i * 4] = r;       // R
+                            imageData[i * 4 + 1] = g;   // G
+                            imageData[i * 4 + 2] = b;   // B
+                            imageData[i * 4 + 3] = isSelected ? 255 : 178; // A (100% if selected, 70% if not)
                         } else {
-                            imageData[i * 4] = 255;     // R (White)
-                            imageData[i * 4 + 1] = 255; // G
-                            imageData[i * 4 + 2] = 255; // B
-                            imageData[i * 4 + 3] = 178; // A (70% opacity)
+                            // Fallback to original colors if no 3D color available
+                            if (isSelected) {
+                                imageData[i * 4] = 255;     // R (Yellow)
+                                imageData[i * 4 + 1] = 255; // G
+                                imageData[i * 4 + 2] = 0;   // B
+                                imageData[i * 4 + 3] = 255; // A (100% opacity)
+                            } else {
+                                imageData[i * 4] = 255;     // R (White)
+                                imageData[i * 4 + 1] = 255; // G
+                                imageData[i * 4 + 2] = 255; // B
+                                imageData[i * 4 + 3] = 178; // A (70% opacity)
+                            }
                         }
                     } else {
                         imageData[i * 4 + 3] = 0; // Transparent
@@ -90,7 +108,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 });
             }
         }
-    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameZDepth, frameCenter, frameSize, selectedNucleiIndices]);
+    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameZDepth, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor]);
 
     return (
         <canvas

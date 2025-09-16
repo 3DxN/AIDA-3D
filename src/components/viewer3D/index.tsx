@@ -11,6 +11,7 @@ import { calculateNucleusVolume } from './algorithms/nucleusVolume';
 import { calculateNucleusDiameter } from './algorithms/nucleusDiameter';
 import { useViewer2DData } from '../../lib/contexts/Viewer2DDataContext';
 import { useNucleusSelection } from '../../lib/contexts/NucleusSelectionContext';
+import { useNucleusColor } from '../../lib/contexts/NucleusColorContext';
 
 import Settings from './settings';
 import Toolbar from './toolbar';
@@ -46,6 +47,7 @@ const Viewer3D = (props: {
 	const [isLoading, setIsLoading] = useState(false);
 	const [featureData, setFeatureData] = useState<any>(null);
 	const { selectedNucleiIndices, setSelectedNucleiIndices } = useNucleusSelection();
+	const { updateNucleusColors } = useNucleusColor();
 	const selectedMeshes = useRef<THREE.Mesh[]>([]);
 
 
@@ -319,6 +321,8 @@ const Viewer3D = (props: {
 		);
 		const redPropertyName = redpropertyType ? redpropertyType.name : undefined;
 
+		const colorMap = new Map<number, THREE.Color>();
+
 		content.children.forEach((child) => {
 			if (child.isMesh && child.name.includes('nucleus')) {
 				const nucleus = child as THREE.Mesh;
@@ -334,11 +338,17 @@ const Viewer3D = (props: {
 						: 0x808080;
 
 				material.color.setHex(targetColorHex);
+
+				// Store color in the context
+				colorMap.set(nucleusIndex, material.color.clone());
 			}
 		});
 
+		// Update the nucleus color context
+		updateNucleusColors(colorMap);
+
 		renderer.render(scene, camera);
-	}, [featureData, content, renderer, scene, camera]);
+	}, [featureData, content, renderer, scene, camera, updateNucleusColors]);
 
 	return (
 		<div className="min-w-full h-screen flex border-l border-l-teal-500">

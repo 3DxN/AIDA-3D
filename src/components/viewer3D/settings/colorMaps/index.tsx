@@ -6,6 +6,7 @@ import * as d3 from 'd3';
 
 import ColorMap from './ColorMap';
 import FooterToolbar from './FooterToolbar';
+import { useNucleusColor } from '../../../../lib/contexts/NucleusColorContext';
 
 function classNames(...classes: string[]) {
 	return classes.filter(Boolean).join(' ');
@@ -99,6 +100,8 @@ const ColorMaps = (props: {
 		globalProperties,
 	} = props;
 
+	const { updateNucleusColors } = useNucleusColor();
+
 	const [features, setFeatures] = useState<{ name: string; value: string }[]>([]);
 	const [colorMaps, setColorMaps] = useState<
 		{ featureMap: { name: string; value: string }; colorScale: any; normalise: boolean }[]
@@ -146,14 +149,20 @@ const ColorMaps = (props: {
 		}
 
 		const activeColorMap = colorMaps[activeColorMapIndex];
+		const colorMap = new Map<number, THREE.Color>();
 
 		if (!activeColorMap) {
 			// If no color maps, revert to a default color
 			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
-					((child as THREE.Mesh).material as THREE.MeshStandardMaterial).color.set(0x808080);
+					const nucleus = child as THREE.Mesh;
+					const material = nucleus.material as THREE.MeshStandardMaterial;
+					const nucleusIndex = parseInt(child.name.split('_')[1], 10);
+					material.color.set(0x808080);
+					colorMap.set(nucleusIndex, material.color.clone());
 				}
 			});
+			updateNucleusColors(colorMap);
 			renderer.render(scene, camera);
 			return;
 		}
@@ -164,6 +173,7 @@ const ColorMaps = (props: {
 			.filter((v): v is number => typeof v === 'number');
 
 		if (allValues.length === 0) {
+			updateNucleusColors(colorMap);
 			renderer.render(scene, camera);
 			return;
 		}
@@ -182,6 +192,7 @@ const ColorMaps = (props: {
 
 				if (!nucleusPropertyData) {
 					material.color.set(0x808080); // Default grey
+					colorMap.set(nucleusIndex, material.color.clone());
 					return;
 				}
 
@@ -189,6 +200,7 @@ const ColorMaps = (props: {
 
 				if (typeof value !== 'number') {
 					material.color.set(0x808080);
+					colorMap.set(nucleusIndex, material.color.clone());
 					return;
 				}
 
@@ -198,8 +210,11 @@ const ColorMaps = (props: {
 				const colorString = activeColorMap.colorScale.value(normalizedValue);
 
 				material.color.set(new THREE.Color(colorString));
+				colorMap.set(nucleusIndex, material.color.clone());
 			}
 		});
+
+		updateNucleusColors(colorMap);
 		renderer.render(scene, camera);
 	}, [
 		colorMaps,
@@ -209,6 +224,7 @@ const ColorMaps = (props: {
 		renderer,
 		scene,
 		camera,
+		updateNucleusColors,
 	]);
 
 	return (
