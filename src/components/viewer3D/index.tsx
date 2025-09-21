@@ -214,7 +214,7 @@ const Viewer3D = (props: {
 				const planeMaterial = new THREE.MeshBasicMaterial({
 					color: 0x00ff00,
 					transparent: true,
-					opacity: 0.5,
+					opacity: 0.3,
 					side: THREE.DoubleSide
 				});
 
@@ -224,13 +224,13 @@ const Viewer3D = (props: {
 				// Convert from global frame coordinates to local cellpose array coordinates
 				const cellposeShape = frameBoundCellposeData.shape; // [depth, height, width]
 
-				// Map frame coordinates to local voxel indices within the cellpose array
-				// The frame bounds are relative to the full image, but cellpose data is a subset
-				const localX = centerX % cellposeShape[2]; // Map to local width
-				const localY = centerY % cellposeShape[1]; // Map to local height
-				const localZ = cellposeShape[0] / 2; // Center Z slice
+				// Center the plane based on cellpose data dimensions, same as nucleus meshes
+				const cellposeCenterX = cellposeShape[2] / 2; // Center X in cellpose data
+				const cellposeCenterY = cellposeShape[1] / 2; // Center Y in cellpose data
+				const cellposeCenterZ = cellposeShape[0] / 2; // Center Z in cellpose data
 
-				planeMesh.position.set(localX, localY, localZ);
+				// Position plane at center of cellpose data coordinate system
+				planeMesh.position.set(cellposeCenterX, cellposeCenterY, cellposeCenterZ);
 				// Remove rotation to keep it vertical (default orientation)
 				// planeMesh.rotation.x = -Math.PI / 2; // This was making it horizontal
 
@@ -372,13 +372,13 @@ const Viewer3D = (props: {
 		crossSectionPlane.current.geometry.dispose();
 		crossSectionPlane.current.geometry = new THREE.PlaneGeometry(width, height);
 
-		// Update position using local voxel coordinates
+		// Update position using cellpose data center, same as nucleus meshes
 		if (frameBoundCellposeData) {
 			const cellposeShape = frameBoundCellposeData.shape;
-			const localX = centerX % cellposeShape[2];
-			const localY = centerY % cellposeShape[1];
-			const localZ = cellposeShape[0] / 2; // Center Z slice
-			crossSectionPlane.current.position.set(localX, localY, localZ);
+			const cellposeCenterX = cellposeShape[2] / 2;
+			const cellposeCenterY = cellposeShape[1] / 2;
+			const cellposeCenterZ = cellposeShape[0] / 2;
+			crossSectionPlane.current.position.set(cellposeCenterX, cellposeCenterY, cellposeCenterZ);
 		}
 
 		if (renderer && scene && camera) {
