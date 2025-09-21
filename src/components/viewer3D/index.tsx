@@ -50,6 +50,7 @@ const Viewer3D = (props: {
 	const { updateNucleusColors } = useNucleusColor();
 	const selectedMeshes = useRef<THREE.Mesh[]>([]);
 	const [selectedMeshesState, setSelectedMeshesState] = useState<THREE.Mesh[]>([]);
+	const crossSectionPlane = useRef<THREE.Mesh | null>(null);
 
 
 	// New label storage refs
@@ -62,7 +63,7 @@ const Viewer3D = (props: {
 
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
-	const { frameBoundCellposeData } = useViewer2DData();
+	const { frameBoundCellposeData, frameCenter, frameSize, getFrameBounds, currentZSlice } = useViewer2DData();
 
 	// Init
 	useEffect(() => {
@@ -122,6 +123,14 @@ const Viewer3D = (props: {
 						cleanMaterial(mesh.material as THREE.Material);
 					}
 				});
+			}
+
+			// Clean up cross-section plane when content changes
+			if (crossSectionPlane.current) {
+				scene.remove(crossSectionPlane.current);
+				crossSectionPlane.current.geometry.dispose();
+				(crossSectionPlane.current.material as THREE.Material).dispose();
+				crossSectionPlane.current = null;
 			}
 
 			const meshDataArray = generateMeshesFromVoxelData(frameBoundCellposeData);
@@ -191,6 +200,43 @@ const Viewer3D = (props: {
 				nucleusVolumes: nucleusMeshes.map((mesh) => calculateNucleusVolume(mesh)),
 			};
 			setFeatureData(newFeatureData);
+
+			// Add cross-section plane to the content group so it gets the same transformations
+			if (frameCenter && frameSize && frameSize[0] > 0 && frameSize[1] > 0) {
+				const bounds = getFrameBounds();
+				const width = bounds.right - bounds.left;
+				const height = bounds.bottom - bounds.top;
+				const centerX = (bounds.left + bounds.right) / 2;
+				const centerY = (bounds.top + bounds.bottom) / 2;
+
+				// Create plane using the same coordinate system as the voxel data
+				const planeGeometry = new THREE.PlaneGeometry(width, height);
+				const planeMaterial = new THREE.MeshBasicMaterial({
+					color: 0x00ff00,
+					transparent: true,
+					opacity: 0.5,
+					side: THREE.DoubleSide
+				});
+
+				const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+
+				// Position in local voxel coordinates - same as marching cubes algorithm
+				// Convert from global frame coordinates to local cellpose array coordinates
+				const cellposeShape = frameBoundCellposeData.shape; // [depth, height, width]
+
+				// Map frame coordinates to local voxel indices within the cellpose array
+				// The frame bounds are relative to the full image, but cellpose data is a subset
+				const localX = centerX % cellposeShape[2]; // Map to local width
+				const localY = centerY % cellposeShape[1]; // Map to local height
+				const localZ = cellposeShape[0] / 2; // Center Z slice
+
+				planeMesh.position.set(localX, localY, localZ);
+				// Remove rotation to keep it vertical (default orientation)
+				// planeMesh.rotation.x = -Math.PI / 2; // This was making it horizontal
+
+				newContentGroup.add(planeMesh);
+				crossSectionPlane.current = planeMesh;
+			}
 
 			scene.add(newContentGroup);
 			setContent(newContentGroup);
@@ -311,6 +357,34 @@ const Viewer3D = (props: {
 		}
 	}, [selectedNucleiIndices, renderer, scene, camera, content]);
 
+	// Update cross-section plane when frame changes
+	useEffect(() => {
+		if (!crossSectionPlane.current || !frameCenter || !frameSize) return;
+
+		// Update plane position when frame changes
+		const bounds = getFrameBounds();
+		const width = bounds.right - bounds.left;
+		const height = bounds.bottom - bounds.top;
+		const centerX = (bounds.left + bounds.right) / 2;
+		const centerY = (bounds.top + bounds.bottom) / 2;
+
+		// Update geometry size
+		crossSectionPlane.current.geometry.dispose();
+		crossSectionPlane.current.geometry = new THREE.PlaneGeometry(width, height);
+
+		// Update position using local voxel coordinates
+		if (frameBoundCellposeData) {
+			const cellposeShape = frameBoundCellposeData.shape;
+			const localX = centerX % cellposeShape[2];
+			const localY = centerY % cellposeShape[1];
+			const localZ = cellposeShape[0] / 2; // Center Z slice
+			crossSectionPlane.current.position.set(localX, localY, localZ);
+		}
+
+		if (renderer && scene && camera) {
+			renderer.render(scene, camera);
+		}
+	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeData]);
 
 	// Update colors based on labels
 	useEffect(() => {
