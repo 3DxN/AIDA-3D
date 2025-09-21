@@ -227,11 +227,12 @@ const Viewer3D = (props: {
 
 				// Center the plane based on cellpose data dimensions, same as nucleus meshes
 				const cellposeCenterX = cellposeShape[2] / 2; // Center X in cellpose data
-				const cellposeCenterY = cellposeShape[1] / 2; // Center Y in cellpose data
+				const cellposeCenterY = cellposeShape[1] / 2; // Center Y in cellpose data (flipped to match vertices)
 				const cellposeCenterZ = cellposeShape[0] / 2; // Center Z in cellpose data
 
 				// Position plane at center of cellpose data coordinate system
-				planeMesh.position.set(cellposeCenterX, cellposeCenterY, cellposeCenterZ);
+				// Y coordinate flipped to match the flipped vertex coordinates
+				planeMesh.position.set(cellposeCenterX, cellposeShape[1] - 1 - cellposeCenterY, cellposeCenterZ);
 				// Remove rotation to keep it vertical (default orientation)
 				// planeMesh.rotation.x = -Math.PI / 2; // This was making it horizontal
 
@@ -394,7 +395,8 @@ const Viewer3D = (props: {
 			const cellposeCenterX = cellposeShape[2] / 2;
 			const cellposeCenterY = cellposeShape[1] / 2;
 			const cellposeCenterZ = cellposeShape[0] / 2;
-			crossSectionPlane.current.position.set(cellposeCenterX, cellposeCenterY, cellposeCenterZ);
+			// Y coordinate flipped to match the flipped vertex coordinates
+			crossSectionPlane.current.position.set(cellposeCenterX, cellposeShape[1] - 1 - cellposeCenterY, cellposeCenterZ);
 		}
 
 		if (renderer && scene && camera) {

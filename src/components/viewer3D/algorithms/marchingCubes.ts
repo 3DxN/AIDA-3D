@@ -165,7 +165,11 @@ export const generateMeshesFromVoxelData = (input: Chunk<Uint32>) => {
 		const { vertices, indices } = march(binaryGrid, 0.5);
 
 		if (vertices.length > 0 && indices.length > 0) {
-			meshDataArray.push({ label, vertices, indices });
+			// Flip y-direction for all vertices to correct upside-down orientation
+			const flippedVertices = vertices.map(vertex => {
+				return new THREE.Vector3(vertex.x, dims[1] - 1 - vertex.y, vertex.z);
+			});
+			meshDataArray.push({ label, vertices: flippedVertices, indices });
 		}
 	}
 
