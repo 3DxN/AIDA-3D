@@ -51,6 +51,7 @@ const Viewer3D = (props: {
 	const selectedMeshes = useRef<THREE.Mesh[]>([]);
 	const [selectedMeshesState, setSelectedMeshesState] = useState<THREE.Mesh[]>([]);
 	const crossSectionPlane = useRef<THREE.Mesh | null>(null);
+	const [isCameraInitialized, setIsCameraInitialized] = useState(false);
 
 
 	// New label storage refs
@@ -247,9 +248,14 @@ const Viewer3D = (props: {
 
 			newContentGroup.position.sub(center);
 
-			camera.position.set(size / 1.5, size / 4.0, size / 1.5);
-			camera.lookAt(0, 0, 0);
+			// Only set camera position on first initialization, preserve user's camera state afterwards
+			if (!isCameraInitialized) {
+				camera.position.set(size / 1.5, size / 4.0, size / 1.5);
+				camera.lookAt(0, 0, 0);
+				setIsCameraInitialized(true);
+			}
 
+			// Always update camera near/far planes for proper rendering
 			camera.near = size / 100;
 			camera.far = size * 100;
 			camera.updateProjectionMatrix();
