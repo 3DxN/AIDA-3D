@@ -250,7 +250,17 @@ const Viewer3D = (props: {
 
 			// Only set camera position on first initialization, preserve user's camera state afterwards
 			if (!isCameraInitialized) {
-				camera.position.set(size / 1.5, size / 4.0, size / 1.5);
+				// Calculate camera distance to ensure the green plane is fully visible
+				const bounds = getFrameBounds();
+				const frameWidth = bounds.right - bounds.left;
+				const frameHeight = bounds.bottom - bounds.top;
+				const planeSize = Math.max(frameWidth, frameHeight);
+
+				// Camera distance should be proportional to plane size to see it fully
+				// Use a larger multiplier to ensure the plane is comfortably visible
+				const distanceScale = Math.max(3.0, planeSize / 25); // Much more zoomed out
+
+				camera.position.set(size * distanceScale, size * distanceScale * 0.6, size * distanceScale);
 				camera.lookAt(0, 0, 0);
 				setIsCameraInitialized(true);
 			}

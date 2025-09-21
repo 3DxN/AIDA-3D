@@ -32,9 +32,10 @@ const Tools = (props: {
 		newControls.enableKeys = true
 		newControls.listenToKeyEvents(renderer.domElement)
 
-		newControls.minDistance = 2
-		newControls.maxDistance = 10
-		newControls.target.set(0, 0, -0.2)
+		// Remove restrictive distance constraints - let the initial camera position be preserved
+		// newControls.minDistance = 2
+		// newControls.maxDistance = 10
+		newControls.target.set(0, 0, 0) // Center target at origin
 		newControls.update()
 
 		setOrbitControls(newControls)
