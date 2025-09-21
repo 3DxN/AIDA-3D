@@ -113,42 +113,55 @@ const march = (grid: number[][][], isoLevel: number) => {
 	return { vertices, indices }
 }
 
+// src/components/viewer3D/algorithms/marchingCubes.ts
+
+// src/components/viewer3D/algorithms/marchingCubes.ts
+
+// src/components/viewer3D/algorithms/marchingCubes.ts
+
 export const generateMeshesFromVoxelData = (input: Chunk<Uint32>) => {
 	const meshDataArray = [];
-	let dims;
-	let getValue;
-	let allVoxelValues;
-
-	// Check if the input is a Zarrita-style chunk (duck typing)
 	const { data, shape, stride } = input;
-	dims = shape; // e.g., [depth, height, width]
-	allVoxelValues = data; // The flat TypedArray
+	const dims = shape; // e.g., [depth, height, width]
+	const allVoxelValues = data; // The flat TypedArray
 
 	// Accessor for the 1D strided array
-	// Calculates the index in the flat array from 3D coordinates
-	getValue = (z: number, y: number, x: number) => data[z * stride[0] + y * stride[1] + x * stride[2]];
+	const getValue = (z: number, y: number, x: number) => data[z * stride[0] + y * stride[1] + x * stride[2]];
 
-	const uniqueLabels = [...new Set(allVoxelValues)].filter(label => label > 0);
+	const uniqueProperties = [...new Set(allVoxelValues)].filter(label => label > 0);
 
-	for (const label of uniqueLabels) {
-		// Create a binary grid for this specific label
-		const binaryGrid = Array.from({ length: dims[0] }, () =>
-			Array.from({ length: dims[1] }, () => new Array(dims[2]).fill(0))
-		);
+	for (const label of uniqueProperties) {
+		let isOnBoundary = false;
+		const labelVoxels = [];
 
+		// First, find all voxels for the current label and check for boundaries
 		for (let z = 0; z < dims[0]; z++) {
 			for (let y = 0; y < dims[1]; y++) {
 				for (let x = 0; x < dims[2]; x++) {
-					// Use the unified accessor to get the value
 					if (getValue(z, y, x) === label) {
-						binaryGrid[z][y][x] = 1;
+						labelVoxels.push({ x, y, z });
+						if (!isOnBoundary && (x === 0 || x === dims[2] - 1 || y === 0 || y === dims[1] - 1 || z === 0 || z === dims[0] - 1)) {
+							isOnBoundary = true;
+						}
 					}
 				}
 			}
 		}
 
-		// Run marching cubes with iso level of 0.5
-		// Note: 'march' function needs to be defined or imported elsewhere
+		// If this nucleus is on the boundary, we will not generate a mesh for it at all.
+		if (isOnBoundary) {
+			continue; // Skip to the next nucleus label
+		}
+
+		// If not on the boundary, proceed with mesh generation
+		const binaryGrid = Array.from({ length: dims[0] }, () =>
+			Array.from({ length: dims[1] }, () => new Array(dims[2]).fill(0))
+		);
+
+		for (const { x, y, z } of labelVoxels) {
+			binaryGrid[z][y][x] = 1;
+		}
+
 		const { vertices, indices } = march(binaryGrid, 0.5);
 
 		if (vertices.length > 0 && indices.length > 0) {

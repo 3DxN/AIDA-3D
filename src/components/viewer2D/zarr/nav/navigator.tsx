@@ -24,7 +24,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
     getFrameBounds
   } = useViewer2DData()
 
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
 
   const handleToggle = (newState: boolean) => {
     setIsCollapsed(newState)

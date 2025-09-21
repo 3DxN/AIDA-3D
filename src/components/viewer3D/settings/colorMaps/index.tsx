@@ -1,34 +1,24 @@
-import { Fragment, useState, useEffect } from 'react'
-import { Disclosure, Listbox, Transition, Switch } from '@headlessui/react'
-import { CheckIcon, SelectorIcon } from '@heroicons/react/solid'
-import { Camera, Scene, WebGLRenderer, Group, Color } from 'three'
-import * as d3 from 'd3'
+import { Fragment, useState, useEffect } from 'react';
+import { Disclosure, Listbox, Transition, Switch } from '@headlessui/react';
+import { CheckIcon, SelectorIcon } from '@heroicons/react/solid';
+import * as THREE from 'three';
+import * as d3 from 'd3';
 
-import ColorMap from './ColorMap'
-import FooterToolbar from './FooterToolbar'
+import ColorMap from './ColorMap';
+import FooterToolbar from './FooterToolbar';
 
 function classNames(...classes: string[]) {
-	return classes.filter(Boolean).join(' ')
+	return classes.filter(Boolean).join(' ');
 }
 
 function normalize(min: number, max: number) {
-	const delta = max - min
-	return (val: number) => (val - min) / delta
+	const delta = max - min;
+	if (delta === 0) {
+		return () => 0.5; // Return midpoint if all values are the same
+	}
+	return (val: number) => (val - min) / delta;
 }
 
-const allFeatures = [
-	{ name: 'Segmentation confidence', value: 'segmentationConfidence' },
-	{ name: 'Diameter', value: 'nucleusDiameters' },
-	{ name: 'Volume', value: 'nucleusVolumes' },
-	{ name: 'Elongation', value: 'elongations' },
-	{ name: 'Epithelial Scores', value: 'epithelialScores' },
-	{ name: 'Mesenchymal Score', value: 'mesenchymalScores' },
-	{ name: 'Irregularity Score', value: 'nucleusIrregularityScores' },
-	{ name: 'gH2AX', value: 'is_gH2AX' },
-	{ name: 'CD8', value: 'is_CD8' },
-]
-
-// https://github.com/d3/d3-scale-chromatic
 const colorScales = [
 	{
 		name: 'Brown to teal-green',
@@ -73,127 +63,152 @@ const colorScales = [
 	{
 		name: 'Binary yellow',
 		value: (value: number) => {
-			if (value > 0.5) return 'rgb(255,247,0)'
-			else return 'rgb(255,255,247)'
+			if (value > 0.5) return 'rgb(255,247,0)';
+			else return 'rgb(255,255,247)';
 		},
 	},
 	{
 		name: 'Binary red',
 		value: (value: number) => {
-			if (value > 0.5) return 'rgb(255,0,0)'
-			else return 'rgb(255,247,247)'
+			if (value > 0.5) return 'rgb(255,0,0)';
+			else return 'rgb(255,247,247)';
 		},
 	},
-]
+];
 
 const ColorMaps = (props: {
-	content: Group
-	renderer: WebGLRenderer
-	scene: Scene
-	camera: Camera
+	content: THREE.Group;
+	renderer: THREE.WebGLRenderer;
+	scene: THREE.Scene;
+	camera: THREE.Camera;
 	featureData: any;
+	globalPropertyTypes: React.MutableRefObject<
+		{ id: number; name: string; count: number; readOnly: boolean; dimensions?: number[] }[]
+	>;
+	globalProperties: React.MutableRefObject<
+		{ nucleus_index: number;[key: string]: any }[]
+	>;
 }) => {
-	const { content, scene, camera, renderer, featureData } = props
+	const {
+		content,
+		scene,
+		camera,
+		renderer,
+		featureData,
+		globalPropertyTypes,
+		globalProperties,
+	} = props;
 
-	const [features, setFeatures] = useState(allFeatures)
-	const [colorMaps, setColorMaps] = useState([
-		{
-			featureMap: allFeatures[7],
-			colorScale: colorScales[10],
-			normalise: true,
-		},
-		{
-			featureMap: allFeatures[8],
-			colorScale: colorScales[11],
-			normalise: true,
-		},
-	]);
-	const [activeColorMapIndex, setActiveColorMapIndex] = useState(0)
+	const [features, setFeatures] = useState<{ name: string; value: string }[]>([]);
+	const [colorMaps, setColorMaps] = useState<
+		{ featureMap: { name: string; value: string }; colorScale: any; normalise: boolean }[]
+	>([]);
+	const [activeColorMapIndex, setActiveColorMapIndex] = useState(0);
 
 	const deleteColorMap = (index: number) => {
-		const newColorMaps = [...colorMaps]
-		newColorMaps.splice(index, 1)
-		setColorMaps(newColorMaps)
-		if (activeColorMapIndex === index) {
-			setActiveColorMapIndex(0)
+		const newColorMaps = [...colorMaps];
+		newColorMaps.splice(index, 1);
+		setColorMaps(newColorMaps);
+		if (activeColorMapIndex >= newColorMaps.length) {
+			setActiveColorMapIndex(Math.max(0, newColorMaps.length - 1));
 		}
-	}
+	};
 
-	// When new tile is chosen featureData will update. We need to check which
-	// features are available in the new tile.
 	useEffect(() => {
-		if (featureData) {
-			const featureSubset = allFeatures.filter((f) =>
-				Object.keys(featureData).includes(f.value)
-			)
-			setFeatures(featureSubset)
+		if (globalPropertyTypes && globalPropertyTypes.current) {
+			const propertyFeatures = globalPropertyTypes.current
+				.filter((attr) => !attr.dimensions) // Filter for single-dimensional properties
+				.map((attr) => ({ name: attr.name, value: attr.name }));
+			setFeatures(propertyFeatures);
+
+			if (colorMaps.length === 0 && propertyFeatures.length > 0) {
+				setColorMaps([
+					{
+						featureMap: propertyFeatures[0],
+						colorScale: colorScales[3], // Spectral
+						normalise: true,
+					},
+				]);
+			}
 		}
-	}, [featureData])
+	}, [featureData, globalPropertyTypes, colorMaps.length]);
 
 	// Update 3D mesh colors
 	useEffect(() => {
-		if (featureData && content) {
+		if (
+			!content ||
+			!renderer ||
+			!scene ||
+			!camera ||
+			!globalProperties.current
+		) {
+			return;
+		}
+
+		const activeColorMap = colorMaps[activeColorMapIndex];
+
+		if (!activeColorMap) {
+			// If no color maps, revert to a default color
 			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
-					const nucleus = child as THREE.Mesh;
-					let finalColor: Color | string = new Color();
-
-					if (colorMaps.length === 0) {
-						// If no color maps, revert to the default color based on label
-						const label = parseInt(child.name.split('_')[1]);
-						finalColor.setHSL(label / 10, 0.8, 0.6);
-					} else {
-						// Otherwise, calculate color from the active color maps
-						const nucleusIndex = parseInt(child.name.split('_')[1]);
-						let blendedColor: d3.Color | null = null;
-
-						colorMaps.forEach((colorMap, i) => {
-							const featureValues = featureData[colorMap.featureMap.value];
-							if (!featureValues || featureValues[nucleusIndex] === undefined) return;
-
-							const mapMax = Math.max(...featureValues);
-							const mapMin = Math.min(...featureValues);
-
-							const featureValue = colorMap.normalise
-								? normalize(mapMin, mapMax)(featureValues[nucleusIndex])
-								: featureValues[nucleusIndex];
-
-							const currentColor = d3.color(colorMap.colorScale.value(featureValue));
-
-							if (!blendedColor) {
-								blendedColor = currentColor;
-							} else {
-								// Simple additive blending - you can change the logic here if needed
-								blendedColor.r = Math.min(255, blendedColor.r + currentColor.r);
-								blendedColor.g = Math.min(255, blendedColor.g + currentColor.g);
-								blendedColor.b = Math.min(255, blendedColor.b + currentColor.b);
-							}
-						});
-
-						if (blendedColor) {
-							finalColor = blendedColor.hex();
-						} else {
-							// Fallback if something went wrong
-							const label = parseInt(child.name.split('_')[1]);
-							finalColor.setHSL(label / 10, 0.8, 0.6);
-						}
-					}
-
-					// Apply the new color
-					const newMaterial = (nucleus.material as THREE.MeshStandardMaterial).clone();
-					newMaterial.color.set(finalColor);
-					nucleus.material = newMaterial;
+					((child as THREE.Mesh).material as THREE.MeshStandardMaterial).color.set(0x808080);
 				}
 			});
 			renderer.render(scene, camera);
+			return;
 		}
+
+		const featureName = activeColorMap.featureMap.value;
+		const allValues = globalProperties.current
+			.map((attr) => attr[featureName])
+			.filter((v): v is number => typeof v === 'number');
+
+		if (allValues.length === 0) {
+			renderer.render(scene, camera);
+			return;
+		}
+
+		const mapMin = allValues.reduce((a, b) => Math.min(a, b), Infinity);
+		const mapMax = allValues.reduce((a, b) => Math.max(a, b), -Infinity);
+
+		content.children.forEach((child) => {
+			if (child.isMesh && child.name.includes('nucleus')) {
+				const nucleus = child as THREE.Mesh;
+				const material = nucleus.material as THREE.MeshStandardMaterial;
+				const nucleusIndex = parseInt(child.name.split('_')[1], 10);
+				const nucleusPropertyData = globalProperties.current.find(
+					(l) => l.nucleus_index === nucleusIndex
+				);
+
+				if (!nucleusPropertyData) {
+					material.color.set(0x808080); // Default grey
+					return;
+				}
+
+				const value = nucleusPropertyData[featureName];
+
+				if (typeof value !== 'number') {
+					material.color.set(0x808080);
+					return;
+				}
+
+				const normalizedValue = activeColorMap.normalise
+					? normalize(mapMin, mapMax)(value)
+					: value;
+				const colorString = activeColorMap.colorScale.value(normalizedValue);
+
+				material.color.set(new THREE.Color(colorString));
+			}
+		});
+		renderer.render(scene, camera);
 	}, [
+		colorMaps,
+		activeColorMapIndex,
+		globalProperties,
 		content,
 		renderer,
 		scene,
 		camera,
-		featureData,
-		colorMaps, // Dependency array now only contains colorMaps
 	]);
 
 	return (
@@ -226,10 +241,10 @@ const ColorMaps = (props: {
 									value={colorMaps[activeColorMapIndex].featureMap}
 									onChange={(value) => {
 										setColorMaps((prev) => {
-											const newColorMaps = [...prev]
-											newColorMaps[activeColorMapIndex].featureMap = value
-											return newColorMaps
-										})
+											const newColorMaps = [...prev];
+											newColorMaps[activeColorMapIndex].featureMap = value;
+											return newColorMaps;
+										});
 									}}
 								>
 									{({ open }) => (
@@ -257,9 +272,7 @@ const ColorMaps = (props: {
 													leaveFrom="opacity-100"
 													leaveTo="opacity-0"
 												>
-													<Listbox.Options
-														className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
-													>
+													<Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
 														{features.map((setting, index) => (
 															<Listbox.Option
 																key={index}
@@ -277,7 +290,9 @@ const ColorMaps = (props: {
 																	<>
 																		<span
 																			className={classNames(
-																				selected ? 'font-semibold' : 'font-normal',
+																				selected
+																					? 'font-semibold'
+																					: 'font-normal',
 																				'block truncate'
 																			)}
 																		>
@@ -313,10 +328,10 @@ const ColorMaps = (props: {
 									value={colorMaps[activeColorMapIndex].colorScale}
 									onChange={(value) => {
 										setColorMaps((prev) => {
-											const newColorMaps = [...prev]
-											newColorMaps[activeColorMapIndex].colorScale = value
-											return newColorMaps
-										})
+											const newColorMaps = [...prev];
+											newColorMaps[activeColorMapIndex].colorScale = value;
+											return newColorMaps;
+										});
 									}}
 								>
 									{({ open }) => (
@@ -344,9 +359,7 @@ const ColorMaps = (props: {
 													leaveFrom="opacity-100"
 													leaveTo="opacity-0"
 												>
-													<Listbox.Options
-														className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
-													>
+													<Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
 														{colorScales.map((scale, index) => (
 															<Listbox.Option
 																key={index}
@@ -364,7 +377,9 @@ const ColorMaps = (props: {
 																	<>
 																		<span
 																			className={classNames(
-																				selected ? 'font-semibold' : 'font-normal',
+																				selected
+																					? 'font-semibold'
+																					: 'font-normal',
 																				'block truncate'
 																			)}
 																		>
@@ -374,7 +389,9 @@ const ColorMaps = (props: {
 																		{selected ? (
 																			<span
 																				className={classNames(
-																					active ? 'text-white' : 'text-teal-600',
+																					active
+																						? 'text-white'
+																						: 'text-teal-600',
 																					'absolute inset-y-0 right-0 flex items-center pr-4'
 																				)}
 																			>
@@ -413,10 +430,10 @@ const ColorMaps = (props: {
 										checked={colorMaps[activeColorMapIndex].normalise}
 										onChange={(value) => {
 											setColorMaps((prev) => {
-												const newColorMaps = [...prev]
-												newColorMaps[activeColorMapIndex].normalise = value
-												return newColorMaps
-											})
+												const newColorMaps = [...prev];
+												newColorMaps[activeColorMapIndex].normalise = value;
+												return newColorMaps;
+											});
 										}}
 										className="flex-shrink-0 group relative rounded-full inline-flex items-center justify-center h-5 w-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
 									>
@@ -465,22 +482,24 @@ const ColorMaps = (props: {
 						{/* Footer toolbar */}
 						<FooterToolbar
 							addNew={() => {
-								setColorMaps((prev) => [
-									...prev,
-									{
-										featureMap: allFeatures[0],
-										colorScale: colorScales[4],
-										normalise: true,
-									},
-								])
-								setActiveColorMapIndex(colorMaps.length)
+								if (features.length > 0) {
+									setColorMaps((prev) => [
+										...prev,
+										{
+											featureMap: features[0],
+											colorScale: colorScales[3],
+											normalise: true,
+										},
+									]);
+									setActiveColorMapIndex(colorMaps.length);
+								}
 							}}
 						/>
 					</Disclosure.Panel>
 				</>
 			)}
 		</Disclosure>
-	)
-}
+	);
+};
 
-export default ColorMaps
+export default ColorMaps;

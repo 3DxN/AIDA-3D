@@ -1,107 +1,184 @@
-/* eslint-disable max-len */
-import { useState, useCallback } from 'react'
-import { Disclosure } from '@headlessui/react'
-import { WebGLRenderer, Group } from 'three'
-import { SaveIcon } from '@heroicons/react/solid'
+import { useCallback, useRef } from 'react';
+import { Disclosure } from '@headlessui/react';
+import { SaveIcon, UploadIcon } from '@heroicons/react/solid';
+import { WebGLRenderer, Group } from 'three';
 
-function classNames(...classes) {
-	return classes.filter(Boolean).join(' ')
+function classNames(...classes: any[]) {
+	return classes.filter(Boolean).join(' ');
 }
 
-const Export = (props: { content: Group; renderer: WebGLRenderer }) => {
-	const { content, renderer, featureData } = props
+const getDimensions = (arr: any): number[] => {
+	if (!Array.isArray(arr)) {
+		return [];
+	}
+	const dims: number[] = [];
+	let current = arr;
+	while (Array.isArray(current)) {
+		dims.push(current.length);
+		current = current[0];
+	}
+	return dims;
+};
 
-	const [onlyVisible, setOnlyVisible] = useState(true)
-	const [onlySelected, setOnlySelected] = useState(false)
-	const [fileType, setFileType] = useState('json')
+
+const Export = (props: {
+	renderer: WebGLRenderer;
+	content: Group;
+	globalProperties: React.MutableRefObject<
+		{ nucleus_index: number;[key: string]: any }[]
+	>;
+	globalPropertyTypes: React.MutableRefObject<
+		{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]
+	>;
+	setFeatureData: (updater: (prevData: any) => any) => void;
+}) => {
+	const {
+		renderer,
+		content,
+		globalProperties,
+		globalPropertyTypes,
+		setFeatureData,
+	} = props;
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const exportData = useCallback(() => {
-		let nuclei = content.children.filter(
-			(child) => child.isMesh && child.name.includes('nucleus')
-		)
+		// Transform nucleus_index to label-value for export
+		const exportData = globalProperties.current.map(item => {
+			const { nucleus_index, ...rest } = item;
+			return { 'label-value': nucleus_index, ...rest };
+		});
+		
+		const output = JSON.stringify(exportData, null, 2);
 
-		if (onlyVisible) {
-			nuclei = nuclei.filter((nucleus) => nucleus.visible)
-
-			// Filter for clipping planes
-			nuclei = nuclei.filter((nucleus) => {
-				return renderer.clippingPlanes.every((clippingPlane) => {
-					nucleus.geometry.computeBoundingSphere()
-					const centerPoint = nucleus.geometry.boundingSphere.center.clone()
-					const center = nucleus.localToWorld(centerPoint)
-					const distanceToPoint = clippingPlane.distanceToPoint(center)
-
-					return distanceToPoint > 0
-				})
-			})
-		}
-
-		// Selected is indicated via the white emissive color.
-		if (onlySelected)
-			nuclei = nuclei.filter(
-				(nucleus) => nucleus.material.emissive.getHexString() === 'ffffff'
-			)
-
-		// Extra nuclei indices from mesh names
-		const nucleiIndices = nuclei.map((nucleus) =>
-			Number(nucleus.name.split('_')[1])
-		)
-
-		// Filter feature data but the subset of nuclei indices we are interested in
-		const filteredFeatureData = { ...featureData }
-		for (const feature of Object.keys(filteredFeatureData)) {
-			filteredFeatureData[feature] = nucleiIndices.map(
-				(index) => filteredFeatureData[feature][index]
-			)
-		}
-
-		// Add nuclei indices to feature data
-		filteredFeatureData.nucleusIndex = nucleiIndices
-		// Convert label Sets to Arrays for serialization
-		if (filteredFeatureData.labels) {
-			filteredFeatureData.labels = filteredFeatureData.labels.map((labelSet) =>
-				labelSet ? Array.from(labelSet) : []
-			)
-		}
-		// Prepare output as either JSON or CSV
-		let output = ''
-		if (fileType === 'json') {
-			output = JSON.stringify(filteredFeatureData)
-		} else if (fileType === 'csv') {
-			// Header row
-			output = output
-				.concat(Object.keys(filteredFeatureData).join(','))
-				.concat('\n')
-
-			// Data rows
-			for (const index in nucleiIndices) {
-				for (const feature of Object.keys(filteredFeatureData)) {
-					let value = filteredFeatureData[feature][index].toString()
-
-					// If the value includes a comma, surround it with double quotes.
-					// HACK to allow the inclusion of [arrays] in CSV in the same column.
-					if (value.includes(',')) value = `"${value}"`
-					output = output.concat(value).concat(',')
-				}
-				output = output.concat('\n')
-			}
-		}
-
-		// Download output as file
-		const element = document.createElement('a')
+		const element = document.createElement('a');
 		element.setAttribute(
 			'href',
 			'data:text/plain;charset=utf-8,' + encodeURIComponent(output)
-		)
-		element.setAttribute('download', `aida-3D-export.${fileType}`)
+		);
+		element.setAttribute('download', 'properties.json');
 
-		element.style.display = 'none'
-		document.body.appendChild(element)
+		element.style.display = 'none';
+		document.body.appendChild(element);
+		element.click();
+		document.body.removeChild(element);
+	}, [globalProperties]);
 
-		element.click()
+	const handleImportClick = () => {
+		fileInputRef.current?.click();
+	};
 
-		document.body.removeChild(element)
-	}, [content, onlySelected, onlyVisible, featureData, renderer, fileType])
+	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			try {
+				const text = e.target?.result;
+				if (typeof text !== 'string') return;
+
+				const rawImportedData = JSON.parse(text);
+
+				if (!Array.isArray(rawImportedData)) {
+					throw new Error('Invalid properties.json format. Expected an array of objects.');
+				}
+
+				if (rawImportedData.length === 0) {
+					console.warn('Imported properties.json is empty.');
+					return;
+				}
+
+				// Transform label-value to nucleus_index for internal use
+				const importedData = rawImportedData.map(item => {
+					const { 'label-value': labelValue, ...rest } = item;
+					// Use label-value if present, otherwise fall back to nucleus_index for backward compatibility
+					const nucleus_index = labelValue !== undefined ? labelValue : item.nucleus_index;
+					return { nucleus_index, ...rest };
+				});
+
+				// Merge property types
+				const newPropertyTypesMap = new Map(
+					globalPropertyTypes.current.map((attr) => [attr.name, attr])
+				);
+
+				if (importedData.length > 0) {
+					const sample = importedData[0];
+					Object.keys(sample).forEach(key => {
+						if (key !== 'nucleus_index' && !newPropertyTypesMap.has(key)) {
+							const value = sample[key];
+							const isArray = Array.isArray(value);
+							const dimensions = isArray ? getDimensions(value) : undefined;
+							const isMultiDimensional = isArray && (dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1));
+
+							newPropertyTypesMap.set(key, {
+								id: newPropertyTypesMap.size,
+								name: key,
+								count: 0,
+								readOnly: false,
+								dimensions: isMultiDimensional ? dimensions : undefined
+							});
+						}
+					});
+				}
+
+				globalPropertyTypes.current = Array.from(newPropertyTypesMap.values());
+
+
+				// Create a map for quick lookup of imported properties
+				const importedPropertiesMap = new Map(
+					importedData.map((item) => [item.nucleus_index, item])
+				);
+
+				// Create a map for quick lookup of existing properties
+				const existingPropertiesMap = new Map(
+					globalProperties.current.map((item) => [item.nucleus_index, item])
+				);
+
+				// Directly use the imported properties, ensuring all nuclei are represented
+				const maxNucleusIndex = Math.max(
+					globalProperties.current.length > 0 ? globalProperties.current[globalProperties.current.length - 1].nucleus_index : -1,
+					importedData.reduce((max, nucleus) => Math.max(max, nucleus.nucleus_index), -1)
+				);
+
+				const newGlobalProperties = Array.from({ length: maxNucleusIndex + 1 }, (_, i) => {
+					const existingNucleus = existingPropertiesMap.get(i) || { nucleus_index: i };
+					const importedNucleus = importedPropertiesMap.get(i) || { nucleus_index: i };
+
+					const mergedNucleus = { ...existingNucleus, ...importedNucleus };
+
+					for (const attrType of globalPropertyTypes.current) {
+						if (!(attrType.name in mergedNucleus)) {
+							if (attrType.dimensions) {
+								const createNestedArray = (dims: number[]): any => {
+									if (dims.length === 1) {
+										return Array(dims[0]).fill(0);
+									}
+									const dim = dims[0];
+									const rest = dims.slice(1);
+									return Array(dim).fill(0).map(() => createNestedArray(rest));
+								};
+								mergedNucleus[attrType.name] = createNestedArray(attrType.dimensions);
+							} else {
+								mergedNucleus[attrType.name] = 0;
+							}
+						}
+					}
+					return mergedNucleus;
+				});
+
+				globalProperties.current = newGlobalProperties;
+
+				setFeatureData((prevData: any) => ({
+					...prevData,
+					labels: [...newGlobalProperties],
+				}));
+
+			} catch (error) {
+				console.error('Error parsing or merging properties.json:', error);
+			}
+		};
+		reader.readAsText(file);
+	};
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -122,107 +199,45 @@ const Export = (props: { content: Group; renderer: WebGLRenderer }) => {
 						>
 							<path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
 						</svg>
-						Export
+						Import/Export Properties
 					</Disclosure.Button>
 					<Disclosure.Panel className="relative px-4 py-2 w-48">
-						{/* Filter meshes to export */}
-						<div className="ml-2 flex justify-between items-center">
-							only visible
+						<div className="flex flex-col space-y-2">
 							<button
+								onClick={handleImportClick}
 								type="button"
-								className="ml-4 flex-shrink-0 group relative rounded-full inline-flex items-center justify-center h-5 w-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-								aria-pressed="false"
-								onClick={() => setOnlyVisible((a) => !a)}
+								className="inline-flex items-center justify-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
 							>
-								<span className="sr-only">Toggle axes visibility</span>
-								<span
+								Import properties.json
+								<UploadIcon
+									className="ml-2 -mr-0.5 h-4 w-4"
 									aria-hidden="true"
-									className="pointer-events-none absolute bg-white w-full h-full rounded-md"
-								/>
-								<span
-									aria-hidden="true"
-									className={`${
-										onlyVisible ? 'bg-teal-600' : 'bg-gray-200'
-									} pointer-events-none absolute h-4 w-9 mx-auto rounded-full transition-colors ease-in-out duration-200`}
-								/>
-								<span
-									aria-hidden="true"
-									className={`${
-										onlyVisible ? 'translate-x-5' : 'translate-x-0'
-									} pointer-events-none absolute left-0 inline-block h-5 w-5 border border-gray-200 rounded-full bg-white shadow transform ring-0 transition-transform ease-in-out duration-200`}
 								/>
 							</button>
-						</div>
-						<div className="ml-2 flex justify-between items-center">
-							only selected
+							<input
+								type="file"
+								ref={fileInputRef}
+								onChange={handleFileChange}
+								className="hidden"
+								accept=".json"
+							/>
 							<button
+								onClick={exportData}
 								type="button"
-								className="ml-4 flex-shrink-0 group relative rounded-full inline-flex items-center justify-center h-5 w-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-								aria-pressed="false"
-								onClick={() => setOnlySelected((a) => !a)}
+								className="inline-flex items-center justify-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
 							>
-								<span className="sr-only">Toggle axes visibility</span>
-								<span
+								Export properties.json
+								<SaveIcon
+									className="ml-2 -mr-0.5 h-4 w-4"
 									aria-hidden="true"
-									className="pointer-events-none absolute bg-white w-full h-full rounded-md"
 								/>
-								<span
-									aria-hidden="true"
-									className={`${
-										onlySelected ? 'bg-teal-600' : 'bg-gray-200'
-									} pointer-events-none absolute h-4 w-9 mx-auto rounded-full transition-colors ease-in-out duration-200`}
-								/>
-								<span
-									aria-hidden="true"
-									className={`${
-										onlySelected ? 'translate-x-5' : 'translate-x-0'
-									} pointer-events-none absolute left-0 inline-block h-5 w-5 border border-gray-200 rounded-full bg-white shadow transform ring-0 transition-transform ease-in-out duration-200`}
-								/>
-							</button>
-						</div>
-
-						{/* Select filetype */}
-						<div>
-							<label className="mt-4 ml-2 flex justify-between items-center">
-								<span>JSON</span>
-								<input
-									onChange={(e) => setFileType(e.currentTarget.value)}
-									className="mr-4"
-									type="radio"
-									name="fileType"
-									value="json"
-									checked={fileType === 'json'}
-								/>
-							</label>
-							<label className="mt-1 ml-2 flex justify-between items-center">
-								<span>CSV</span>
-								<input
-									onChange={(e) => setFileType(e.currentTarget.value)}
-									className="mr-4"
-									type="radio"
-									name="fileType"
-									value="csv"
-									checked={fileType === 'csv'}
-								/>
-							</label>
-						</div>
-
-						{/* Export */}
-						<div className="ml-2 mt-12 flex">
-							<button
-								onClick={() => exportData()}
-								type="button"
-								className="mt-2 inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-							>
-								Export
-								<SaveIcon className="ml-2 -mr-0.5 h-4 w-4" aria-hidden="true" />
 							</button>
 						</div>
 					</Disclosure.Panel>
 				</>
 			)}
 		</Disclosure>
-	)
-}
+	);
+};
 
-export default Export
+export default Export;

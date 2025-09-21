@@ -57,31 +57,25 @@ class SelectionBox {
 		this.collection = this.collection.filter((nucleus) => nucleus.visible)
 	}
 
-	// Filter collection so that it only includes those inside the clipping planes
+	// New and improved filterForClippingPlanes method
 	filterForClippingPlanes() {
 		this.collection = this.collection.filter((nucleus) => {
-			let match = true
-
 			// Get the nucleus bounding sphere in world coords
 			if (nucleus.geometry.boundingSphere === null)
-				nucleus.geometry.computeBoundingSphere()
-			const sphere = nucleus.geometry.boundingSphere.clone()
-			nucleus.localToWorld(sphere.center)
-			const center = sphere.center
+				nucleus.geometry.computeBoundingSphere();
+			const sphere = nucleus.geometry.boundingSphere.clone();
+			nucleus.localToWorld(sphere.center);
 
-			// Exclude the nucleus if its center point is outside the clipping
-			// planes but include if it's bounding sphere intersects the clipping
-			// planes (this is to make sure all visible meshes can be
-			// selected). Points in space whose dot product with the plane is
-			// negative are cut away.
-			this.renderer.clippingPlanes.forEach((plane) => {
-				const dot = center.dot(plane.normal) + plane.constant < 0
-				const intersects = sphere.intersectsPlane(plane)
-				if (dot && !intersects) match = false
-			})
+			// Check if the sphere is completely inside all clipping planes
+			for (const plane of this.renderer.clippingPlanes) {
+				// plane.distanceToSphere() returns a negative value if the sphere is completely behind the plane.
+				if (plane.distanceToSphere(sphere) < 0) {
+					return false; // Exclude if any part of the nucleus is clipped
+				}
+			}
 
-			return match
-		})
+			return true;
+		});
 	}
 
 	updateFrustum(startPoint, endPoint) {

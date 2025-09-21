@@ -71,7 +71,7 @@ export default function useVivViewer(
           const loader = new ZarrPixelSource(resolutionArray, {
             labels: ['t', 'c', 'z', 'y', 'x'].filter(
               key => Object.keys(msInfo.shape).includes(key)
-            ) as viv.Labels<string[]>,
+            ) as viv.Properties<string[]>,
             tileSize: resolutionArray.chunks.at(-1)!
           })
           allLoaders.push(loader)

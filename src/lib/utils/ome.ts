@@ -16,7 +16,7 @@ import type {
  * Utility functions for processing OME-Zarr metadata and data
  */
 
-// Type guards for OME-Zarr attributes
+// Type guards for OME-Zarr properties
 export function isOmePlate(attrs: any): attrs is { plate: OMEPlate } {
   return attrs && typeof attrs === 'object' && 'plate' in attrs
 }
@@ -42,7 +42,7 @@ export function isOmeImageLabel(attrs: any): attrs is {
 }
 
 /**
- * Determine the type of OME-Zarr structure from attributes
+ * Determine the type of OME-Zarr structure from properties
  */
 export function getOmeZarrType(attrs: any): 'plate' | 'well' | 'multiscales' | 'image-label' | 'unknown' {
   if (isOmePlate(attrs)) return 'plate'
@@ -99,13 +99,13 @@ export function getNgffAxes(multiscales: OMEMultiscales[]): OMEAxes[] {
 }
 
 // Generate axis labels for data indexing
-export function getNgffAxisLabels(axes: OMEAxes[]): string[] {
+export function getNgffAxisProperties(axes: OMEAxes[]): string[] {
   return axes.map(axis => axis.name)
 }
 
 // Parse OMERO metadata for visualization
 export function parseOmeroMeta(omero: OMEROMetadata | undefined, axes: OMEAxes[]): ProcessedOMEMetadata {
-  const axis_labels = getNgffAxisLabels(axes)
+  const axis_labels = getNgffAxisProperties(axes)
   
   // Default selection (start at 0 for all dimensions)
   const defaultSelection: Record<string, number> = {}

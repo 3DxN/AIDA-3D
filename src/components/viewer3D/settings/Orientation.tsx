@@ -10,6 +10,7 @@ import {
 	Vector3,
 	BufferGeometry,
 	Line,
+	Mesh,
 } from 'three'
 
 function classNames(...classes) {
@@ -21,130 +22,167 @@ const Orientation = (props: {
 	renderer: WebGLRenderer
 	scene: Scene
 	camera: Camera
+	featureData: any
 }) => {
 	const { content, scene, camera, renderer, featureData } = props
 
 	const [orientationsActive, setOrientationsActive] = useState(false)
+	const [showOrientationInfo, setShowOrientationInfo] = useState(false)
+	const [nucleiVisibilityKey, setNucleiVisibilityKey] = useState(0)
 
-	// Toggle nucleus visibility
+	// Monitor nucleus visibility changes to update axes
 	useEffect(() => {
 		if (content) {
-			const orientationLines = []
-			content.traverse((object) => {
-				if (object.name.includes('orientation')) orientationLines.push(object)
+			const checkVisibility = () => {
+				setNucleiVisibilityKey(prev => prev + 1)
+			}
+			
+			// Check every 100ms for visibility changes - this ensures axes update when filters change
+			const interval = setInterval(checkVisibility, 100)
+			
+			return () => clearInterval(interval)
+		}
+	}, [content])
+
+	// Toggle nucleus visibility and update axes visibility based on nucleus visibility
+	useEffect(() => {
+		if (content) {
+			// Lines are now direct children of the scene
+			scene.traverse((object) => {
+				if (object.name.includes('orientation')) {
+					// Check if this axis belongs to a visible nucleus
+					const nucleusIndex = object.name.split('-')[0]
+					const nucleus = content.children.find(child => 
+						child.name === `nucleus_${nucleusIndex}`
+					) as Mesh
+					
+					// Axis is visible only if orientationsActive is true AND the nucleus is visible
+					object.visible = orientationsActive && nucleus && nucleus.visible
+				}
 			})
-			orientationLines.forEach((line) => {
-				const orientationLine = line
-				orientationLine.visible = orientationsActive
+
+			// Make nuclei transparent when axes are shown
+			content.traverse((object) => {
+				if ((object as THREE.Mesh).isMesh && object.name.includes('nucleus')) {
+					const mesh = object as THREE.Mesh
+					const material = mesh.material as THREE.MeshStandardMaterial
+					material.transparent = orientationsActive
+					material.opacity = orientationsActive ? 0.2 : 1.0
+				}
 			})
 
 			renderer.render(scene, camera)
 		}
-	}, [orientationsActive, content, renderer, scene, camera])
+	}, [orientationsActive, content, scene, renderer, camera, nucleiVisibilityKey])
 
 	// Draw orientations
 	useEffect(() => {
-		if (featureData && content) {
-			// create materials for each line
-			const xMaterial = new LineBasicMaterial({ color: 'red' })
-			const yMaterial = new LineBasicMaterial({ color: 'green' })
-			const zMaterial = new LineBasicMaterial({ color: 'blue' })
+		if (featureData && content && featureData.labels) {
+			// Remove previous orientation lines from the SCENE
+			const toRemove: THREE.Object3D[] = []
+			scene.traverse((object) => {
+				if (object.name.includes('orientation')) {
+					toRemove.push(object)
+				}
+			})
+			toRemove.forEach((child) => scene.remove(child))
+
+			const xMaterial = new LineBasicMaterial({ color: 'red', linewidth: 3 })
+			const yMaterial = new LineBasicMaterial({ color: 'green', linewidth: 3 })
+			const zMaterial = new LineBasicMaterial({ color: 'blue', linewidth: 3 })
 
 			const nuclei = content.children.filter((child) =>
 				child.name.includes('nucleus')
-			)
+			) as Mesh[]
 
-			const centers = featureData.nucleusEllipsoidCenters
-			const axes = featureData.nucleusEllipsoidAxes
-			const radii = featureData.nucleusEllipsoidRadii
+			let hasOrientationData = false
 
-			if (!centers || !axes || !radii) {
-				return; // Exit early if orientation data is missing
-			}
-
-			for (let i = 0; i < nuclei.length; i += 1) {
-				const c = centers[i]
-				const a = axes[i]
-				const r = radii[i]
-
-				// Add X line
-				if (c && a && r) {
-					const xPoints = []
-					xPoints.push(
-						new Vector3(
-							c[0] + r[0] * a[0][0],
-							c[1] + r[0] * a[1][0],
-							c[2] + r[0] * a[2][0]
-						)
-					)
-					xPoints.push(
-						new Vector3(
-							c[0] - r[0] * a[0][0],
-							c[1] - r[0] * a[1][0],
-							c[2] - r[0] * a[2][0]
-						)
-					)
-					const xGeom = new BufferGeometry().setFromPoints(xPoints)
-					const xLine = new Line(xGeom, xMaterial)
-					xLine.name = `${i}-orientation-x`
-					xLine.visible = orientationsActive
-
-					// Add Y line
-					const yPoints = []
-					yPoints.push(
-						new Vector3(
-							c[0] + r[1] * a[0][1],
-							c[1] + r[1] * a[1][1],
-							c[2] + r[1] * a[2][1]
-						)
-					)
-					yPoints.push(
-						new Vector3(
-							c[0] - r[1] * a[0][1],
-							c[1] - r[1] * a[1][1],
-							c[2] - r[1] * a[2][1]
-						)
-					)
-					const yGeom = new BufferGeometry().setFromPoints(yPoints)
-					const yLine = new Line(yGeom, yMaterial)
-					yLine.name = `${i}-orientation-y`
-					yLine.visible = orientationsActive
-
-					// Add Z line
-					const zPoints = []
-					zPoints.push(
-						new Vector3(
-							c[0] + r[2] * a[0][2],
-							c[1] + r[2] * a[1][2],
-							c[2] + r[2] * a[2][2]
-						)
-					)
-					zPoints.push(
-						new Vector3(
-							c[0] - r[2] * a[0][2],
-							c[1] - r[2] * a[1][2],
-							c[2] - r[2] * a[2][2]
-						)
-					)
-					const zGeom = new BufferGeometry().setFromPoints(zPoints)
-					const zLine = new Line(zGeom, zMaterial)
-					zLine.name = `${i}-orientation-z`
-					zLine.visible = orientationsActive
-
-					// Add as a child of the respective nucleus mesh
-					nuclei[i].add(xLine, yLine, zLine)
+			nuclei.forEach((nucleus) => {
+				// Skip drawing for nuclei that have been filtered out by other controls
+				if (!nucleus.visible) {
+					return
 				}
-			}
 
+				const nucleusIndex = parseInt(nucleus.name.split('_')[1], 10)
+				const nucleusData = featureData.labels.find(
+					(d: any) => d.nucleus_index === nucleusIndex
+				)
+
+				if (nucleusData && nucleusData.axes && nucleusData.orientation) {
+					hasOrientationData = true
+
+					// Get the world transformation matrix of the parent 'content' group
+					const contentMatrixWorld = content.matrixWorld
+
+					// Calculate the nucleus center in WORLD coordinates
+					let c: Vector3
+					if (nucleusData.center) {
+						// If center is in properties, transform it from voxel-space to world-space
+						c = new Vector3(...nucleusData.center).applyMatrix4(
+							contentMatrixWorld
+						)
+					} else {
+						// Fallback: get the geometric center (in voxel-space) and transform it to world-space
+						if (nucleus.geometry.boundingSphere === null) {
+							nucleus.geometry.computeBoundingSphere()
+						}
+						c = nucleus.geometry.boundingSphere!.center
+							.clone()
+							.applyMatrix4(contentMatrixWorld)
+					}
+
+					const a = nucleusData.orientation
+					const r = nucleusData.axes
+
+					if (c && a && r) {
+						const addLine = (
+							axisIndex: number,
+							material: THREE.LineBasicMaterial,
+							axisLabel: string
+						) => {
+							const points = []
+							// Orientation vectors are directions; they don't need translation but should be rotated if the group is.
+							const axisVector = new Vector3(
+								a[0][axisIndex],
+								a[1][axisIndex],
+								a[2][axisIndex]
+							)
+							// We only apply rotation part of the matrix to the direction vector
+							axisVector.transformDirection(contentMatrixWorld)
+
+							const scaledAxis = axisVector.multiplyScalar(r[axisIndex])
+
+							// Calculate endpoints in WORLD space
+							points.push(c.clone().add(scaledAxis))
+							points.push(c.clone().sub(scaledAxis))
+
+							const geom = new BufferGeometry().setFromPoints(points)
+							const line = new Line(geom, material)
+							line.name = `${nucleusIndex}-orientation-${axisLabel}`
+							line.visible = orientationsActive
+
+							// Add the line directly to the SCENE
+							scene.add(line)
+						}
+
+						addLine(0, xMaterial, 'x')
+						addLine(1, yMaterial, 'y')
+						addLine(2, zMaterial, 'z')
+					}
+				}
+			})
+
+			setShowOrientationInfo(!hasOrientationData)
 			renderer.render(scene, camera)
 		}
-
-		// Strictly speaking orientationsActive should be included in the dependencies
-		// this is what the linter recommends. But we don't want this to run every
-		// time that changes. Bit confusing how this should be handled. A different
-		// useEffect is managing the visibility of the orientation lines.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [content, renderer, scene, camera, featureData])
+	}, [
+		content,
+		renderer,
+		scene,
+		camera,
+		featureData,
+		orientationsActive,
+	])
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -168,6 +206,11 @@ const Orientation = (props: {
 						Orientation
 					</Disclosure.Button>
 					<Disclosure.Panel className="relative px-4 py-2 w-48">
+						{showOrientationInfo && (
+							<div className="text-xs text-gray-500 mb-2">
+								Add axes/orientation info in properties to see orientation.
+							</div>
+						)}
 						<div className="ml-2 mt-2 flex justify-between items-center">
 							show axes
 							<button
@@ -183,15 +226,13 @@ const Orientation = (props: {
 								/>
 								<span
 									aria-hidden="true"
-									className={`${
-										orientationsActive ? 'bg-teal-600' : 'bg-gray-200'
-									} pointer-events-none absolute h-4 w-9 mx-auto rounded-full transition-colors ease-in-out duration-200`}
+									className={`${orientationsActive ? 'bg-teal-600' : 'bg-gray-200'
+										} pointer-events-none absolute h-4 w-9 mx-auto rounded-full transition-colors ease-in-out duration-200`}
 								/>
 								<span
 									aria-hidden="true"
-									className={`${
-										orientationsActive ? 'translate-x-5' : 'translate-x-0'
-									} pointer-events-none absolute left-0 inline-block h-5 w-5 border border-gray-200 rounded-full bg-white shadow transform ring-0 transition-transform ease-in-out duration-200`}
+									className={`${orientationsActive ? 'translate-x-5' : 'translate-x-0'
+										} pointer-events-none absolute left-0 inline-block h-5 w-5 border border-gray-200 rounded-full bg-white shadow transform ring-0 transition-transform ease-in-out duration-200`}
 								/>
 							</button>
 						</div>
