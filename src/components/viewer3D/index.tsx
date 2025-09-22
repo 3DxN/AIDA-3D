@@ -332,7 +332,7 @@ const Viewer3D = (props: {
 				// Create plane using the same coordinate system as the voxel data
 				const planeGeometry = new THREE.PlaneGeometry(width, height);
 				const planeMaterial = new THREE.MeshBasicMaterial({
-					color: 0x00ff00,
+					color: 0xffffff,
 					transparent: true,
 					opacity: 0.3,
 					side: THREE.DoubleSide

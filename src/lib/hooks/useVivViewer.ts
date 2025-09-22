@@ -108,10 +108,10 @@ export default function useVivViewer(
 
     // Generate colors based on channel map
     const colors = useMemo(() => {
-        // Default color palette for multiple channels
+        // Default color palette for multiple channels (grayscale)
         const defaultColors = [
-            [42.4, 68.1, 25.7], // Nucleus
-            [11.8, 255, 137.2], // Cytoplasm
+            [255, 255, 255], // Nucleus (white/grayscale)
+            [128, 128, 128], // Cytoplasm (gray)
         ]
 
         if (!navigationState.channelMap) {

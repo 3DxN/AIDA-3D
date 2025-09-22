@@ -91,9 +91,9 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                                 imageData[i * 4 + 2] = 0;   // B
                                 imageData[i * 4 + 3] = 255; // A (100% opacity)
                             } else {
-                                imageData[i * 4] = 255;     // R (White)
-                                imageData[i * 4 + 1] = 255; // G
-                                imageData[i * 4 + 2] = 255; // B
+                                imageData[i * 4] = 0;       // R (Black)
+                                imageData[i * 4 + 1] = 0;   // G
+                                imageData[i * 4 + 2] = 0;   // B
                                 imageData[i * 4 + 3] = 178; // A (70% opacity)
                             }
                         }
