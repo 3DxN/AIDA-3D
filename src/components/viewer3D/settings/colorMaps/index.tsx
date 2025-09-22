@@ -123,18 +123,26 @@ const ColorMaps = (props: {
 				.filter((attr) => !attr.dimensions) // Filter for single-dimensional properties
 				.map((attr) => ({ name: attr.name, value: attr.name }));
 			setFeatures(propertyFeatures);
-
-			if (colorMaps.length === 0 && propertyFeatures.length > 0) {
-				setColorMaps([
-					{
-						featureMap: propertyFeatures[0],
-						colorScale: colorScales[3], // Spectral
-						normalise: true,
-					},
-				]);
-			}
 		}
-	}, [featureData, globalPropertyTypes, colorMaps.length]);
+	}, [featureData, globalPropertyTypes]);
+
+	// Separate effect to initialize default color map when features are available and properties are loaded
+	useEffect(() => {
+		if (
+			features.length > 0 &&
+			colorMaps.length === 0 &&
+			globalProperties.current.length > 0 &&
+			globalPropertyTypes.current.length > 0
+		) {
+			console.log('🎨 Initializing default Spectral color map after zarr properties loaded');
+			const initialColorMap = {
+				featureMap: features[0],
+				colorScale: colorScales[3], // Spectral
+				normalise: true,
+			};
+			setColorMaps([initialColorMap]);
+		}
+	}, [features, colorMaps.length, globalProperties, globalPropertyTypes]);
 
 	// Update 3D mesh colors
 	useEffect(() => {

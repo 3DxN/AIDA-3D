@@ -523,9 +523,18 @@ const Viewer3D = (props: {
 		}
 	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeData]);
 
-	// Update colors based on labels
+	// Update colors based on labels (only as fallback when no ColorMaps are active)
 	useEffect(() => {
 		if (!content || !featureData?.labels || !renderer || !scene || !camera) {
+			return;
+		}
+
+		// Skip default color application if there are multiple properties available for ColorMaps
+		const nonRedProperties = globalPropertyTypes.current.filter(
+			(propertyType) => propertyType.name !== 'red' && !propertyType.dimensions
+		);
+		if (nonRedProperties.length > 0) {
+			console.log('🎨 Skipping default red/grey colors - ColorMaps should handle coloring');
 			return;
 		}
 
@@ -561,7 +570,7 @@ const Viewer3D = (props: {
 		updateNucleusColors(colorMap);
 
 		renderer.render(scene, camera);
-	}, [featureData, content, renderer, scene, camera, updateNucleusColors]);
+	}, [featureData, content, renderer, scene, camera, updateNucleusColors, globalPropertyTypes]);
 
 	return (
 		<div className="min-w-full h-screen flex border-l border-l-teal-500">
