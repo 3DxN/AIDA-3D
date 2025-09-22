@@ -133,9 +133,6 @@ const Tools = (props: {
 			const clickedObject = firstIntersection ? (firstIntersection.object as THREE.Mesh) : null
 			const clickedIndex = clickedObject ? Number(clickedObject.name.split('_')[1]) : null;
 
-
-			setSelect3D((value) => !value)
-
 			if (event.shiftKey) {
 				// Shift-click: Add or remove from the current selection
 				if (clickedIndex !== null) {
@@ -174,7 +171,7 @@ const Tools = (props: {
 			canvas.removeEventListener('pointermove', onPointerMove)
 			canvas.removeEventListener('pointerup', onPointerUp)
 		}
-	}, [camera, scene, renderer, orbitControls, content, setSelect3D, addSelectedNucleus, removeSelectedNucleus, clearSelection, selectedNucleiIndices, setSelectedNucleiIndices])
+	}, [camera, scene, renderer, orbitControls, content, addSelectedNucleus, removeSelectedNucleus, clearSelection, selectedNucleiIndices, setSelectedNucleiIndices])
 
 	return null
 }
