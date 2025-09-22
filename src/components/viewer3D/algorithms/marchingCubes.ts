@@ -150,7 +150,7 @@ export const generateMeshesFromVoxelData = (input: Chunk<Uint32>) => {
 
 		// If this nucleus is on the boundary, we will not generate a mesh for it at all.
 		if (isOnBoundary) {
-			continue; // Skip to the next nucleus label
+			//continue; // Skip to the next nucleus label
 		}
 
 		// If not on the boundary, proceed with mesh generation
