@@ -14,7 +14,8 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
     const {
         navigationState,
         frameBoundCellposeData,
-        frameZDepth,
+        frameZLayersAbove,
+        frameZLayersBelow,
         frameCenter,
         frameSize
     } = useViewer2DData();
@@ -54,7 +55,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
             if (!shape || shape.length < 3) return;
 
             const [zCount, height, width] = shape;
-            const startZ = Math.max(0, zSlice - frameZDepth);
+            const startZ = Math.max(0, zSlice - frameZLayersBelow);
             const zIndexInChunk = zSlice - startZ;
             const sliceOffset = zIndexInChunk * width * height;
             const sliceLength = width * height;
@@ -108,7 +109,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 });
             }
         }
-    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameZDepth, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor]);
+    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameZLayersAbove, frameZLayersBelow, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor]);
 
     return (
         <canvas

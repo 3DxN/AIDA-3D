@@ -37,7 +37,8 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   // Frame state (replacing FrameStateContext)
   const [frameCenter, setFrameCenter] = useState<[number, number]>([500, 500])
   const [frameSize, setFrameSize] = useState<[number, number]>([100, 100])
-  const [frameZDepth, setFrameZDepth] = useState<number>(20)
+  const [frameZLayersAbove, setFrameZLayersAbove] = useState<number>(20)
+  const [frameZLayersBelow, setFrameZLayersBelow] = useState<number>(20)
   
   // View state
   const [navigationState, setNavigationState] = useState<NavigationState | null>(null)
@@ -156,7 +157,13 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
       // Build selection array based on actual array shape
       const hasZ = array.shape.length > 2 && msInfo?.shape.z && msInfo.shape.z >= 1
       if (hasZ) {
-        selection.push(zarrita.slice(currentZSlice - frameZDepth, currentZSlice + frameZDepth + 1))
+        // Calculate range using separate above/below values but ensure it works like the original
+        const startZ = Math.max(0, currentZSlice - frameZLayersBelow)
+        const endZ = Math.min(msInfo.shape.z || 0, currentZSlice + frameZLayersAbove + 1)
+        // Ensure we always include at least the current slice if both values are 0
+        const finalStartZ = startZ
+        const finalEndZ = Math.max(endZ, startZ + 1)
+        selection.push(zarrita.slice(finalStartZ, finalEndZ))
       }
       selection.push(zarrita.slice(y1, y2))
       selection.push(zarrita.slice(x1, x2))
@@ -169,7 +176,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
       console.error(`❌ Error getting frame-bound main data:`, errorMsg)
       throw error
     }
-  }, [navigationState, getFrameBounds, currentZSlice, currentTimeSlice, msInfo])
+  }, [navigationState, getFrameBounds, currentZSlice, currentTimeSlice, frameZLayersAbove, frameZLayersBelow, msInfo])
   
   // Auto-update frame-bound Cellpose data when dependencies change
   useEffect(() => {
@@ -197,16 +204,18 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     }
     
     loadFrameBoundCellposeData()
-  }, [cellposeArray, navigationState, frameCenter, frameSize, currentZSlice, currentTimeSlice])
+  }, [cellposeArray, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, currentZSlice, currentTimeSlice, getFrameBoundData])
   
   const contextValue: Viewer2DDataContextType = {
     // Frame state
     frameCenter,
     frameSize,
-    frameZDepth,
+    frameZLayersAbove,
+    frameZLayersBelow,
     setFrameCenter,
     setFrameSize,
-    setFrameZDepth,
+    setFrameZLayersAbove,
+    setFrameZLayersBelow,
     getFrameBounds,
     
     // View state

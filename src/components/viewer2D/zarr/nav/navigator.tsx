@@ -18,10 +18,12 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         setNavigationState,
         frameCenter,
         frameSize,
-        frameZDepth,
+        frameZLayersAbove,
+        frameZLayersBelow,
         setFrameCenter,
         setFrameSize,
-        setFrameZDepth,
+        setFrameZLayersAbove,
+        setFrameZLayersBelow,
         getFrameBounds
     } = useViewer2DData()
 
@@ -172,20 +174,35 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                     </div>
                                 </div>
 
-                                {/* Z Depth Control */}
+                                {/* Z Depth Controls */}
                                 {msInfo.shape.z && msInfo.shape.z > 1 && (
-                                    <UnifiedSlider
-                                        label="Z Depth Range"
-                                        value={frameZDepth}
-                                        minValue={0}
-                                        maxValue={Math.floor((msInfo.shape.z - 1) / 2)}
-                                        onChange={(value) => setFrameZDepth(Array.isArray(value) ? value[0] : value)}
-                                        valueDisplay={(val) => {
-                                            const depth = Array.isArray(val) ? val[0] : val;
-                                            const maxZ = msInfo.shape.z || 1;
-                                            return `±${depth} slices (Z ${Math.max(0, zSlice - depth)} - ${Math.min(maxZ - 1, zSlice + depth)})`;
-                                        }}
-                                    />
+                                    <div className="space-y-3">
+                                        <UnifiedSlider
+                                            label="Z Layers Above"
+                                            value={frameZLayersAbove}
+                                            minValue={0}
+                                            maxValue={msInfo.shape.z - 1 - zSlice}
+                                            onChange={(value) => setFrameZLayersAbove(Array.isArray(value) ? value[0] : value)}
+                                            valueDisplay={(val) => {
+                                                const layers = Array.isArray(val) ? val[0] : val;
+                                                const maxZ = msInfo.shape.z || 1;
+                                                const actualEnd = Math.min(maxZ - 1, zSlice + layers);
+                                                return `${layers} layers (up to Z ${actualEnd})`;
+                                            }}
+                                        />
+                                        <UnifiedSlider
+                                            label="Z Layers Below"
+                                            value={frameZLayersBelow}
+                                            minValue={0}
+                                            maxValue={zSlice}
+                                            onChange={(value) => setFrameZLayersBelow(Array.isArray(value) ? value[0] : value)}
+                                            valueDisplay={(val) => {
+                                                const layers = Array.isArray(val) ? val[0] : val;
+                                                const actualStart = Math.max(0, zSlice - layers);
+                                                return `${layers} layers (down to Z ${actualStart})`;
+                                            }}
+                                        />
+                                    </div>
                                 )}
 
                                 {/* Frame Bounds Info */}

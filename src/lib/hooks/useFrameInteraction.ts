@@ -33,7 +33,8 @@ export function useFrameInteraction(
     const {
         frameCenter,
         frameSize,
-        frameZDepth,
+        frameZLayersAbove,
+        frameZLayersBelow,
         setFrameCenter,
         setFrameSize,
         frameBoundCellposeData,
@@ -223,7 +224,7 @@ export function useFrameInteraction(
 
         const [zCount, height, width] = shape;
         const { zSlice } = navigationState;
-        const startZ = Math.max(0, zSlice - frameZDepth);
+        const startZ = Math.max(0, zSlice - frameZLayersBelow);
         const zIndexInChunk = zSlice - startZ;
 
         if (zIndexInChunk < 0 || zIndexInChunk >= zCount) return;
@@ -244,7 +245,7 @@ export function useFrameInteraction(
 
         // Update selection
         setSelectedNucleiIndices(Array.from(selectedNuclei));
-    }, [frameBoundCellposeData, navigationState, frameCenter, frameSize, frameZDepth, setSelectedNucleiIndices]);
+    }, [frameBoundCellposeData, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, setSelectedNucleiIndices]);
 
     // Complete onDragStart handler combining frame and view interactions
     const onDragStart = useCallback((info: PickingInfo) => {
@@ -402,7 +403,7 @@ export function useFrameInteraction(
 
             const [zCount, height, width] = shape;
             const { zSlice } = navigationState;
-            const startZ = Math.max(0, zSlice - frameZDepth);
+            const startZ = Math.max(0, zSlice - frameZLayersBelow);
             const zIndexInChunk = zSlice - startZ;
 
             if (
@@ -449,7 +450,7 @@ export function useFrameInteraction(
         return false;
     }, [
         handleClick, setFrameCenter, frameBoundCellposeData, frameCenter,
-        frameSize, navigationState, frameZDepth, selectedNucleiIndices,
+        frameSize, navigationState, frameZLayersAbove, frameZLayersBelow, selectedNucleiIndices,
         addSelectedNucleus, removeSelectedNucleus, clearSelection, setSelectedNucleiIndices
     ]);
 
