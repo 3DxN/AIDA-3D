@@ -128,7 +128,7 @@ const ColorMaps = (props: {
 				setColorMaps([
 					{
 						featureMap: propertyFeatures[0],
-						colorScale: colorScales[4], // Blues
+						colorScale: colorScales[3], // Spectral
 						normalise: true,
 					},
 				]);
@@ -503,7 +503,7 @@ const ColorMaps = (props: {
 										...prev,
 										{
 											featureMap: features[0],
-											colorScale: colorScales[4],
+											colorScale: colorScales[3],
 											normalise: true,
 										},
 									]);
