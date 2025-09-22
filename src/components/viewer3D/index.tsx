@@ -65,7 +65,7 @@ const Viewer3D = (props: {
 
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
-	const { frameBoundCellposeData, frameCenter, frameSize, getFrameBounds, currentZSlice } = useViewer2DData();
+	const { frameBoundCellposeData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow } = useViewer2DData();
 	const { setPropertiesCallback } = useZarrStore();
 
 	// Function to handle automatic properties loading from Cellpose zarr.json
@@ -253,7 +253,10 @@ const Viewer3D = (props: {
 				crossSectionPlane.current = null;
 			}
 
-			const meshDataArray = generateMeshesFromVoxelData(frameBoundCellposeData);
+			// Calculate the relative z position within the frameBoundCellposeData
+			// The current slice should be at frameZLayersBelow index within the slice
+			const relativeCurrentZSlice = frameZLayersBelow;
+			const meshDataArray = generateMeshesFromVoxelData(frameBoundCellposeData, relativeCurrentZSlice);
 			const newContentGroup = new THREE.Group();
 
 			meshDataArray.forEach(({ label, vertices, indices }) => {
@@ -321,15 +324,13 @@ const Viewer3D = (props: {
 			};
 			setFeatureData(newFeatureData);
 
-			// Add cross-section plane to the content group so it gets the same transformations
+			// Add cross-section plane centered at global origin facing z direction
 			if (frameCenter && frameSize && frameSize[0] > 0 && frameSize[1] > 0) {
 				const bounds = getFrameBounds();
 				const width = bounds.right - bounds.left;
 				const height = bounds.bottom - bounds.top;
-				const centerX = (bounds.left + bounds.right) / 2;
-				const centerY = (bounds.top + bounds.bottom) / 2;
 
-				// Create plane using the same coordinate system as the voxel data
+				// Create plane with 2D selection dimensions
 				const planeGeometry = new THREE.PlaneGeometry(width, height);
 				const planeMaterial = new THREE.MeshBasicMaterial({
 					color: 0xffffff,
@@ -340,20 +341,9 @@ const Viewer3D = (props: {
 
 				const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
 
-				// Position in local voxel coordinates - same as marching cubes algorithm
-				// Convert from global frame coordinates to local cellpose array coordinates
-				const cellposeShape = frameBoundCellposeData.shape; // [depth, height, width]
-
-				// Center the plane based on cellpose data dimensions, same as nucleus meshes
-				const cellposeCenterX = cellposeShape[2] / 2; // Center X in cellpose data
-				const cellposeCenterY = cellposeShape[1] / 2; // Center Y in cellpose data (flipped to match vertices)
-				const cellposeCenterZ = cellposeShape[0] / 2; // Center Z in cellpose data
-
-				// Position plane at center of cellpose data coordinate system
-				// Y and Z coordinates flipped to match the flipped vertex coordinates
-				planeMesh.position.set(cellposeCenterX, cellposeShape[1] - 1 - cellposeCenterY, cellposeShape[0] - 1 - cellposeCenterZ);
-				// Remove rotation to keep it vertical (default orientation)
-				// planeMesh.rotation.x = -Math.PI / 2; // This was making it horizontal
+				// Position plane at global origin (0,0,0) facing z direction
+				planeMesh.position.set(0, 0, 0);
+				// Plane is already facing z direction by default (no rotation needed)
 
 				newContentGroup.add(planeMesh);
 				crossSectionPlane.current = planeMesh;
@@ -364,9 +354,8 @@ const Viewer3D = (props: {
 
 			const box = new THREE.Box3().setFromObject(newContentGroup);
 			const size = box.getSize(new THREE.Vector3()).length();
-			const center = box.getCenter(new THREE.Vector3());
 
-			newContentGroup.position.sub(center);
+			// Don't center the content group - keep plane at global origin
 
 			// Only set camera position on first initialization, preserve user's camera state afterwards
 			if (!isCameraInitialized) {
@@ -501,22 +490,13 @@ const Viewer3D = (props: {
 		const bounds = getFrameBounds();
 		const width = bounds.right - bounds.left;
 		const height = bounds.bottom - bounds.top;
-		const centerX = (bounds.left + bounds.right) / 2;
-		const centerY = (bounds.top + bounds.bottom) / 2;
 
-		// Update geometry size
+		// Update geometry size to match 2D selection
 		crossSectionPlane.current.geometry.dispose();
 		crossSectionPlane.current.geometry = new THREE.PlaneGeometry(width, height);
 
-		// Update position using cellpose data center, same as nucleus meshes
-		if (frameBoundCellposeData) {
-			const cellposeShape = frameBoundCellposeData.shape;
-			const cellposeCenterX = cellposeShape[2] / 2;
-			const cellposeCenterY = cellposeShape[1] / 2;
-			const cellposeCenterZ = cellposeShape[0] / 2;
-			// Y and Z coordinates flipped to match the flipped vertex coordinates
-			crossSectionPlane.current.position.set(cellposeCenterX, cellposeShape[1] - 1 - cellposeCenterY, cellposeShape[0] - 1 - cellposeCenterZ);
-		}
+		// Keep plane at global origin (0,0,0) facing z direction
+		crossSectionPlane.current.position.set(0, 0, 0);
 
 		if (renderer && scene && camera) {
 			renderer.render(scene, camera);

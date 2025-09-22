@@ -119,7 +119,7 @@ const march = (grid: number[][][], isoLevel: number) => {
 
 // src/components/viewer3D/algorithms/marchingCubes.ts
 
-export const generateMeshesFromVoxelData = (input: Chunk<Uint32>) => {
+export const generateMeshesFromVoxelData = (input: Chunk<Uint32>, currentZSlice?: number) => {
 	const meshDataArray = [];
 	const { data, shape, stride } = input;
 	const dims = shape; // e.g., [depth, height, width]
@@ -165,11 +165,21 @@ export const generateMeshesFromVoxelData = (input: Chunk<Uint32>) => {
 		const { vertices, indices } = march(binaryGrid, 0.5);
 
 		if (vertices.length > 0 && indices.length > 0) {
-			// Flip y and z directions for all vertices to correct orientation
-			const flippedVertices = vertices.map(vertex => {
-				return new THREE.Vector3(vertex.x, dims[1] - 1 - vertex.y, dims[0] - 1 - vertex.z);
+			// Transform vertices to global coordinate system relative to origin
+			const transformedVertices = vertices.map(vertex => {
+				// Center x and y around origin (same as plane positioning)
+				const centeredX = vertex.x - dims[2] / 2;
+				const centeredY = vertex.y - dims[1] / 2;
+
+				// Transform z so that currentZSlice becomes z=0
+				// currentZSlice should be at z=0, layers below in negative z, layers above in positive z
+				const currentZ = currentZSlice !== undefined ? currentZSlice : dims[0] / 2;
+				const transformedZ = vertex.z - currentZ; // Direct offset from current slice
+
+				// No coordinate flips needed - use direct coordinates
+				return new THREE.Vector3(centeredX, centeredY, transformedZ);
 			});
-			meshDataArray.push({ label, vertices: flippedVertices, indices });
+			meshDataArray.push({ label, vertices: transformedVertices, indices });
 		}
 	}
 
