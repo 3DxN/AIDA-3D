@@ -98,6 +98,10 @@ export interface ZarrStoreState {
    * This helps in determining how to present the suggestions to the user
    */
   suggestionType: ZarrStoreSuggestionType // Type of suggestions being offered
+  /**
+   * Callback function to handle properties found in Cellpose zarr.json
+   */
+  onPropertiesFound?: (properties: any[]) => void
 }
 
 export interface ZarrStoreContextType extends ZarrStoreState {
@@ -105,6 +109,7 @@ export interface ZarrStoreContextType extends ZarrStoreState {
   setSource: (url: string) => void
   navigateToSuggestion: (suggestionPath: string) => void
   refreshCellposeData: () => Promise<void>
+  setPropertiesCallback: (callback: (properties: any[]) => void) => void
 }
 
 export interface ZarrStoreProviderProps {

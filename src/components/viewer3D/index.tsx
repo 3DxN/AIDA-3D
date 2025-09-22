@@ -1,6 +1,6 @@
 // src/components/viewer3D/index.tsx
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
@@ -12,6 +12,7 @@ import { calculateNucleusDiameter } from './algorithms/nucleusDiameter';
 import { useViewer2DData } from '../../lib/contexts/Viewer2DDataContext';
 import { useNucleusSelection } from '../../lib/contexts/NucleusSelectionContext';
 import { useNucleusColor } from '../../lib/contexts/NucleusColorContext';
+import { useZarrStore } from '../../lib/contexts/ZarrStoreContext';
 
 import Settings from './settings';
 import Toolbar from './toolbar';
@@ -65,6 +66,124 @@ const Viewer3D = (props: {
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
 	const { frameBoundCellposeData, frameCenter, frameSize, getFrameBounds, currentZSlice } = useViewer2DData();
+	const { setPropertiesCallback } = useZarrStore();
+
+	// Function to handle automatic properties loading from Cellpose zarr.json
+	const handleZarrProperties = useCallback((properties: any[]) => {
+		console.log('📋 Loading properties from Cellpose zarr.json:', properties);
+
+		try {
+			if (!Array.isArray(properties) || properties.length === 0) {
+				console.warn('Invalid or empty properties data from zarr.json');
+				return;
+			}
+
+			// Transform properties to match the internal format (same logic as Export.tsx)
+			const importedData = properties.map(item => {
+				const { 'label-value': labelValue, ...rest } = item;
+				const nucleus_index = labelValue !== undefined ? labelValue : item.nucleus_index;
+				return { nucleus_index, ...rest };
+			});
+
+			// Helper function to get dimensions (from Export.tsx)
+			const getDimensions = (arr: any): number[] => {
+				if (!Array.isArray(arr)) return [];
+				const dims: number[] = [];
+				let current = arr;
+				while (Array.isArray(current)) {
+					dims.push(current.length);
+					current = current[0];
+				}
+				return dims;
+			};
+
+			// Merge property types
+			const newPropertyTypesMap = new Map(
+				globalPropertyTypes.current.map((attr) => [attr.name, attr])
+			);
+
+			if (importedData.length > 0) {
+				const sample = importedData[0];
+				Object.keys(sample).forEach(key => {
+					if (key !== 'nucleus_index' && !newPropertyTypesMap.has(key)) {
+						const value = sample[key];
+						const isArray = Array.isArray(value);
+						const dimensions = isArray ? getDimensions(value) : undefined;
+						const isMultiDimensional = isArray && (dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1));
+
+						newPropertyTypesMap.set(key, {
+							id: newPropertyTypesMap.size,
+							name: key,
+							count: 0,
+							readOnly: false,
+							dimensions: isMultiDimensional ? dimensions : undefined
+						});
+					}
+				});
+			}
+
+			globalPropertyTypes.current = Array.from(newPropertyTypesMap.values());
+
+			// Create a map for quick lookup of imported properties
+			const importedPropertiesMap = new Map(
+				importedData.map((item) => [item.nucleus_index, item])
+			);
+
+			// Create a map for quick lookup of existing properties
+			const existingPropertiesMap = new Map(
+				globalProperties.current.map((item) => [item.nucleus_index, item])
+			);
+
+			// Merge properties (same logic as Export.tsx)
+			const maxNucleusIndex = Math.max(
+				globalProperties.current.length > 0 ? globalProperties.current[globalProperties.current.length - 1].nucleus_index : -1,
+				importedData.reduce((max, nucleus) => Math.max(max, nucleus.nucleus_index), -1)
+			);
+
+			const newGlobalProperties = Array.from({ length: maxNucleusIndex + 1 }, (_, i) => {
+				const existingNucleus = existingPropertiesMap.get(i) || { nucleus_index: i };
+				const importedNucleus = importedPropertiesMap.get(i) || { nucleus_index: i };
+
+				const mergedNucleus = { ...existingNucleus, ...importedNucleus };
+
+				for (const attrType of globalPropertyTypes.current) {
+					if (!(attrType.name in mergedNucleus)) {
+						if (attrType.dimensions) {
+							const createNestedArray = (dims: number[]): any => {
+								if (dims.length === 1) {
+									return Array(dims[0]).fill(0);
+								}
+								const dim = dims[0];
+								const rest = dims.slice(1);
+								return Array(dim).fill(0).map(() => createNestedArray(rest));
+							};
+							mergedNucleus[attrType.name] = createNestedArray(attrType.dimensions);
+						} else {
+							mergedNucleus[attrType.name] = 0;
+						}
+					}
+				}
+				return mergedNucleus;
+			});
+
+			globalProperties.current = newGlobalProperties;
+
+			setFeatureData((prevData: any) => ({
+				...prevData,
+				labels: [...newGlobalProperties],
+			}));
+
+			console.log('✅ Successfully loaded properties from Cellpose zarr.json');
+
+		} catch (error) {
+			console.error('❌ Error loading properties from zarr.json:', error);
+		}
+	}, [setFeatureData]);
+
+	// Register properties callback with ZarrStore
+	useEffect(() => {
+		setPropertiesCallback(handleZarrProperties);
+	}, [setPropertiesCallback, handleZarrProperties]);
 
 	// Init
 	useEffect(() => {

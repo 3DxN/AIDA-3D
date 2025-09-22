@@ -46,11 +46,16 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
     source: initialSource,
     hasLoadedArray: false,
     suggestedPaths: [],
-    suggestionType: ZarrStoreSuggestionType.NO_OME
+    suggestionType: ZarrStoreSuggestionType.NO_OME,
+    onPropertiesFound: undefined
   })
 
   const setSource = useCallback((url: string) => {
     setState(prev => ({ ...prev, source: url }))
+  }, [])
+
+  const setPropertiesCallback = useCallback((callback: (properties: any[]) => void) => {
+    setState(prev => ({ ...prev, onPropertiesFound: callback }))
   }, [])
 
   // Cellpose detection utility
@@ -66,6 +71,21 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
         const cellposeGroup = await zarrita.open(rootGroup.resolve(DEFAULT_LABELS_SEGMENTATION_PATH))
 
         if (cellposeGroup instanceof zarrita.Group) {
+          // Check for properties in the zarr.json attributes
+          const attrs = cellposeGroup.attrs as any
+          if (attrs?.ome?.['image-label']?.properties) {
+            console.log('🔍 Found properties in Cellpose zarr.json:', attrs.ome['image-label'].properties)
+
+            // Trigger properties loading callback if available
+            if (state.onPropertiesFound) {
+              try {
+                state.onPropertiesFound(attrs.ome['image-label'].properties)
+              } catch (error) {
+                console.error('❌ Error loading properties from zarr.json:', error)
+              }
+            }
+          }
+
           // Drill into OME multiscales metadata
           const multiscales = (cellposeGroup.attrs?.ome as OMEAttrs)?.multiscales
           if (multiscales && multiscales[0]?.datasets?.[0]?.path) {
@@ -90,7 +110,7 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
         console.log(`❌ No Cellpose data at ${DEFAULT_LABELS_SEGMENTATION_PATH}:`, error)
         return null
       }
-    }, [state.store]
+    }, [state.store, state.onPropertiesFound]
   )
 
   // Load Cellpose data when multiscale image is ready
@@ -319,7 +339,8 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
     loadStore,
     setSource,
     navigateToSuggestion,
-    refreshCellposeData
+    refreshCellposeData,
+    setPropertiesCallback
   }
 
   return (
