@@ -17,7 +17,8 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
         frameZLayersAbove,
         frameZLayersBelow,
         frameCenter,
-        frameSize
+        frameSize,
+        isDataLoading
     } = useViewer2DData();
     const { selectedNucleiIndices } = useNucleusSelection();
     const { getNucleusColor } = useNucleusColor();
@@ -35,7 +36,8 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
 
         const { cellposeOverlayOn, zSlice } = navigationState;
 
-        if (cellposeOverlayOn && frameBoundCellposeData) {
+        // Hide overlay when data is loading or when no data is available
+        if (cellposeOverlayOn && frameBoundCellposeData && !isDataLoading) {
             // --- 1. Project world coordinates to screen coordinates ---
             const { target, zoom } = viewState;
             const scale = Math.pow(2, zoom);
@@ -109,7 +111,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 });
             }
         }
-    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameZLayersAbove, frameZLayersBelow, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor]);
+    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameZLayersAbove, frameZLayersBelow, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor, isDataLoading]);
 
     return (
         <canvas
