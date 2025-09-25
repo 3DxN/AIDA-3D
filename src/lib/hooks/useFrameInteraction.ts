@@ -60,6 +60,10 @@ export function useFrameInteraction(
     })
     const [hoveredHandle, setHoveredHandle] = useState<string | null>(null)
 
+    // Temporary frame state during dragging (doesn't trigger cellpose updates)
+    const [tempFrameCenter, setTempFrameCenter] = useState<[number, number] | null>(null)
+    const [tempFrameSize, setTempFrameSize] = useState<[number, number] | null>(null)
+
     // Context selection box state
     const [selectionBox, setSelectionBox] = useState<{
         isDragging: boolean,
@@ -115,7 +119,7 @@ export function useFrameInteraction(
         }
     }, [frameInteraction.isDragging, hoveredHandle]);
 
-    // Handle drag events for frame resizing/moving
+    // Handle drag events for frame resizing/moving (use temp state to avoid cellpose updates)
     const handleDrag = useCallback((info: PickingInfo) => {
         if (frameInteraction.isDragging && info.coordinate) {
             const [currentX, currentY] = info.coordinate;
@@ -132,16 +136,29 @@ export function useFrameInteraction(
                 deltaY
             );
 
-            setFrameCenter(result.center);
-            setFrameSize(result.size);
+            // Update temporary state during drag (doesn't trigger cellpose context update)
+            setTempFrameCenter(result.center);
+            setTempFrameSize(result.size);
             return true; // Stop propagation
         }
         return false;
-    }, [frameInteraction, setFrameCenter, setFrameSize]);
+    }, [frameInteraction]);
 
-    // Handle drag end events
+    // Handle drag end events (commit changes to actual state to trigger cellpose updates)
     const handleDragEnd = useCallback(() => {
         if (frameInteraction.isDragging) {
+            // Commit the temporary frame state to the actual state (triggers cellpose context update)
+            if (tempFrameCenter !== null) {
+                setFrameCenter(tempFrameCenter);
+            }
+            if (tempFrameSize !== null) {
+                setFrameSize(tempFrameSize);
+            }
+
+            // Clear temporary state
+            setTempFrameCenter(null);
+            setTempFrameSize(null);
+
             setFrameInteraction({
                 isDragging: false,
                 dragMode: 'none',
@@ -152,7 +169,7 @@ export function useFrameInteraction(
             return true; // Stop propagation
         }
         return false;
-    }, [frameInteraction.isDragging]);
+    }, [frameInteraction.isDragging, tempFrameCenter, tempFrameSize, setFrameCenter, setFrameSize]);
 
     // Handle click events for frame interactions
     const handleClick = useCallback((info: PickingInfo) => {
@@ -188,13 +205,17 @@ export function useFrameInteraction(
         return 'default';
     }, [frameInteraction.isDragging, hoveredHandle]);
 
-    // Create interactive frame overlay layers (now only for the frame itself)
+    // Create interactive frame overlay layers (use temp state when dragging, actual state otherwise)
     const frameOverlayLayers = useMemo(() => {
         if (!msInfo) {
             return [];
         }
 
-        return createFrameOverlayLayers(frameCenter, frameSize, FRAME_VIEW_ID, {
+        // Use temporary frame state if dragging, otherwise use actual state
+        const currentFrameCenter = tempFrameCenter ?? frameCenter;
+        const currentFrameSize = tempFrameSize ?? frameSize;
+
+        return createFrameOverlayLayers(currentFrameCenter, currentFrameSize, FRAME_VIEW_ID, {
             fillColor: [0, 0, 0, 0] as [number, number, number, number],
             lineColor: [255, 255, 255, 255] as [number, number, number, number],
             lineWidth: 3,
@@ -204,7 +225,7 @@ export function useFrameInteraction(
             handleSize: 8,
             hoveredHandle
         });
-    }, [msInfo, frameCenter, frameSize, hoveredHandle]);
+    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle]);
 
     // Handle selection box area selection
     const handleSelectionBoxAreaSelection = useCallback((startCoord: [number, number], endCoord: [number, number]) => {

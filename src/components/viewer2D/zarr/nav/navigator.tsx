@@ -29,6 +29,12 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
 
     const [isCollapsed, setIsCollapsed] = useState(true)
 
+    // Temporary state for frame parameters during slider dragging (to avoid cellpose context updates)
+    const [tempFrameZLayersAbove, setTempFrameZLayersAbove] = useState<number | null>(null)
+    const [tempFrameZLayersBelow, setTempFrameZLayersBelow] = useState<number | null>(null)
+    const [tempZSlice, setTempZSlice] = useState<number | null>(null)
+    const [tempTimeSlice, setTempTimeSlice] = useState<number | null>(null)
+
     const handleToggle = (newState: boolean) => {
         setIsCollapsed(newState)
         onToggle?.(newState)
@@ -179,10 +185,14 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                     <div className="space-y-3">
                                         <UnifiedSlider
                                             label="Z Layers Above"
-                                            value={frameZLayersAbove}
+                                            value={tempFrameZLayersAbove ?? frameZLayersAbove}
                                             minValue={0}
                                             maxValue={msInfo.shape.z - 1 - zSlice}
-                                            onChange={(value) => setFrameZLayersAbove(Array.isArray(value) ? value[0] : value)}
+                                            onChange={(value) => setTempFrameZLayersAbove(Array.isArray(value) ? value[0] : value)}
+                                            onChangeCommitted={(value) => {
+                                                setFrameZLayersAbove(Array.isArray(value) ? value[0] : value);
+                                                setTempFrameZLayersAbove(null);
+                                            }}
                                             valueDisplay={(val) => {
                                                 const layers = Array.isArray(val) ? val[0] : val;
                                                 const maxZ = msInfo.shape.z || 1;
@@ -192,10 +202,14 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                         />
                                         <UnifiedSlider
                                             label="Z Layers Below"
-                                            value={frameZLayersBelow}
+                                            value={tempFrameZLayersBelow ?? frameZLayersBelow}
                                             minValue={0}
                                             maxValue={zSlice}
-                                            onChange={(value) => setFrameZLayersBelow(Array.isArray(value) ? value[0] : value)}
+                                            onChange={(value) => setTempFrameZLayersBelow(Array.isArray(value) ? value[0] : value)}
+                                            onChangeCommitted={(value) => {
+                                                setFrameZLayersBelow(Array.isArray(value) ? value[0] : value);
+                                                setTempFrameZLayersBelow(null);
+                                            }}
                                             valueDisplay={(val) => {
                                                 const layers = Array.isArray(val) ? val[0] : val;
                                                 const actualStart = Math.max(0, zSlice - layers);
@@ -228,19 +242,27 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                             <div className="space-y-3">
                                 <UnifiedSlider
                                     label="Z Slice"
-                                    value={zSlice}
+                                    value={tempZSlice ?? zSlice}
                                     minValue={0}
                                     maxValue={maxZSlice}
-                                    onChange={(value) => navigationHandlers.onZSliceChange(Array.isArray(value) ? value[0] : value)}
+                                    onChange={(value) => setTempZSlice(Array.isArray(value) ? value[0] : value)}
+                                    onChangeCommitted={(value) => {
+                                        navigationHandlers.onZSliceChange(Array.isArray(value) ? value[0] : value);
+                                        setTempZSlice(null);
+                                    }}
                                     condition={Boolean(msInfo.shape.z && maxZSlice > 0)}
                                 />
 
                                 <UnifiedSlider
                                     label="Time"
-                                    value={timeSlice}
+                                    value={tempTimeSlice ?? timeSlice}
                                     minValue={0}
                                     maxValue={maxTimeSlice}
-                                    onChange={(value) => navigationHandlers.onTimeSliceChange(Array.isArray(value) ? value[0] : value)}
+                                    onChange={(value) => setTempTimeSlice(Array.isArray(value) ? value[0] : value)}
+                                    onChangeCommitted={(value) => {
+                                        navigationHandlers.onTimeSliceChange(Array.isArray(value) ? value[0] : value);
+                                        setTempTimeSlice(null);
+                                    }}
                                     condition={Boolean(msInfo.shape.t && maxTimeSlice > 0)}
                                 />
                             </div>
