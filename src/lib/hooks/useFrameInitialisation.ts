@@ -40,14 +40,26 @@ export default function useFrameInitialisation(
 
       // Only initialize detail view state if it hasn't been set yet
       if (!controlledDetailViewState) {
-        // Initialize detail view state to show the lowest resolution (zoomed out)
-        // Use a zoom level that shows the entire image
+        // Initialize detail view state to show the frame selection area
+        // Calculate zoom level to fit the frame with some padding
+        const frameWidth = 100  // Default frame width
+        const frameHeight = 100 // Default frame height
+        const padding = 1.5     // Add 50% padding around frame
+
+        const containerWidth = containerDimensions.width || 800
+        const containerHeight = containerDimensions.height || 600
+
+        // Calculate zoom to fit frame with padding
+        const zoomX = Math.log2(containerWidth / (frameWidth * padding))
+        const zoomY = Math.log2(containerHeight / (frameHeight * padding))
+        const zoom = Math.min(zoomX, zoomY, 2) // Cap at zoom level 2
+
         const initialState = {
           target: [width / 2, height / 2, 0],
-          zoom: -3
+          zoom: zoom
         } satisfies VivViewState
-        
-        console.log('Setting initial view state for lowest resolution:', initialState)
+
+        console.log('Setting initial view state to fit frame:', initialState)
         detailViewStateRef.current = initialState
         setControlledDetailViewState(initialState)
       }

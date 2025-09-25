@@ -98,6 +98,7 @@ export default function ZarrWorkspace() {
 						<Viewer3D
 							tile={tile}
 							tilesUrl=""
+							select3D={select3D}
 							setSelect3D={setSelect3D}
 							polygonCoords={polygonCoords}
 						/>
