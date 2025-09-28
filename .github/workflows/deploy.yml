@@ -1,0 +1,67 @@
+# .github/workflows/deploy.yml
+
+name: Build and Deploy to Production
+
+# This workflow runs whenever you push to the 'main' branch
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # Use a standard Linux runner
+
+    steps:
+      # 1. Checkout the code from the repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Set up Node.js environment
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Use your project's Node.js version
+          cache: 'npm'
+
+      # 3. Install dependencies, build the project, and remove dev dependencies
+      - name: Install, Build, and Prune
+        run: |
+          npm ci
+          npm run build # Make sure you have a "build" script in package.json
+          npm prune --omit=dev
+
+      # 4. Bundle the deployment package into a single .tar.gz file
+      - name: Bundle Artifacts
+        run: |
+          tar -czf deployment-package.tar.gz \
+            dist/ \
+            node_modules/ \
+            package.json \
+            package-lock.json \
+            # Add any other files/folders needed for production (e.g., public/, .env.production)
+
+      # 5. Copy the bundled package to the server
+      - name: Deploy to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "deployment-package.tar.gz"
+          target: ${{ secrets.TARGET_DIR }}
+
+      # 6. Unpack the package and restart the application on the server
+      - name: Unpack and Restart App
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ secrets.TARGET_DIR }}
+            tar -xzf deployment-package.tar.gz
+            rm deployment-package.tar.gz
+            # Restart the app using PM2 (or your process manager)
+            # The name 'my-app' should match your PM2 process name
+            pm2 restart my-app || pm2 start dist/index.js --name my-app
+
