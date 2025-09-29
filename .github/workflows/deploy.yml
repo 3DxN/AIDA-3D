@@ -2,10 +2,10 @@
 
 name: Build and Deploy to Production
 
-# This workflow runs whenever you push to the 'main' branch
+# This workflow runs whenever you push to the 'anton_main' branch
 on:
   push:
-    branches: [ main ]
+    branches: [ anton_main ]
 
 jobs:
   deploy:
@@ -34,11 +34,11 @@ jobs:
       - name: Bundle Artifacts
         run: |
           tar -czf deployment-package.tar.gz \
-            dist/ \
+            .next/ \
             node_modules/ \
             package.json \
             package-lock.json \
-            # Add any other files/folders needed for production (e.g., public/, .env.production)
+            public/
 
       # 5. Copy the bundled package to the server
       - name: Deploy to Server
@@ -62,6 +62,6 @@ jobs:
             tar -xzf deployment-package.tar.gz
             rm deployment-package.tar.gz
             # Restart the app using PM2 (or your process manager)
-            # The name 'my-app' should match your PM2 process name
-            pm2 restart my-app || pm2 start dist/index.js --name my-app
+            # The name 'aida-3d' should match your PM2 process name
+            pm2 restart aida-3d || pm2 start npm --name aida-3d -- start
 
