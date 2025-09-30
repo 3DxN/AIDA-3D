@@ -38,7 +38,9 @@ jobs:
             node_modules/ \
             package.json \
             package-lock.json \
-            public/
+            public/ \
+            deploy.sh \
+            ecosystem.config.js
 
       # 5. Copy the bundled package to the server
       - name: Deploy to Server
@@ -61,7 +63,6 @@ jobs:
             cd ${{ secrets.TARGET_DIR }}
             tar -xzf deployment-package.tar.gz
             rm deployment-package.tar.gz
-            # Restart the app using PM2 (or your process manager)
-            # The name 'aida-3d' should match your PM2 process name
-            pm2 restart aida-3d || pm2 start npm --name aida-3d -- start
+            # Run the deployment script which uses ecosystem.config.js
+            ./deploy.sh
 
