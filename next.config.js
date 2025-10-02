@@ -3,9 +3,8 @@
 // This is the fix.
 // See: https://github.com/openlayers/openlayers/issues/10470
 const withTranspile = require('next-transpile-modules')(['ol'])
-module.exports = withTranspile()
 
-module.exports = {
+module.exports = withTranspile({
 	typescript: {
 		// !! WARN !!
 		// Dangerously allow production builds to successfully complete even if
@@ -17,4 +16,4 @@ module.exports = {
 		// Ignore ESLint errors during production builds
 		ignoreDuringBuilds: true,
 	},
-}
+})
