@@ -42,27 +42,22 @@ jobs:
             deploy.sh \
             ecosystem.config.js
 
-      # 5. Copy the bundled package to the server
-      - name: Deploy to Server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "deployment-package.tar.gz"
-          target: ${{ secrets.TARGET_DIR }}
+      # 5. Set up SSH key
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      # 6. Unpack the package and restart the application on the server
-      - name: Unpack and Restart App
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
+      # 6. Copy and deploy
+      - name: Deploy to Server
+        run: |
+          scp -i ~/.ssh/deploy_key deployment-package.tar.gz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.TARGET_DIR }}/
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
             cd ${{ secrets.TARGET_DIR }}
             tar -xzf deployment-package.tar.gz
             rm deployment-package.tar.gz
-            # Run the deployment script which uses ecosystem.config.js
             ./deploy.sh
+          "
 
