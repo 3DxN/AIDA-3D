@@ -19,6 +19,7 @@ const UnifiedSlider = (props: {
   maxValue: number
   step?: number
   onChange: (value: number | number[]) => void
+  onChangeCommitted?: (value: number | number[]) => void
   formatOptions?: NumberFormatOptions
   isRange?: boolean
   valueDisplay?: string | ((value: number | number[], max: number) => string)
@@ -31,20 +32,19 @@ const UnifiedSlider = (props: {
     maxValue,
     step = 1,
     onChange,
+    onChangeCommitted,
     formatOptions,
     isRange = false,
     valueDisplay,
     condition = true
   } = props
 
-  if (!condition) return null
-
   const trackRef = useRef<HTMLDivElement>(null)
   const numberFormatter = useNumberFormatter(formatOptions || {})
-  
+
   // Convert single value to array for consistent handling
   const arrayValue = Array.isArray(value) ? value : [value]
-  
+
   const sliderProps = {
     value: arrayValue,
     onChange: (newValue: number[]) => {
@@ -54,14 +54,23 @@ const UnifiedSlider = (props: {
         onChange(newValue[0])
       }
     },
+    onChangeEnd: onChangeCommitted ? (newValue: number[]) => {
+      if (isRange) {
+        onChangeCommitted(newValue)
+      } else {
+        onChangeCommitted(newValue[0])
+      }
+    } : undefined,
     minValue,
     maxValue,
     step,
     numberFormatter
   }
-  
+
   const state = useSliderState(sliderProps)
   const { groupProps, trackProps } = useSlider(sliderProps as AriaSliderProps, state, trackRef)
+
+  if (!condition) return null
 
   const getDisplayValue = () => {
     if (typeof valueDisplay === 'function') {
