@@ -206,6 +206,8 @@ const Viewer3D = (props: {
 				0.25,
 				20
 			);
+			// Invert camera up vector to compensate for y-reflection
+			newCamera.up.set(0, -1, 0);
 			setCamera(newCamera);
 
 			const newScene = new THREE.Scene();
@@ -350,6 +352,9 @@ const Viewer3D = (props: {
 				crossSectionPlane.current = planeMesh;
 			}
 
+			// Reflect in z direction
+			newContentGroup.scale.set(1, 1, -1);
+
 			scene.add(newContentGroup);
 			setContent(newContentGroup);
 
@@ -369,8 +374,8 @@ const Viewer3D = (props: {
 				// Zoomed in for better detail view
 				const distanceScale = Math.max(2.0, planeSize / 40); // 4x more zoomed in
 
-				// Position camera to view from the front (matching 2D viewer orientation)
-				camera.position.set(0, 0, size * distanceScale);
+				// Position camera 180 degrees around (viewing from the back)
+				camera.position.set(0, 0, -size * distanceScale);
 				camera.lookAt(0, 0, 0);
 				setIsCameraInitialized(true);
 			}
@@ -381,6 +386,8 @@ const Viewer3D = (props: {
 			camera.updateProjectionMatrix();
 
 			const axesHelper = new THREE.AxesHelper(size);
+			// Flip z-axis to match reflected content, and flip y to keep green pointing up
+			axesHelper.scale.set(1, -1, -1);
 			scene.add(axesHelper);
 
 			renderer.render(scene, camera);
