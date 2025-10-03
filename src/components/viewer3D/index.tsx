@@ -53,6 +53,7 @@ const Viewer3D = (props: {
 	const [selectedMeshesState, setSelectedMeshesState] = useState<THREE.Mesh[]>([]);
 	const crossSectionPlane = useRef<THREE.Mesh | null>(null);
 	const [isCameraInitialized, setIsCameraInitialized] = useState(false);
+	const [filterIncompleteNuclei, setFilterIncompleteNuclei] = useState(true);
 
 
 	// New label storage refs
@@ -256,7 +257,7 @@ const Viewer3D = (props: {
 			// Calculate the relative z position within the frameBoundCellposeData
 			// The current slice should be at frameZLayersBelow index within the slice
 			const relativeCurrentZSlice = frameZLayersBelow;
-			const meshDataArray = generateMeshesFromVoxelData(frameBoundCellposeData, relativeCurrentZSlice);
+			const meshDataArray = generateMeshesFromVoxelData(frameBoundCellposeData, relativeCurrentZSlice, filterIncompleteNuclei);
 			const newContentGroup = new THREE.Group();
 
 			meshDataArray.forEach(({ label, vertices, indices }) => {
@@ -385,7 +386,7 @@ const Viewer3D = (props: {
 			renderer.render(scene, camera);
 			setIsLoading(false);
 		}
-	}, [scene, camera, renderer, frameBoundCellposeData]);
+	}, [scene, camera, renderer, frameBoundCellposeData, filterIncompleteNuclei]);
 
 	// Adjust selections
 	useEffect(() => {
@@ -585,6 +586,8 @@ const Viewer3D = (props: {
 				setFeatureData={setFeatureData}
 				globalProperties={globalProperties}
 				globalPropertyTypes={globalPropertyTypes}
+				filterIncompleteNuclei={filterIncompleteNuclei}
+				setFilterIncompleteNuclei={setFilterIncompleteNuclei}
 			/>
 		</div>
 	);

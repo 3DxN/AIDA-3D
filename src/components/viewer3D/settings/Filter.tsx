@@ -20,8 +20,10 @@ const Filter = (props: {
 	selected: Mesh[];
 	globalProperties: React.MutableRefObject<{ nucleus_index: number;[key: string]: any }[]>;
 	globalPropertyTypes: React.MutableRefObject<{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]>;
+	filterIncompleteNuclei: boolean;
+	setFilterIncompleteNuclei: (value: boolean) => void;
 }) => {
-	const { content, scene, camera, renderer, featureData, selected, globalProperties, globalPropertyTypes } = props;
+	const { content, scene, camera, renderer, featureData, selected, globalProperties, globalPropertyTypes, filterIncompleteNuclei, setFilterIncompleteNuclei } = props;
 
 	const [featureMap, setFeatureMap] = useState<{ name: string, value: string } | null>(null);
 	const [features, setFeatures] = useState<{ name: string, value: string }[]>([]);
@@ -166,6 +168,21 @@ const Filter = (props: {
 						Filter
 					</Disclosure.Button>
 					<Disclosure.Panel className="relative px-4 py-2 w-48">
+						{/* Filter incomplete nuclei toggle */}
+						<div className="mb-4">
+							<label className="flex items-center space-x-2 cursor-pointer">
+								<input
+									type="checkbox"
+									checked={filterIncompleteNuclei}
+									onChange={(e) => setFilterIncompleteNuclei(e.target.checked)}
+									className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+								/>
+								<span className="text-sm font-medium text-gray-700">
+									Filter incomplete nuclei
+								</span>
+							</label>
+						</div>
+
 						{/* Change feature map */}
 						{featureMap && (
 							<Listbox value={featureMap} onChange={setFeatureMap}>

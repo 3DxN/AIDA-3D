@@ -25,6 +25,8 @@ export default function Settings(props: {
 	setFeatureData: (data: any) => void;
 	globalProperties: any;
 	globalPropertyTypes: any;
+	filterIncompleteNuclei: boolean;
+	setFilterIncompleteNuclei: (value: boolean) => void;
 }) {
 	const {
 		renderer,
@@ -36,6 +38,8 @@ export default function Settings(props: {
 		setFeatureData,
 		globalProperties,
 		globalPropertyTypes,
+		filterIncompleteNuclei,
+		setFilterIncompleteNuclei,
 	} = props;
 
 	const [isOpen, setIsOpen] = useState(true);
@@ -93,6 +97,8 @@ export default function Settings(props: {
 						selected={selected}
 						globalProperties={globalProperties}
 						globalPropertyTypes={globalPropertyTypes}
+						filterIncompleteNuclei={filterIncompleteNuclei}
+						setFilterIncompleteNuclei={setFilterIncompleteNuclei}
 					/>
 					<Orientation
 						renderer={renderer}

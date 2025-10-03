@@ -119,7 +119,7 @@ const march = (grid: number[][][], isoLevel: number) => {
 
 // src/components/viewer3D/algorithms/marchingCubes.ts
 
-export const generateMeshesFromVoxelData = (input: Chunk<Uint32>, currentZSlice?: number) => {
+export const generateMeshesFromVoxelData = (input: Chunk<Uint32>, currentZSlice?: number, filterIncompleteNuclei: boolean = true) => {
 	const meshDataArray = [];
 	const { data, shape, stride } = input;
 	const dims = shape; // e.g., [depth, height, width]
@@ -149,8 +149,8 @@ export const generateMeshesFromVoxelData = (input: Chunk<Uint32>, currentZSlice?
 		}
 
 		// If this nucleus is on the boundary, we will not generate a mesh for it at all.
-		if (isOnBoundary) {
-			//continue; // Skip to the next nucleus label
+		if (isOnBoundary && filterIncompleteNuclei) {
+			continue; // Skip to the next nucleus label
 		}
 
 		// If not on the boundary, proceed with mesh generation
