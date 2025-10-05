@@ -9,9 +9,6 @@ import Explode from './Explode';
 import ColorMap from './colorMaps';
 import Filter from './Filter';
 import Orientation from './Orientation';
-import Properties from './Properties';
-import Export from './Export';
-import SelectedIndices from './SelectedIndices';
 
 import { resizeRendererToDisplaySize } from '../utils';
 
@@ -71,7 +68,6 @@ export default function Settings(props: {
 						Settings
 						<ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
 					</button>
-					<SelectedIndices selected={selected} />
 					<Clipping renderer={renderer} scene={scene} camera={camera} />
 					<Explode
 						renderer={renderer}
@@ -106,20 +102,6 @@ export default function Settings(props: {
 						camera={camera}
 						content={content}
 						featureData={featureData}
-					/>
-					<Properties
-						featureData={featureData}
-						selected={selected}
-						setFeatureData={setFeatureData}
-						globalProperties={globalProperties}
-						globalPropertyTypes={globalPropertyTypes}
-					/>
-					<Export
-						renderer={renderer}
-						content={content}
-						globalProperties={globalProperties}
-						globalPropertyTypes={globalPropertyTypes}
-						setFeatureData={setFeatureData}
 					/>
 				</div>
 			)}

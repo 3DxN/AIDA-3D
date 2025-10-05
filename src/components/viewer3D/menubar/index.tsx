@@ -5,9 +5,6 @@ import Explode from '../settings/Explode'
 import ColorMap from '../settings/colorMaps'
 import Filter from '../settings/Filter'
 import Orientation from '../settings/Orientation'
-import Properties from '../settings/Properties'
-import Export from '../settings/Export'
-import SelectedIndices from '../settings/SelectedIndices'
 
 interface Viewer3DMenuBarProps {
   renderer: WebGLRenderer
@@ -38,12 +35,6 @@ export default function Viewer3DMenuBar({
 }: Viewer3DMenuBarProps) {
   return (
     <MenuBar>
-      <DropdownMenu label="Selection">
-        <div className="p-2">
-          <SelectedIndices selected={selected} />
-        </div>
-      </DropdownMenu>
-
       <DropdownMenu label="Clipping">
         <div className="p-2">
           <Clipping renderer={renderer} scene={scene} camera={camera} />
@@ -100,30 +91,6 @@ export default function Viewer3DMenuBar({
             camera={camera}
             content={content}
             featureData={featureData}
-          />
-        </div>
-      </DropdownMenu>
-
-      <DropdownMenu label="Properties">
-        <div className="p-2">
-          <Properties
-            featureData={featureData}
-            selected={selected}
-            setFeatureData={setFeatureData}
-            globalProperties={globalProperties}
-            globalPropertyTypes={globalPropertyTypes}
-          />
-        </div>
-      </DropdownMenu>
-
-      <DropdownMenu label="Export">
-        <div className="p-2">
-          <Export
-            renderer={renderer}
-            content={content}
-            globalProperties={globalProperties}
-            globalPropertyTypes={globalPropertyTypes}
-            setFeatureData={setFeatureData}
           />
         </div>
       </DropdownMenu>

@@ -16,6 +16,7 @@ import { useZarrStore } from '../../lib/contexts/ZarrStoreContext';
 
 import Viewer3DMenuBar from './menubar';
 import Toolbar from './toolbar';
+import BottomPanel from './BottomPanel';
 import { padToTwo, resizeRendererToDisplaySize } from './utils';
 
 const cleanMaterial = (material: THREE.Material) => {
@@ -599,6 +600,19 @@ const Viewer3D = (props: {
 					/>
 				)}
 			</div>
+
+			{/* Bottom Panel */}
+			{content && renderer && (
+				<BottomPanel
+					renderer={renderer}
+					content={content}
+					featureData={featureData}
+					selected={selectedMeshesState}
+					setFeatureData={setFeatureData}
+					globalProperties={globalProperties}
+					globalPropertyTypes={globalPropertyTypes}
+				/>
+			)}
 		</div>
 	);
 };
