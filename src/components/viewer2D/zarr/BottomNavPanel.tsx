@@ -106,19 +106,7 @@ export default function BottomNavPanel() {
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 0;
                     const clamped = Math.max(0, Math.min(maxZSlice, val));
-                    setTempZSlice(clamped);
-                  }}
-                  onBlur={() => {
-                    if (tempZSlice !== null) {
-                      navigationHandlers.onZSliceChange(tempZSlice);
-                      setTempZSlice(null);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && tempZSlice !== null) {
-                      navigationHandlers.onZSliceChange(tempZSlice);
-                      setTempZSlice(null);
-                    }
+                    navigationHandlers.onZSliceChange(clamped);
                   }}
                   className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   min={0}
@@ -152,19 +140,7 @@ export default function BottomNavPanel() {
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
                         const clamped = Math.max(0, Math.min(msInfo.shape.z - 1 - zSlice, val));
-                        setTempFrameZLayersAbove(clamped);
-                      }}
-                      onBlur={() => {
-                        if (tempFrameZLayersAbove !== null) {
-                          setFrameZLayersAbove(tempFrameZLayersAbove);
-                          setTempFrameZLayersAbove(null);
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && tempFrameZLayersAbove !== null) {
-                          setFrameZLayersAbove(tempFrameZLayersAbove);
-                          setTempFrameZLayersAbove(null);
-                        }
+                        setFrameZLayersAbove(clamped);
                       }}
                       className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                       min={0}
@@ -197,19 +173,7 @@ export default function BottomNavPanel() {
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
                         const clamped = Math.max(0, Math.min(zSlice, val));
-                        setTempFrameZLayersBelow(clamped);
-                      }}
-                      onBlur={() => {
-                        if (tempFrameZLayersBelow !== null) {
-                          setFrameZLayersBelow(tempFrameZLayersBelow);
-                          setTempFrameZLayersBelow(null);
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && tempFrameZLayersBelow !== null) {
-                          setFrameZLayersBelow(tempFrameZLayersBelow);
-                          setTempFrameZLayersBelow(null);
-                        }
+                        setFrameZLayersBelow(clamped);
                       }}
                       className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                       min={0}
