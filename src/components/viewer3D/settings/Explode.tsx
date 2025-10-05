@@ -17,6 +17,7 @@ const Explode = (props: {
 
 	const explode = useCallback(
 		(magnitude) => {
+			if (!content) return
 			content.traverse((child) => {
 				if (child.isMesh) {
 					const { center } = child.geometry.boundingSphere

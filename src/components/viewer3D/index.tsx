@@ -562,22 +562,20 @@ const Viewer3D = (props: {
 
 	return (
 		<div className="w-full h-full flex flex-col border-l border-l-teal-500">
-			{/* Menu Bar */}
-			{content && (
-				<Viewer3DMenuBar
-					renderer={renderer}
-					scene={scene}
-					camera={camera}
-					content={content}
-					featureData={featureData}
-					selected={selectedMeshesState}
-					setFeatureData={setFeatureData}
-					globalProperties={globalProperties}
-					globalPropertyTypes={globalPropertyTypes}
-					filterIncompleteNuclei={filterIncompleteNuclei}
-					setFilterIncompleteNuclei={setFilterIncompleteNuclei}
-				/>
-			)}
+			{/* Menu Bar - Always render to allow ColorMap initialization */}
+			<Viewer3DMenuBar
+				renderer={renderer}
+				scene={scene}
+				camera={camera}
+				content={content}
+				featureData={featureData}
+				selected={selectedMeshesState}
+				setFeatureData={setFeatureData}
+				globalProperties={globalProperties}
+				globalPropertyTypes={globalPropertyTypes}
+				filterIncompleteNuclei={filterIncompleteNuclei}
+				setFilterIncompleteNuclei={setFilterIncompleteNuclei}
+			/>
 
 			{/* 3D Canvas */}
 			<div className="flex-1 min-h-0 flex items-center justify-center bg-gray-100 relative">

@@ -142,9 +142,17 @@ const Filter = (props: {
 				setMax(mapMax);
 				setMin(mapMin);
 				setValues([mapMin, mapMax]);
+
+				// Reset visibility filtering to show all nuclei in the new range
+				onValuesUpdate([mapMin, mapMax]);
 			}
 		}
-	}, [featureMap, featureData, content, globalProperties]);
+	}, [featureMap, featureData, content, globalProperties, onValuesUpdate]);
+
+	// Don't render controls if content doesn't exist yet
+	if (!content) {
+		return <div className="relative px-4 py-2 w-48 text-sm text-gray-500">Loading...</div>
+	}
 
 	return (
 		<div className="relative px-4 py-2 w-48">
