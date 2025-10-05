@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Disclosure } from '@headlessui/react'
 
 import Map from 'ol/Map'
 
@@ -9,10 +8,6 @@ import ActiveLayerControls from './ActiveLayerControls'
 // Types
 import Zoomify from 'ol/source/Zoomify'
 import TileLayer from 'ol/layer/Tile'
-
-function classNames(...classes: string[]) {
-	return classes.filter(Boolean).join(' ')
-}
 
 // Manage images, make adjustments such as opacity, etc.
 const Images = (props: { map: Map }) => {
@@ -66,52 +61,23 @@ const Images = (props: { map: Map }) => {
 	}, [map, activeImage])
 
 	return (
-		<Disclosure className="shadow-sm" as="div">
-			{({ open }) => (
-				<>
-					<Disclosure.Button
-						className={classNames(
-							'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
-						)}
-					>
-						<svg
-							className={classNames(
-								open ? 'text-gray-400 rotate-90' : 'text-gray-300',
-								'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
-							)}
-							viewBox="0 0 20 20"
-							aria-hidden="true"
-						>
-							<path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
-						</svg>
-						Images
-					</Disclosure.Button>
-					<Disclosure.Panel className="bg-white rounded-b-sm">
-						{/* Active image tab controls */}
-						{activeImage && <ActiveLayerControls activeLayer={activeImage} />}
+		<div>
+			{/* Active image tab controls */}
+			{activeImage && <ActiveLayerControls activeLayer={activeImage} />}
 
-						{/* Layers list */}
-
-						{/* 
-              TODO: if there are many layers in the list such that the active 
-                    layer is not visible then on-load we need to scroll the div
-                    so the user can see the active layer in the list by default.
-            */}
-						<div className="max-h-40 overflow-y-auto">
-							{images.map((layer, index) => (
-								<Layer
-									key={index}
-									layer={layer}
-									index={index}
-									active={activeImage === layer}
-									map={map}
-								/>
-							))}
-						</div>
-					</Disclosure.Panel>
-				</>
-			)}
-		</Disclosure>
+			{/* Layers list */}
+			<div className="max-h-40 overflow-y-auto">
+				{images.map((layer, index) => (
+					<Layer
+						key={index}
+						layer={layer}
+						index={index}
+						active={activeImage === layer}
+						map={map}
+					/>
+				))}
+			</div>
+		</div>
 	)
 }
 

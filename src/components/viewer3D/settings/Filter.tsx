@@ -1,7 +1,7 @@
 // src/components/viewer3D/settings/Filter.tsx
 
 import { Fragment, useState, useEffect, useCallback } from 'react';
-import { Disclosure, Listbox, Transition } from '@headlessui/react';
+import { Listbox, Transition } from '@headlessui/react';
 import { CheckIcon, SelectorIcon } from '@heroicons/react/solid';
 import { Camera, Scene, WebGLRenderer, Group, Mesh } from 'three';
 
@@ -147,27 +147,7 @@ const Filter = (props: {
 	}, [featureMap, featureData, content, globalProperties]);
 
 	return (
-		<Disclosure className="shadow-sm" as="div">
-			{({ open }) => (
-				<>
-					<Disclosure.Button
-						className={classNames(
-							'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
-						)}
-					>
-						<svg
-							className={classNames(
-								open ? 'text-gray-400 rotate-90' : 'text-gray-300',
-								'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
-							)}
-							viewBox="0 0 20 20"
-							aria-hidden="true"
-						>
-							<path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
-						</svg>
-						Filter
-					</Disclosure.Button>
-					<Disclosure.Panel className="relative px-4 py-2 w-48">
+		<div className="relative px-4 py-2 w-48">
 						{/* Filter incomplete nuclei toggle */}
 						<div className="mb-4">
 							<label className="flex items-center space-x-2 cursor-pointer">
@@ -315,10 +295,7 @@ const Filter = (props: {
 						>
 							Reset
 						</button>
-					</Disclosure.Panel>
-				</>
-			)}
-		</Disclosure>
+		</div>
 	);
 };
 

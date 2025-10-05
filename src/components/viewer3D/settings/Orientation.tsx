@@ -1,6 +1,5 @@
 /* eslint-disable max-len */
 import { useEffect, useState } from 'react'
-import { Disclosure } from '@headlessui/react'
 import {
 	Camera,
 	Scene,
@@ -12,10 +11,6 @@ import {
 	Line,
 	Mesh,
 } from 'three'
-
-function classNames(...classes) {
-	return classes.filter(Boolean).join(' ')
-}
 
 const Orientation = (props: {
 	content: Group
@@ -185,61 +180,38 @@ const Orientation = (props: {
 	])
 
 	return (
-		<Disclosure className="shadow-sm" as="div">
-			{({ open }) => (
-				<>
-					<Disclosure.Button
-						className={classNames(
-							'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
-						)}
-					>
-						<svg
-							className={classNames(
-								open ? 'text-gray-400 rotate-90' : 'text-gray-300',
-								'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
-							)}
-							viewBox="0 0 20 20"
-							aria-hidden="true"
-						>
-							<path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
-						</svg>
-						Orientation
-					</Disclosure.Button>
-					<Disclosure.Panel className="relative px-4 py-2 w-48">
-						{showOrientationInfo && (
-							<div className="text-xs text-gray-500 mb-2">
-								Add axes/orientation info in properties to see orientation.
-							</div>
-						)}
-						<div className="ml-2 mt-2 flex justify-between items-center">
-							show axes
-							<button
-								type="button"
-								className="ml-4 flex-shrink-0 group relative rounded-full inline-flex items-center justify-center h-5 w-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-								aria-pressed="false"
-								onClick={() => setOrientationsActive((a) => !a)}
-							>
-								<span className="sr-only">Toggle axes visibility</span>
-								<span
-									aria-hidden="true"
-									className="pointer-events-none absolute bg-white w-full h-full rounded-md"
-								/>
-								<span
-									aria-hidden="true"
-									className={`${orientationsActive ? 'bg-teal-600' : 'bg-gray-200'
-										} pointer-events-none absolute h-4 w-9 mx-auto rounded-full transition-colors ease-in-out duration-200`}
-								/>
-								<span
-									aria-hidden="true"
-									className={`${orientationsActive ? 'translate-x-5' : 'translate-x-0'
-										} pointer-events-none absolute left-0 inline-block h-5 w-5 border border-gray-200 rounded-full bg-white shadow transform ring-0 transition-transform ease-in-out duration-200`}
-								/>
-							</button>
-						</div>
-					</Disclosure.Panel>
-				</>
+		<div className="relative px-4 py-2 w-48">
+			{showOrientationInfo && (
+				<div className="text-xs text-gray-500 mb-2">
+					Add axes/orientation info in properties to see orientation.
+				</div>
 			)}
-		</Disclosure>
+			<div className="ml-2 mt-2 flex justify-between items-center">
+				show axes
+				<button
+					type="button"
+					className="ml-4 flex-shrink-0 group relative rounded-full inline-flex items-center justify-center h-5 w-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+					aria-pressed="false"
+					onClick={() => setOrientationsActive((a) => !a)}
+				>
+					<span className="sr-only">Toggle axes visibility</span>
+					<span
+						aria-hidden="true"
+						className="pointer-events-none absolute bg-white w-full h-full rounded-md"
+					/>
+					<span
+						aria-hidden="true"
+						className={`${orientationsActive ? 'bg-teal-600' : 'bg-gray-200'
+							} pointer-events-none absolute h-4 w-9 mx-auto rounded-full transition-colors ease-in-out duration-200`}
+					/>
+					<span
+						aria-hidden="true"
+						className={`${orientationsActive ? 'translate-x-5' : 'translate-x-0'
+							} pointer-events-none absolute left-0 inline-block h-5 w-5 border border-gray-200 rounded-full bg-white shadow transform ring-0 transition-transform ease-in-out duration-200`}
+					/>
+				</button>
+			</div>
+		</div>
 	)
 }
 

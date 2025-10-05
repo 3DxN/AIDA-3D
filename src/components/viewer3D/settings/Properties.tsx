@@ -1,5 +1,5 @@
 import { useState, useCallback, Fragment } from 'react';
-import { Disclosure, Menu, Transition } from '@headlessui/react';
+import { Menu, Transition } from '@headlessui/react';
 import NumberField from '../../interaction/NumberField';
 import PropertyModal from './PropertyModal';
 import { Mesh } from 'three';
@@ -7,10 +7,6 @@ import { ChevronDownIcon } from '@heroicons/react/solid';
 
 
 const MAX_LABELS = 256;
-
-function classNames(...classes: any[]) {
-	return classes.filter(Boolean).join(' ');
-}
 
 const RecursivePropertyEditor = ({ value, dimensions, propertyName, updateLabelValue, getDisplayValue, path = [], readOnly, selectedLength }: { value: any, dimensions: number[], propertyName: string, updateLabelValue: Function, getDisplayValue: Function, path: number[], readOnly: boolean, selectedLength: number }) => {
 	if (!dimensions || dimensions.length === 0) {
@@ -254,27 +250,7 @@ const Properties = (props: {
 	};
 
 	return (
-		<Disclosure className="shadow-sm" as="div">
-			{({ open }) => (
-				<>
-					<Disclosure.Button
-						className={classNames(
-							'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
-						)}
-					>
-						<svg
-							className={classNames(
-								open ? 'text-gray-400 rotate-90' : 'text-gray-300',
-								'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
-							)}
-							viewBox="0 0 20 20"
-							aria-hidden="true"
-						>
-							<path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
-						</svg>
-						Properties
-					</Disclosure.Button>
-					<Disclosure.Panel className="relative px-4 py-2 w-48">
+		<div className="relative px-4 py-2 w-48">
 						<button
 							onClick={() => setIsModalOpen(true)}
 							className="w-full bg-pink-500 text-white py-1 px-2 rounded hover:bg-pink-600 text-sm"
@@ -370,19 +346,16 @@ const Properties = (props: {
 								))}
 							</div>
 						</div>
-					</Disclosure.Panel>
-					<PropertyModal
-						isOpen={isModalOpen}
-						onClose={() => setIsModalOpen(false)}
-						propertyTypes={globalPropertyTypes.current}
-						onAdd={addPropertyType}
-						onRemove={removePropertyType}
-						onToggleReadOnly={toggleReadOnly}
-						onUpdateDimensions={updatePropertyDimensions}
-					/>
-				</>
-			)}
-		</Disclosure>
+			<PropertyModal
+				isOpen={isModalOpen}
+				onClose={() => setIsModalOpen(false)}
+				propertyTypes={globalPropertyTypes.current}
+				onAdd={addPropertyType}
+				onRemove={removePropertyType}
+				onToggleReadOnly={toggleReadOnly}
+				onUpdateDimensions={updatePropertyDimensions}
+			/>
+		</div>
 	);
 };
 
