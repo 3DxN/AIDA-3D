@@ -249,103 +249,26 @@ const Properties = (props: {
 		return 0; // Return 0 instead of NaN when no single nucleus is selected
 	};
 
+	const getSelectedNucleusIndex = () => {
+		if (selected.length === 1) {
+			return Number(selected[0].name.split('_')[1]);
+		}
+		return null;
+	};
+
+	const selectedNucleusIndex = getSelectedNucleusIndex();
+
 	return (
-		<div className="relative px-4 py-2 w-48">
-						<button
-							onClick={() => setIsModalOpen(true)}
-							className="w-full bg-pink-500 text-white py-1 px-2 rounded hover:bg-pink-600 text-sm"
-						>
-							Manage Property Types
-						</button>
-						{propertyError && (
-							<div className="mt-2 text-sm text-red-600">{propertyError}</div>
-						)}
-						<div className="mt-4">
-							{selected.length === 0 ? (
-								<div className="text-sm text-gray-500 mb-2">
-									Select a nucleus to edit properties.
-								</div>
-							) : selected.length > 1 ? (
-								<div className="text-sm text-gray-500 mb-2">
-									Select exactly one nucleus to edit properties. ({selected.length} selected)
-								</div>
-							) : (
-								<div className="text-sm font-medium text-gray-700 mb-2">
-									Nucleus Properties:
-								</div>
-							)}
-							<div className="space-y-2">
-								{globalPropertyTypes.current.map((propertyType) => (
-									<div key={propertyType.id}>
-										{propertyType.dimensions ? (
-											<Menu as="div" className="relative text-left">
-												{({ open }) => (
-													<>
-														<div className="flex items-center justify-between">
-															<span className="text-sm truncate mr-2">
-																{propertyType.name}
-																{propertyType.readOnly && (
-																	<span className="ml-1 text-xs text-gray-400">(read-only)</span>
-																)}
-															</span>
-															<Menu.Button
-																className="inline-flex justify-center w-20 rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-																disabled={selected.length === 0}
-															>
-																View
-																<ChevronDownIcon
-																	className={`${!open ? 'rotate-180' : ''} -mr-1 ml-2 h-5 w-5 transform transition-transform duration-200`}
-																	aria-hidden="true"
-																/>
-															</Menu.Button>
-														</div>
-														<Transition
-															as={Fragment}
-															enter="transition ease-out duration-100"
-															enterFrom="transform opacity-0 scale-95"
-															enterTo="transform opacity-100 scale-100"
-															leave="transition ease-in duration-75"
-															leaveFrom="transform opacity-100 scale-100"
-															leaveTo="transform opacity-0 scale-95"
-														>
-															<Menu.Items static className="mt-2 w-full rounded-md shadow-lg bg-gray-50 ring-1 ring-black ring-opacity-5 focus:outline-none max-h-48 overflow-y-auto">
-																<div className="p-2">
-																	<RecursivePropertyEditor
-																		value={getDisplayValue(propertyType.name)}
-																		dimensions={propertyType.dimensions}
-																		propertyName={propertyType.name}
-																		updateLabelValue={updateLabelValue}
-																		getDisplayValue={getDisplayValue}
-																		readOnly={propertyType.readOnly}
-																		selectedLength={selected.length}
-																	/>
-																</div>
-															</Menu.Items>
-														</Transition>
-													</>
-												)}
-											</Menu>
-										) : (
-											<div className="flex items-center justify-between">
-												<span className="text-sm truncate mr-2">
-													{propertyType.name}
-													{propertyType.readOnly && (
-														<span className="ml-1 text-xs text-gray-400">(read-only)</span>
-													)}
-												</span>
-												<div className="w-20">
-													<NumberField
-														value={getDisplayValue(propertyType.name)}
-														onChange={(value) => updateLabelValue(propertyType.name, value)}
-														disabled={selected.length !== 1 || propertyType.readOnly}
-													/>
-												</div>
-											</div>
-										)}
-									</div>
-								))}
-							</div>
-						</div>
+		<>
+			<button
+				onClick={() => setIsModalOpen(true)}
+				className="w-full bg-pink-500 text-white py-1 px-2 rounded hover:bg-pink-600 text-sm"
+			>
+				Manage Property Types
+			</button>
+			{propertyError && (
+				<div className="mt-2 text-sm text-red-600">{propertyError}</div>
+			)}
 			<PropertyModal
 				isOpen={isModalOpen}
 				onClose={() => setIsModalOpen(false)}
@@ -355,7 +278,7 @@ const Properties = (props: {
 				onToggleReadOnly={toggleReadOnly}
 				onUpdateDimensions={updatePropertyDimensions}
 			/>
-		</div>
+		</>
 	);
 };
 

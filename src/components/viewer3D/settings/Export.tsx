@@ -176,38 +176,28 @@ const Export = (props: {
 	};
 
 	return (
-		<div className="relative px-4 py-2 w-48">
-			<div className="flex flex-col space-y-2">
-				<button
-					onClick={handleImportClick}
-					type="button"
-					className="inline-flex items-center justify-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-				>
-					Import properties.json
-					<UploadIcon
-						className="ml-2 -mr-0.5 h-4 w-4"
-						aria-hidden="true"
-					/>
-				</button>
-				<input
-					type="file"
-					ref={fileInputRef}
-					onChange={handleFileChange}
-					className="hidden"
-					accept=".json"
-				/>
-				<button
-					onClick={exportData}
-					type="button"
-					className="inline-flex items-center justify-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-				>
-					Export properties.json
-					<SaveIcon
-						className="ml-2 -mr-0.5 h-4 w-4"
-						aria-hidden="true"
-					/>
-				</button>
-			</div>
+		<div className="relative flex flex-col gap-2">
+			<button
+				onClick={handleImportClick}
+				type="button"
+				className="w-full bg-blue-600 text-white py-1 px-2 rounded hover:bg-blue-700 text-sm"
+			>
+				Import Properties
+			</button>
+			<input
+				type="file"
+				ref={fileInputRef}
+				onChange={handleFileChange}
+				className="hidden"
+				accept=".json"
+			/>
+			<button
+				onClick={exportData}
+				type="button"
+				className="w-full bg-teal-600 text-white py-1 px-2 rounded hover:bg-teal-700 text-sm"
+			>
+				Export Properties
+			</button>
 		</div>
 	);
 };
