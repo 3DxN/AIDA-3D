@@ -133,6 +133,8 @@ export default function useVivViewer(
     }, [navigationState.channelMap, msInfo.shape.c])
 
     // Overview configuration
+    // COMMENTED OUT: Mini-map preview of current z-layer - removed per user request
+    // Can be re-enabled by uncommenting this configuration and the OverviewView creation below
     const overview = useMemo(() => ({
         height: Math.min(120, Math.floor(containerDimensions.height * 0.2)),
         width: Math.min(120, Math.floor(containerDimensions.width * 0.2)),
@@ -152,12 +154,14 @@ export default function useVivViewer(
             width: containerDimensions.width
         })
 
-        const overviewView = new OverviewView({
-            id: OVERVIEW_VIEW_ID,
-            loader: vivLoaders,
-            detailHeight: containerDimensions.height,
-            detailWidth: containerDimensions.width
-        })
+        // COMMENTED OUT: Overview mini-map that shows full z-layer preview
+        // To re-enable the mini-map preview, uncomment the lines below and add overviewView back to the return array
+        // const overviewView = new OverviewView({
+        //     id: OVERVIEW_VIEW_ID,
+        //     loader: vivLoaders,
+        //     detailHeight: containerDimensions.height,
+        //     detailWidth: containerDimensions.width
+        // })
 
         const frameView = new FrameView({
             id: FRAME_VIEW_ID,
@@ -167,7 +171,8 @@ export default function useVivViewer(
             width: containerDimensions.width
         })
 
-        return [detailView, frameView, overviewView]
+        // Removed overviewView from array - was providing the mini-map preview panel
+        return [detailView, frameView]
     }, [vivLoaders, containerDimensions])
 
     // Generate view states
@@ -176,14 +181,16 @@ export default function useVivViewer(
             return []
         }
 
-        const overviewState = getDefaultInitialViewState(vivLoaders, overview, 0.5) as VivViewState
+        // COMMENTED OUT: Overview state for mini-map preview
+        // const overviewState = getDefaultInitialViewState(vivLoaders, overview, 0.5) as VivViewState
         const detailState = controlledDetailViewState
             || getDefaultInitialViewState(vivLoaders, containerDimensions, 0) as VivViewState
 
+        // Removed overviewState from array - no longer showing mini-map preview
         return [
             { ...detailState, id: DETAIL_VIEW_ID },
             { ...detailState, id: FRAME_VIEW_ID }, // Frame follows detail view state
-            { ...overviewState, id: OVERVIEW_VIEW_ID }
+            // { ...overviewState, id: OVERVIEW_VIEW_ID } // COMMENTED OUT: mini-map preview view state
         ]
     }, [vivLoaders, views, overview, containerDimensions, controlledDetailViewState])
 
