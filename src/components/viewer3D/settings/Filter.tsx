@@ -49,7 +49,7 @@ const Filter = (props: {
 
 	const onValuesUpdate = useCallback(
 		(rangeValues) => {
-			if (content && featureData && featureMap && globalProperties.current) {
+			if (content && featureData && featureMap && globalProperties.current && renderer && scene && camera) {
 				const propertyName = featureMap.value;
 				const propertyValues = globalProperties.current.reduce((acc, curr) => {
 					acc[curr.nucleus_index] = curr[propertyName];
@@ -77,7 +77,7 @@ const Filter = (props: {
 
 	// Show only selected meshes
 	const onSelectedShow = useCallback(() => {
-		if (content) {
+		if (content && renderer && scene && camera) {
 			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as Mesh;
@@ -98,7 +98,7 @@ const Filter = (props: {
 
 	// Hide selected meshes
 	const onSelectedHide = useCallback(() => {
-		if (content) {
+		if (content && renderer && scene && camera) {
 			selected.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as Mesh;
@@ -112,7 +112,7 @@ const Filter = (props: {
 
 	// Reset all meshes to visible
 	const onReset = useCallback(() => {
-		if (content) {
+		if (content && renderer && scene && camera) {
 			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as Mesh;

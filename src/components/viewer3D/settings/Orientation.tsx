@@ -41,16 +41,16 @@ const Orientation = (props: {
 
 	// Toggle nucleus visibility and update axes visibility based on nucleus visibility
 	useEffect(() => {
-		if (content) {
+		if (content && scene && renderer && camera) {
 			// Lines are now direct children of the scene
 			scene.traverse((object) => {
 				if (object.name.includes('orientation')) {
 					// Check if this axis belongs to a visible nucleus
 					const nucleusIndex = object.name.split('-')[0]
-					const nucleus = content.children.find(child => 
+					const nucleus = content.children.find(child =>
 						child.name === `nucleus_${nucleusIndex}`
 					) as Mesh
-					
+
 					// Axis is visible only if orientationsActive is true AND the nucleus is visible
 					object.visible = orientationsActive && nucleus && nucleus.visible
 				}
@@ -72,7 +72,7 @@ const Orientation = (props: {
 
 	// Draw orientations
 	useEffect(() => {
-		if (featureData && content && featureData.labels) {
+		if (featureData && content && featureData.labels && scene && renderer && camera) {
 			// Remove previous orientation lines from the SCENE
 			const toRemove: THREE.Object3D[] = []
 			scene.traverse((object) => {

@@ -37,6 +37,8 @@ export default function Clipping(props: {
 	})
 
 	const renderClippingPlanes = useCallback(() => {
+		if (!renderer || !scene || !camera) return;
+
 		const planes: Plane[] = []
 		activeClippingPlanes.forEach((p) =>
 			planes.push(...clippingPlanes.current[p])
