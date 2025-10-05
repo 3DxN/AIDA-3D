@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
-import NavigationControls from './nav/navigator'
+import ZarrViewerMenuBar from './menubar'
 import VivViewerWrapper from './map/VivViewerWrapper'
 import { getDefaultMaxContrastLimit, getInitialNavigationState } from '../../../lib/utils/getDefaultNavStates'
 import { useZarrStore } from '../../../lib/contexts/ZarrStoreContext'
@@ -12,7 +12,6 @@ import { useViewer2DData } from '../../../lib/contexts/Viewer2DDataContext'
 export default function ZarrViewer() {
   const { hasLoadedArray, msInfo } = useZarrStore()
   const { navigationState, setNavigationState } = useViewer2DData()
-  const [isControlsOpen, setIsControlsOpen] = useState(false)
 
   /**
    * When the store is loaded from ZarrStoreContext, we now initialise the viewer with defaults
@@ -37,14 +36,13 @@ export default function ZarrViewer() {
   }, [hasLoadedArray, msInfo, navigationState, setNavigationState])
 
   return (
-    <div className="h-full min-h-[500px] flex relative">
+    <div className="h-full w-full flex flex-col">
       {hasLoadedArray && msInfo && navigationState ? (
         <>
-          <div className={`flex-1 transition-all duration-300 ${isControlsOpen ? 'mr-48' : ''}`}>
+          <ZarrViewerMenuBar />
+          <div className="flex-1 min-h-0">
             <VivViewerWrapper />
           </div>
-
-          <NavigationControls onToggle={setIsControlsOpen} />
         </>
       ) : (
         <div className="p-5 text-center text-gray-500 italic">

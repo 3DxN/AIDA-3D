@@ -6,6 +6,7 @@ import ZarrViewer from '../components/viewer2D/zarr'
 import Viewer3D from '../components/viewer3D'
 import StoreLoader from '../components/loader' // Make sure this is imported
 import { useZarrStore } from '../lib/contexts/ZarrStoreContext'
+import { useResponsiveLayout } from '../lib/hooks/useResponsiveLayout'
 
 // Types
 import { Annotation } from '../types/annotation'
@@ -43,6 +44,7 @@ export default function ZarrWorkspace() {
 	const router = useRouter()
 	const { query } = router
 	const { source, loadStore, hasLoadedArray, msInfo, isLoading } = useZarrStore()
+	const { isVertical } = useResponsiveLayout()
 
 	const [tile, setTile] = useState<[number, number]>([0, 0])
 	const [select3D, setSelect3D] = useState(false)
@@ -71,8 +73,8 @@ export default function ZarrWorkspace() {
 			<Head>
 				<title>Zarr Viewer - AIDA 3D</title>
 			</Head>
-			<div className="min-w-full h-screen flex bg-gray-100">
-				<div className="w-1/2 relative border-r border-gray-200">
+			<div className={`min-w-full h-screen flex bg-gray-100 ${isVertical ? 'flex-col' : 'flex-row'}`}>
+				<div className={`relative ${isVertical ? 'h-1/2 border-b' : 'w-1/2 border-r'} border-gray-200 flex-shrink-0`}>
 					{showLoader ? (
 						<StoreLoader onClose={() => setShowLoader(false)} />
 					) : hasLoadedArray && msInfo ? (
@@ -93,7 +95,7 @@ export default function ZarrWorkspace() {
 						</div>
 					)}
 				</div>
-				<div className="w-1/2 relative">
+				<div className="flex-1 relative min-h-0 min-w-0">
 					{hasLoadedArray && msInfo ? (
 						<Viewer3D
 							tile={tile}
@@ -103,7 +105,6 @@ export default function ZarrWorkspace() {
 							polygonCoords={polygonCoords}
 						/>
 					) : (
-						// Optional: You can add a placeholder for the 3D viewer as well
 						<div className="flex items-center justify-center h-full text-gray-400">
 							3D Viewer
 						</div>

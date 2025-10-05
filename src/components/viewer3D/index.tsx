@@ -14,7 +14,7 @@ import { useNucleusSelection } from '../../lib/contexts/NucleusSelectionContext'
 import { useNucleusColor } from '../../lib/contexts/NucleusColorContext';
 import { useZarrStore } from '../../lib/contexts/ZarrStoreContext';
 
-import Settings from './settings';
+import Viewer3DMenuBar from './menubar';
 import Toolbar from './toolbar';
 import { padToTwo, resizeRendererToDisplaySize } from './utils';
 
@@ -561,8 +561,26 @@ const Viewer3D = (props: {
 	}, [featureData, content, renderer, scene, camera, updateNucleusColors, globalPropertyTypes]);
 
 	return (
-		<div className="min-w-full h-screen flex border-l border-l-teal-500">
-			<div className="flex-grow flex items-center justify-center bg-gray-100 relative">
+		<div className="w-full h-full flex flex-col border-l border-l-teal-500">
+			{/* Menu Bar */}
+			{content && (
+				<Viewer3DMenuBar
+					renderer={renderer}
+					scene={scene}
+					camera={camera}
+					content={content}
+					featureData={featureData}
+					selected={selectedMeshesState}
+					setFeatureData={setFeatureData}
+					globalProperties={globalProperties}
+					globalPropertyTypes={globalPropertyTypes}
+					filterIncompleteNuclei={filterIncompleteNuclei}
+					setFilterIncompleteNuclei={setFilterIncompleteNuclei}
+				/>
+			)}
+
+			{/* 3D Canvas */}
+			<div className="flex-1 min-h-0 flex items-center justify-center bg-gray-100 relative">
 				{!tile && !content && (
 					<div className="absolute text-gray-500">
 						Generating 3D model from voxel data...
@@ -572,30 +590,17 @@ const Viewer3D = (props: {
 					<div className="absolute">{/* SVG Loading Spinner */}</div>
 				)}
 				<canvas className="w-full h-full" ref={viewerRef} tabIndex={-1} />
-			</div>
 
-			{content && (
-				<Toolbar
-					camera={camera}
-					scene={scene}
-					renderer={renderer}
-					content={content}
-					setSelect3D={setSelect3D}
-				/>
-			)}
-			<Settings
-				renderer={renderer}
-				scene={scene}
-				camera={camera}
-				content={content}
-				featureData={featureData}
-				selected={selectedMeshesState}
-				setFeatureData={setFeatureData}
-				globalProperties={globalProperties}
-				globalPropertyTypes={globalPropertyTypes}
-				filterIncompleteNuclei={filterIncompleteNuclei}
-				setFilterIncompleteNuclei={setFilterIncompleteNuclei}
-			/>
+				{content && (
+					<Toolbar
+						camera={camera}
+						scene={scene}
+						renderer={renderer}
+						content={content}
+						setSelect3D={setSelect3D}
+					/>
+				)}
+			</div>
 		</div>
 	);
 };

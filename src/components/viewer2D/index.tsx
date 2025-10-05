@@ -18,9 +18,8 @@ import { parseDzi } from '../../lib/utils/parseDzi'
 import parseFeature from '../../lib/utils/parseFeature'
 import { useZarrStore } from '../../lib/contexts/ZarrStoreContext'
 
-import Toolbar from './toolbar'
+import Viewer2DMenuBar from './menubar'
 import MapView from './MapView'
-import Settings from './settings'
 import ZarrViewer from './zarr'
 
 // Types
@@ -344,10 +343,10 @@ const Viewer = (props: {
 	}, [imageUrls, annotationData.classes, annotationData.layers])
 
 	return (
-		<div className="min-w-full min-h-screen flex bg-gray-100">
-			{/* Toolbar */}
+		<div className="w-full h-full flex flex-col bg-gray-100">
+			{/* Menu Bar */}
 			{map && (
-				<Toolbar
+				<Viewer2DMenuBar
 					map={map}
 					setTile={setTile}
 					setPolygonCoords={setPolygonCoords}
@@ -356,10 +355,9 @@ const Viewer = (props: {
 			)}
 
 			{/* Image view */}
-			{map && <MapView map={map} />}
-
-			{/* Right settings sidebar */}
-			{map && <Settings map={map} />}
+			<div className="flex-1 min-h-0">
+				{map && <MapView map={map} />}
+			</div>
 		</div>
 	)
 }
