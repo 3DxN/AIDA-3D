@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 
 import ZarrViewerMenuBar from './menubar'
 import VivViewerWrapper from './map/VivViewerWrapper'
+import BottomNavPanel from './BottomNavPanel'
 import { getDefaultMaxContrastLimit, getInitialNavigationState } from '../../../lib/utils/getDefaultNavStates'
 import { useZarrStore } from '../../../lib/contexts/ZarrStoreContext'
 import { useViewer2DData } from '../../../lib/contexts/Viewer2DDataContext'
@@ -43,6 +44,7 @@ export default function ZarrViewer() {
           <div className="flex-1 min-h-0">
             <VivViewerWrapper />
           </div>
+          <BottomNavPanel />
         </>
       ) : (
         <div className="p-5 text-center text-gray-500 italic">
