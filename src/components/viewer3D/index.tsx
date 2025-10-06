@@ -230,6 +230,19 @@ const Viewer3D = (props: {
 		}
 	}, []);
 
+	// Recalculate aspect ratio after renderer is set (once BottomPanel has rendered)
+	useEffect(() => {
+		if (renderer && camera) {
+			// Use requestAnimationFrame to ensure layout has stabilized
+			requestAnimationFrame(() => {
+				resizeRendererToDisplaySize(renderer, camera);
+				if (scene) {
+					renderer.render(scene, camera);
+				}
+			});
+		}
+	}, [renderer, camera, scene]);
+
 	// Generate and render mesh from voxel data
 	useEffect(() => {
 		if (scene && camera && renderer && frameBoundCellposeData) {
@@ -602,7 +615,7 @@ const Viewer3D = (props: {
 			</div>
 
 			{/* Bottom Panel */}
-			{content && renderer && (
+			{renderer && (
 				<BottomPanel
 					renderer={renderer}
 					content={content}

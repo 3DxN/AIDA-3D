@@ -18,7 +18,7 @@ const getDimensions = (arr: any): number[] => {
 
 const Export = (props: {
 	renderer: WebGLRenderer;
-	content: Group;
+	content: Group | null;
 	globalProperties: React.MutableRefObject<
 		{ nucleus_index: number;[key: string]: any }[]
 	>;
