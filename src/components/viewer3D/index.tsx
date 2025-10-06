@@ -223,9 +223,9 @@ const Viewer3D = (props: {
 			newCamera.aspect = canvas.clientWidth / canvas.clientHeight;
 			newCamera.updateProjectionMatrix();
 
-			resizeRendererToDisplaySize(newRenderer);
+			resizeRendererToDisplaySize(newRenderer, newCamera);
 			window.addEventListener('resize', () =>
-				resizeRendererToDisplaySize(newRenderer)
+				resizeRendererToDisplaySize(newRenderer, newCamera)
 			);
 		}
 	}, []);
