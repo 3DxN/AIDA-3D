@@ -37,14 +37,16 @@ export default function ZarrViewer() {
   }, [hasLoadedArray, msInfo, navigationState, setNavigationState])
 
   return (
-    <div className="h-full w-full flex flex-col">
+    <div className="h-full w-full flex flex-col overflow-hidden">
       {hasLoadedArray && msInfo && navigationState ? (
         <>
           <ZarrViewerMenuBar />
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <VivViewerWrapper />
           </div>
-          <BottomNavPanel />
+          <div className="flex-shrink-0">
+            <BottomNavPanel />
+          </div>
         </>
       ) : (
         <div className="p-5 text-center text-gray-500 italic">

@@ -43,8 +43,8 @@ export default function BottomNavPanel() {
   const bounds = getFrameBounds()
 
   return (
-    <div className="bg-white border-t border-gray-200 p-3">
-      <div className="grid grid-cols-2 gap-4 max-w-7xl mx-auto">
+    <div className="bg-white border-t border-gray-200 p-3 overflow-y-auto max-h-64">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-7xl mx-auto">
         {/* Frame Controls */}
         <div className="space-y-3">
           <div className="text-sm font-semibold text-gray-700 mb-2">Frame</div>

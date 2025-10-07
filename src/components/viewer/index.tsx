@@ -21,7 +21,7 @@ const Viewer = (props: {
 
 	return (
 		<div className={`min-w-full h-screen flex bg-gray-100 ${isVertical ? 'flex-col' : 'flex-row'}`}>
-			<div className={`relative ${isVertical ? 'h-1/2 border-b' : 'w-1/2 border-r'} border-gray-200 flex-shrink-0`}>
+			<div className={`${isVertical ? 'flex-1 border-b min-h-0' : 'w-1/2 border-r'} border-gray-200 flex-shrink-0 flex flex-col overflow-hidden`}>
 				<Viewer2D
 					imageUrls={imageUrls}
 					annotationData={annotationData}
