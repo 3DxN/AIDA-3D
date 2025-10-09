@@ -48,6 +48,9 @@ export interface Viewer2DDataContextType {
   frameBoundCellposeData: zarrita.Chunk<zarrita.DataType> | null
   isDataLoading: boolean
   dataError: string | null
+
+  // Cellpose resolution and scaling
+  cellposeScale: number[] // [z_scale, y_scale, x_scale] for current resolution
 }
 
 export interface Viewer2DDataProviderProps {

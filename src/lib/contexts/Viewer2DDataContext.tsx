@@ -228,6 +228,9 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     loadFrameBoundCellposeData()
   }, [cellposeArray, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, currentZSlice, currentTimeSlice, getFrameBoundData])
   
+  // Get current cellpose scale
+  const cellposeScale = cellposeScales[selectedCellposeResolution] || [1.0, 1.0, 1.0]
+
   const contextValue: Viewer2DDataContextType = {
     // Frame state
     frameCenter,
@@ -239,7 +242,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     setFrameZLayersAbove,
     setFrameZLayersBelow,
     getFrameBounds,
-    
+
     // View state
     currentViewBounds,
     currentZSlice,
@@ -251,7 +254,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     // Navigation state
     navigationState,
     setNavigationState,
-    
+
     // Viv viewer state
     vivViewState,
     setVivViewState,
@@ -259,11 +262,14 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     // Viewer size
     viewerSize,
     setViewerSize,
-    
+
     // Data access
     frameBoundCellposeData,
     isDataLoading: isDataLoading || isCellposeLoading,
-    dataError: dataError || cellposeError
+    dataError: dataError || cellposeError,
+
+    // Cellpose resolution and scaling
+    cellposeScale
   }
   
   return (

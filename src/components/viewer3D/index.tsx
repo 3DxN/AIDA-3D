@@ -66,7 +66,7 @@ const Viewer3D = (props: {
 
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
-	const { frameBoundCellposeData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow } = useViewer2DData();
+	const { frameBoundCellposeData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow, cellposeScale } = useViewer2DData();
 	const { setPropertiesCallback } = useZarrStore();
 
 	// Function to handle automatic properties loading from Cellpose zarr.json
@@ -259,7 +259,15 @@ const Viewer3D = (props: {
 			// Calculate the relative z position within the frameBoundCellposeData
 			// The current slice should be at frameZLayersBelow index within the slice
 			const relativeCurrentZSlice = frameZLayersBelow;
-			const meshDataArray = generateMeshesFromVoxelData(frameBoundCellposeData, relativeCurrentZSlice, filterIncompleteNuclei);
+
+			// Pass scale factors to ensure proper proportions at different resolutions
+			console.log('🔧 Generating meshes with voxel scale:', cellposeScale);
+			const meshDataArray = generateMeshesFromVoxelData(
+				frameBoundCellposeData,
+				relativeCurrentZSlice,
+				filterIncompleteNuclei,
+				cellposeScale
+			);
 			const newContentGroup = new THREE.Group();
 
 			meshDataArray.forEach(({ label, vertices, indices }) => {
