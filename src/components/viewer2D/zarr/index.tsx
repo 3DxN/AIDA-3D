@@ -37,7 +37,7 @@ export default function ZarrViewer() {
   }, [hasLoadedArray, msInfo, navigationState, setNavigationState])
 
   return (
-    <div className="h-full min-h-[500px] flex relative">
+    <div className="w-full h-full flex relative overflow-hidden">
       {hasLoadedArray && msInfo && navigationState ? (
         <>
           <div className={`flex-1 transition-all duration-300 ${isControlsOpen ? 'mr-48' : ''}`}>

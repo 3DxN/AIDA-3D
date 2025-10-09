@@ -561,8 +561,8 @@ const Viewer3D = (props: {
 	}, [featureData, content, renderer, scene, camera, updateNucleusColors, globalPropertyTypes]);
 
 	return (
-		<div className="min-w-full h-screen flex border-l border-l-teal-500">
-			<div className="flex-grow flex items-center justify-center bg-gray-100 relative">
+		<div className="w-full h-full flex border-l border-l-teal-500 overflow-hidden">
+			<div className="flex-grow flex items-center justify-center bg-gray-100 relative overflow-hidden">
 				{!tile && !content && (
 					<div className="absolute text-gray-500">
 						Generating 3D model from voxel data...

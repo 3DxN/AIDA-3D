@@ -18,8 +18,8 @@ const Viewer = (props: {
 	const [polygonCoords, setPolygonCoords] = useState(null)
 
 	return (
-		<div className="min-w-full h-screen flex bg-gray-100">
-			<div className="w-1/2 relative">
+		<div className="min-w-full h-screen flex flex-col portrait:flex-col landscape:flex-row bg-gray-100">
+			<div className="w-full portrait:w-full landscape:w-1/2 portrait:h-1/2 landscape:h-full relative overflow-hidden">
 				<Viewer2D
 					imageUrls={imageUrls}
 					annotationData={annotationData}
@@ -28,7 +28,7 @@ const Viewer = (props: {
 					setPolygonCoords={setPolygonCoords}
 				/>
 			</div>
-			<div className="w-1/2 relative">
+			<div className="w-full portrait:w-full landscape:w-1/2 portrait:h-1/2 landscape:h-full relative overflow-hidden">
 				<Viewer3D
 					tile={tile}
 					tilesUrl={tilesUrl}
