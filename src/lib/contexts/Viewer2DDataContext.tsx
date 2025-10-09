@@ -27,11 +27,13 @@ export function useViewer2DData(): Viewer2DDataContextType {
 }
 
 export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
-  const { 
-    msInfo, 
-    cellposeArray, 
-    isCellposeLoading, 
-    cellposeError 
+  const {
+    msInfo,
+    cellposeArray,
+    cellposeScales,
+    selectedCellposeResolution,
+    isCellposeLoading,
+    cellposeError
   } = useZarrStore()
   
   // Frame state (replacing FrameStateContext)
@@ -137,19 +139,36 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     if (!navigationState) {
       return null
     }
-    
+
     try {
-      // Calculate frame bounds
+      // Calculate frame bounds (these are in resolution 0 coordinates)
       const bounds = getFrameBounds()
-      
+
+      // Get the scale factor for the current resolution
+      // cellposeScales[i] = [z_scale, y_scale, x_scale]
+      const scale = cellposeScales[selectedCellposeResolution] || [1.0, 1.0, 1.0]
+      const xScale = scale[2] // x is the last dimension
+      const yScale = scale[1] // y is the second-to-last dimension
+
+      console.log(`   Scale factors for resolution ${selectedCellposeResolution}: Y=${yScale}, X=${xScale}`)
+
+      // Scale the bounds to the current resolution
+      // If scale is 2.0, we divide by 2 to get lower resolution coordinates
+      const scaledLeft = bounds.left / xScale
+      const scaledRight = bounds.right / xScale
+      const scaledTop = bounds.top / yScale
+      const scaledBottom = bounds.bottom / yScale
+
       // Add spatial bounds (ensure they're within array bounds)
       const maxX = array.shape[array.shape.length - 1]
       const maxY = array.shape[array.shape.length - 2]
-      
-      const x1 = Math.max(0, Math.floor(bounds.left))
-      const x2 = Math.min(maxX, Math.ceil(bounds.right))
-      const y1 = Math.max(0, Math.floor(bounds.top))
-      const y2 = Math.min(maxY, Math.ceil(bounds.bottom))
+
+      const x1 = Math.max(0, Math.floor(scaledLeft))
+      const x2 = Math.min(maxX, Math.ceil(scaledRight))
+      const y1 = Math.max(0, Math.floor(scaledTop))
+      const y2 = Math.min(maxY, Math.ceil(scaledBottom))
+
+      console.log(`   Scaled bounds: [${y1}:${y2}, ${x1}:${x2}] (array max: ${maxY} × ${maxX})`)
       
       // Create array-based selection based on array dimensions
       const selection: (number | zarrita.Slice | null)[] = []
@@ -176,7 +195,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
       console.error(`❌ Error getting frame-bound main data:`, errorMsg)
       throw error
     }
-  }, [navigationState, getFrameBounds, currentZSlice, currentTimeSlice, frameZLayersAbove, frameZLayersBelow, msInfo])
+  }, [navigationState, getFrameBounds, currentZSlice, currentTimeSlice, frameZLayersAbove, frameZLayersBelow, msInfo, cellposeScales, selectedCellposeResolution])
   
   // Auto-update frame-bound Cellpose data when dependencies change
   useEffect(() => {
@@ -185,13 +204,16 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
         setFrameBoundCellposeData(null)
         return
       }
-      
+
+      console.log(`🔄 Loading frame-bound Cellpose data, array shape: ${cellposeArray.shape.join(' × ')}`)
+
       setIsDataLoading(true)
       setDataError(null)
-      
+
       try {
         // Use shared helper function
         const result = await getFrameBoundData(cellposeArray)
+        console.log(`✅ Frame-bound Cellpose data loaded, chunk shape: ${result?.shape.join(' × ') || 'null'}`)
         setFrameBoundCellposeData(result)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error'
@@ -202,7 +224,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
         setIsDataLoading(false)
       }
     }
-    
+
     loadFrameBoundCellposeData()
   }, [cellposeArray, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, currentZSlice, currentTimeSlice, getFrameBoundData])
   

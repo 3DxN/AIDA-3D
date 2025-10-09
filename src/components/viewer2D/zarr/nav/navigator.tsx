@@ -9,6 +9,7 @@ import UnifiedSlider from '../../../interaction/UnifiedSlider'
 import Switch from '../../../interaction/Switch'
 import ChannelSelector from './ChannelSelector'
 import ContrastLimitsSelector from './ContrastLimitsSelector'
+import CellposeResolutionSelector from './CellposeResolutionSelector'
 
 export default function NavigationControls({ onToggle }: { onToggle?: (open: boolean) => void }) {
     // Get all data from contexts instead of props
@@ -95,7 +96,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                     </button>
 
                     {/* Navigation Content */}
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1">
                         {/* Overlays */}
                         <div className="px-4 py-2 border-b border-gray-200">
                             <h3 className="text-sm font-medium text-gray-700 mb-3">Overlays</h3>
@@ -107,6 +108,9 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                 />
                             </div>
                         </div>
+
+                        {/* Cellpose Resolution Selector */}
+                        <CellposeResolutionSelector />
 
                         {/* Channel Selection */}
                         <div className="px-4 py-2 border-b border-gray-200">
@@ -131,60 +135,77 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                             />
                         </div>
 
-                        {/* Frame Selection */}
+                        {/* Frame Selection and Navigation - Side by Side */}
                         <div className="px-4 py-2 border-b border-gray-200">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3">Frame Selection</h3>
-
-                            {/* Frame Center Control */}
-                            <div className="space-y-3 mb-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* Frame Selection - Left Side */}
                                 <div>
-                                    <div className="text-xs font-medium text-gray-700 mb-2">Frame Center (X, Y)</div>
-                                    <div className="flex space-x-2">
-                                        <input
-                                            type="number"
-                                            value={Math.round(frameCenter[0])}
-                                            onChange={(e) => setFrameCenter([parseInt(e.target.value) || 0, frameCenter[1]])}
-                                            className="w-12 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                                            placeholder="X"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={Math.round(frameCenter[1])}
-                                            onChange={(e) => setFrameCenter([frameCenter[0], parseInt(e.target.value) || 0])}
-                                            className="w-12 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                                            placeholder="Y"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Frame Size Control */}
-                                <div>
-                                    <div className="text-xs font-medium text-gray-700 mb-2">Frame Size (W × H)</div>
-                                    <div className="flex space-x-2">
-                                        <input
-                                            type="number"
-                                            value={Math.round(frameSize[0])}
-                                            onChange={(e) => setFrameSize([parseInt(e.target.value) || 100, frameSize[1]])}
-                                            min="50"
-                                            className="w-12 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                                            placeholder="W"
-                                        />
-                                        <input
-                                            type="number"
-                                            value={Math.round(frameSize[1])}
-                                            onChange={(e) => setFrameSize([frameSize[0], parseInt(e.target.value) || 100])}
-                                            min="50"
-                                            className="w-12 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                                            placeholder="H"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Z Depth Controls */}
-                                {msInfo.shape.z && msInfo.shape.z > 1 && (
+                                    <h3 className="text-sm font-medium text-gray-700 mb-3">Frame</h3>
                                     <div className="space-y-3">
+                                        <div>
+                                            <div className="text-xs font-medium text-gray-700 mb-2">Center (X, Y)</div>
+                                            <div className="flex space-x-2">
+                                                <input
+                                                    type="number"
+                                                    value={Math.round(frameCenter[0])}
+                                                    onChange={(e) => setFrameCenter([parseInt(e.target.value) || 0, frameCenter[1]])}
+                                                    className="w-16 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                                    placeholder="X"
+                                                />
+                                                <input
+                                                    type="number"
+                                                    value={Math.round(frameCenter[1])}
+                                                    onChange={(e) => setFrameCenter([frameCenter[0], parseInt(e.target.value) || 0])}
+                                                    className="w-16 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                                    placeholder="Y"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Frame Size Control */}
+                                        <div>
+                                            <div className="text-xs font-medium text-gray-700 mb-2">Size (W × H)</div>
+                                            <div className="flex space-x-2">
+                                                <input
+                                                    type="number"
+                                                    value={Math.round(frameSize[0])}
+                                                    onChange={(e) => setFrameSize([parseInt(e.target.value) || 100, frameSize[1]])}
+                                                    min="50"
+                                                    className="w-16 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                                    placeholder="W"
+                                                />
+                                                <input
+                                                    type="number"
+                                                    value={Math.round(frameSize[1])}
+                                                    onChange={(e) => setFrameSize([frameSize[0], parseInt(e.target.value) || 100])}
+                                                    min="50"
+                                                    className="w-16 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                                    placeholder="H"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Navigation - Right Side */}
+                                <div>
+                                    <h3 className="text-sm font-medium text-gray-700 mb-3">Navigation</h3>
+                                    <div className="space-y-1">
                                         <UnifiedSlider
-                                            label="Z Layers Above"
+                                            label="Current Z layer"
+                                            value={tempZSlice ?? zSlice}
+                                            minValue={0}
+                                            maxValue={maxZSlice}
+                                            onChange={(value) => setTempZSlice(Array.isArray(value) ? value[0] : value)}
+                                            onChangeCommitted={(value) => {
+                                                navigationHandlers.onZSliceChange(Array.isArray(value) ? value[0] : value);
+                                                setTempZSlice(null);
+                                            }}
+                                            condition={Boolean(msInfo.shape.z && maxZSlice > 0)}
+                                        />
+
+                                        <UnifiedSlider
+                                            label="Layers Above"
                                             value={tempFrameZLayersAbove ?? frameZLayersAbove}
                                             minValue={0}
                                             maxValue={msInfo.shape.z - 1 - zSlice}
@@ -197,11 +218,13 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                                 const layers = Array.isArray(val) ? val[0] : val;
                                                 const maxZ = msInfo.shape.z || 1;
                                                 const actualEnd = Math.min(maxZ - 1, zSlice + layers);
-                                                return `${layers} layers (up to Z ${actualEnd})`;
+                                                return `${layers} (up to Z ${actualEnd})`;
                                             }}
+                                            condition={Boolean(msInfo.shape.z && msInfo.shape.z > 1)}
                                         />
+
                                         <UnifiedSlider
-                                            label="Z Layers Below"
+                                            label="Layers Below"
                                             value={tempFrameZLayersBelow ?? frameZLayersBelow}
                                             minValue={0}
                                             maxValue={zSlice}
@@ -213,58 +236,12 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                             valueDisplay={(val) => {
                                                 const layers = Array.isArray(val) ? val[0] : val;
                                                 const actualStart = Math.max(0, zSlice - layers);
-                                                return `${layers} layers (down to Z ${actualStart})`;
+                                                return `${layers} (down to Z ${actualStart})`;
                                             }}
+                                            condition={Boolean(msInfo.shape.z && msInfo.shape.z > 1)}
                                         />
                                     </div>
-                                )}
-
-                                {/* Frame Bounds Info */}
-                                {(() => {
-                                    const bounds = getFrameBounds()
-                                    return (
-                                        <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded-md border">
-                                            <div className="font-medium mb-2">Frame Bounds:</div>
-                                            <div className="space-y-1">
-                                                <div>Left: {bounds.left.toFixed(0)}, Right: {bounds.right.toFixed(0)}</div>
-                                                <div>Top: {bounds.top.toFixed(0)}, Bottom: {bounds.bottom.toFixed(0)}</div>
-                                                <div>Area: {(bounds.right - bounds.left).toFixed(0)} × {(bounds.bottom - bounds.top).toFixed(0)} px²</div>
-                                            </div>
-                                        </div>
-                                    )
-                                })()}
-                            </div>
-                        </div>
-
-                        {/* Navigation */}
-                        <div className="px-4 py-2">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3">Navigation</h3>
-                            <div className="space-y-3">
-                                <UnifiedSlider
-                                    label="Z Slice"
-                                    value={tempZSlice ?? zSlice}
-                                    minValue={0}
-                                    maxValue={maxZSlice}
-                                    onChange={(value) => setTempZSlice(Array.isArray(value) ? value[0] : value)}
-                                    onChangeCommitted={(value) => {
-                                        navigationHandlers.onZSliceChange(Array.isArray(value) ? value[0] : value);
-                                        setTempZSlice(null);
-                                    }}
-                                    condition={Boolean(msInfo.shape.z && maxZSlice > 0)}
-                                />
-
-                                <UnifiedSlider
-                                    label="Time"
-                                    value={tempTimeSlice ?? timeSlice}
-                                    minValue={0}
-                                    maxValue={maxTimeSlice}
-                                    onChange={(value) => setTempTimeSlice(Array.isArray(value) ? value[0] : value)}
-                                    onChangeCommitted={(value) => {
-                                        navigationHandlers.onTimeSliceChange(Array.isArray(value) ? value[0] : value);
-                                        setTempTimeSlice(null);
-                                    }}
-                                    condition={Boolean(msInfo.shape.t && maxTimeSlice > 0)}
-                                />
+                                </div>
                             </div>
                         </div>
                     </div>

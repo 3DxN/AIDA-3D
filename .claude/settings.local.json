@@ -6,7 +6,10 @@
       "Bash(npm run typecheck:*)",
       "Bash(npm run:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "WebFetch(domain:141.147.64.20)",
+      "Bash(curl -s http://141.147.64.20:5500/)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

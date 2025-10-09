@@ -55,6 +55,22 @@ export interface ZarrStoreState {
    */
   cellposeArray: ZArray<FetchStore> | null
   /**
+   * All available Cellpose resolution arrays
+   */
+  cellposeArrays: ZArray<FetchStore>[]
+  /**
+   * Available Cellpose resolution paths (e.g., ['0', '1', '2'])
+   */
+  cellposeResolutions: string[]
+  /**
+   * Scale factors for each Cellpose resolution level [z, y, x]
+   */
+  cellposeScales: number[][]
+  /**
+   * Currently selected Cellpose resolution index
+   */
+  selectedCellposeResolution: number
+  /**
    * Whether the Cellpose array is currently being loaded
    */
   isCellposeLoading: boolean
@@ -110,6 +126,7 @@ export interface ZarrStoreContextType extends ZarrStoreState {
   navigateToSuggestion: (suggestionPath: string) => void
   refreshCellposeData: () => Promise<void>
   setPropertiesCallback: (callback: (properties: any[]) => void) => void
+  setSelectedCellposeResolution: (index: number) => void
 }
 
 export interface ZarrStoreProviderProps {

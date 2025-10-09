@@ -38,6 +38,10 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
     omeData: null,
     msInfo: null,
     cellposeArray: null,
+    cellposeArrays: [],
+    cellposeResolutions: [],
+    cellposeScales: [],
+    selectedCellposeResolution: 0,
     isCellposeLoading: false,
     cellposeError: null,
     isLoading: false,
@@ -58,10 +62,15 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
     setState(prev => ({ ...prev, onPropertiesFound: callback }))
   }, [])
 
-  // Cellpose detection utility
+  // Cellpose detection utility - now loads all resolutions
   const detectCellposeArray = useCallback(
-    async (): Promise<zarrita.Array<zarrita.Uint32> | null> => {
-      if (!state.store) return null;
+    async (): Promise<{
+      arrays: zarrita.Array<zarrita.Uint32>[],
+      resolutions: string[],
+      scales: number[][],
+      defaultArray: zarrita.Array<zarrita.Uint32> | null
+    }> => {
+      if (!state.store) return { arrays: [], resolutions: [], scales: [], defaultArray: null };
 
       try {
         console.log(`🔍 Searching for Cellpose data at ${DEFAULT_LABELS_SEGMENTATION_PATH}...`)
@@ -88,27 +97,60 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
 
           // Drill into OME multiscales metadata
           const multiscales = (cellposeGroup.attrs?.ome as OMEAttrs)?.multiscales
-          if (multiscales && multiscales[0]?.datasets?.[0]?.path) {
-            // Always use the first dataset (highest resolution)
-            const array = await zarrita.open(
-              cellposeGroup.resolve(multiscales[0].datasets[0].path)
-            )
-            if (array instanceof zarrita.Array) {
-              console.log('✅ Cellpose array found:', array)
-              return array as zarrita.Array<zarrita.Uint32>
+          if (multiscales && multiscales[0]?.datasets?.length > 0) {
+            // Load ALL resolution levels
+            const arrays: zarrita.Array<zarrita.Uint32>[] = []
+            const resolutions: string[] = []
+            const scales: number[][] = []
+
+            for (const dataset of multiscales[0].datasets) {
+              try {
+                const array = await zarrita.open(
+                  cellposeGroup.resolve(dataset.path)
+                )
+                if (array instanceof zarrita.Array) {
+                  arrays.push(array as zarrita.Array<zarrita.Uint32>)
+                  resolutions.push(dataset.path)
+
+                  // Extract scale factors from coordinateTransformations
+                  const transforms = dataset.coordinateTransformations
+                  if (transforms && transforms.length > 0 && transforms[0].type === 'scale') {
+                    scales.push(transforms[0].scale as number[])
+                  } else {
+                    scales.push([1.0, 1.0, 1.0]) // Default scale if not found
+                  }
+                }
+              } catch (error) {
+                console.warn(`⚠️ Failed to load Cellpose resolution at ${dataset.path}:`, error)
+              }
+            }
+
+            console.log(`✅ Loaded ${arrays.length} Cellpose resolution levels:`, resolutions)
+            console.log(`   Scales:`, scales)
+            return {
+              arrays,
+              resolutions,
+              scales,
+              defaultArray: arrays[0] || null
             }
           }
         }
         // If it's already an array, just return it
         if (cellposeGroup instanceof zarrita.Array) {
           console.log('✅ Cellpose array found (direct array):', cellposeGroup)
-          return cellposeGroup as zarrita.Array<zarrita.Uint32>
+          const arr = cellposeGroup as zarrita.Array<zarrita.Uint32>
+          return {
+            arrays: [arr],
+            resolutions: ['0'],
+            scales: [[1.0, 1.0, 1.0]],
+            defaultArray: arr
+          }
         }
-        // If not found, return null
-        return null
+        // If not found, return empty
+        return { arrays: [], resolutions: [], scales: [], defaultArray: null }
       } catch (error) {
         console.log(`❌ No Cellpose data at ${DEFAULT_LABELS_SEGMENTATION_PATH}:`, error)
-        return null
+        return { arrays: [], resolutions: [], scales: [], defaultArray: null }
       }
     }, [state.store, state.onPropertiesFound]
   )
@@ -116,11 +158,14 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
   // Load Cellpose data when multiscale image is ready
   const refreshCellposeData = useCallback(async () => {
     if (!state.hasLoadedArray || !state.msInfo) {
-      setState(prev => ({ 
-        ...prev, 
-        cellposeArray: null, 
+      setState(prev => ({
+        ...prev,
+        cellposeArray: null,
+        cellposeArrays: [],
+        cellposeResolutions: [],
+        cellposeScales: [],
         cellposeError: null,
-        isCellposeLoading: false 
+        isCellposeLoading: false
       }))
       return
     }
@@ -128,22 +173,29 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
     setState(prev => ({ ...prev, isCellposeLoading: true, cellposeError: null }))
 
     try {
-      const cellposeArr = await detectCellposeArray()
-      
-      setState(prev => ({ 
-        ...prev, 
-        cellposeArray: cellposeArr,
+      const { arrays, resolutions, scales, defaultArray } = await detectCellposeArray()
+
+      setState(prev => ({
+        ...prev,
+        cellposeArray: defaultArray,
+        cellposeArrays: arrays,
+        cellposeResolutions: resolutions,
+        cellposeScales: scales,
+        selectedCellposeResolution: 0,
         isCellposeLoading: false,
         cellposeError: null
       }))
-      
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error loading Cellpose data'
       console.error('❌ Error loading Cellpose data:', errorMessage)
-      setState(prev => ({ 
-        ...prev, 
+      setState(prev => ({
+        ...prev,
         cellposeError: errorMessage,
         cellposeArray: null,
+        cellposeArrays: [],
+        cellposeResolutions: [],
+        cellposeScales: [],
         isCellposeLoading: false
       }))
     }
@@ -334,13 +386,33 @@ export function ZarrStoreProvider({ children, initialSource = '' }: ZarrStorePro
     refreshCellposeData()
   }, [refreshCellposeData])
 
+  // Function to change the selected Cellpose resolution
+  const setSelectedCellposeResolution = useCallback((index: number) => {
+    setState(prev => {
+      if (index >= 0 && index < prev.cellposeArrays.length) {
+        const newArray = prev.cellposeArrays[index]
+        console.log(`📊 Switching to Cellpose resolution ${index}: ${prev.cellposeResolutions[index]}`)
+        console.log(`   Array shape: ${newArray.shape.join(' × ')}`)
+        console.log(`   Array object changed: ${newArray !== prev.cellposeArray}`)
+        return {
+          ...prev,
+          selectedCellposeResolution: index,
+          cellposeArray: newArray
+        }
+      }
+      console.warn(`❌ Invalid resolution index: ${index} (available: 0-${prev.cellposeArrays.length - 1})`)
+      return prev
+    })
+  }, [])
+
   const value: ZarrStoreContextType = {
     ...state,
     loadStore,
     setSource,
     navigateToSuggestion,
     refreshCellposeData,
-    setPropertiesCallback
+    setPropertiesCallback,
+    setSelectedCellposeResolution
   }
 
   return (

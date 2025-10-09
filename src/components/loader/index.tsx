@@ -36,12 +36,19 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
 
     const handleLoadStore = async () => {
         if (!source) return;
+
+        // Update URL with the source parameter
+        router.push(`/zarr?src=${encodeURIComponent(source)}`, undefined, { shallow: true });
+
         await loadStore(source);
     };
 
     const handleLoadExample = () => {
         const exampleUrl = 'http://141.147.64.20:5500/';
         setSource(exampleUrl);
+
+        // Update URL with the source parameter
+        router.push(`/zarr?src=${encodeURIComponent(exampleUrl)}`, undefined, { shallow: true });
 
         // Set our flag to true and start loading the store.
         // The useEffect above will handle the next step.

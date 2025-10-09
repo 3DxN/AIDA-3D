@@ -71,8 +71,8 @@ export default function ZarrWorkspace() {
 			<Head>
 				<title>Zarr Viewer - AIDA 3D</title>
 			</Head>
-			<div className="min-w-full h-screen flex bg-gray-100">
-				<div className="w-1/2 relative border-r border-gray-200">
+			<div className="min-w-full h-screen flex flex-col portrait:flex-col landscape:flex-row bg-gray-100">
+				<div className="w-full portrait:w-full landscape:w-1/2 portrait:h-1/2 landscape:h-full relative border-r border-gray-200">
 					{showLoader ? (
 						<StoreLoader onClose={() => setShowLoader(false)} />
 					) : hasLoadedArray && msInfo ? (
@@ -93,7 +93,7 @@ export default function ZarrWorkspace() {
 						</div>
 					)}
 				</div>
-				<div className="w-1/2 relative">
+				<div className="w-full portrait:w-full landscape:w-1/2 portrait:h-1/2 landscape:h-full relative">
 					{hasLoadedArray && msInfo ? (
 						<Viewer3D
 							tile={tile}
