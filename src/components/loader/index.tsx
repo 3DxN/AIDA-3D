@@ -14,140 +14,37 @@ import { ZarrStoreSuggestionType } from '../../types/store';
 export default function StoreLoader({ onClose }: { onClose: () => void }) {
     const router = useRouter();
     const {
-        source, root, setSource, loadStore, loadZarrArray, loadCellposeData, isLoading, error,
-        infoMessage, suggestedPaths, suggestionType, hasLoadedArray, zarrPath, cellposePath,
-        setZarrPath, setCellposePath, store
+        loadStore, loadZarrArray, loadCellposeData, isLoading, error,
+        hasLoadedArray
     } = useZarrStore();
 
     const [activeTab, setActiveTab] = useState<'zarr' | 'aida'>('zarr');
-    const [showZarrSelection, setShowZarrSelection] = useState(false);
-    const [showCellposeSelection, setShowCellposeSelection] = useState(false);
-    const [tempZarrPath, setTempZarrPath] = useState('');
-    const [tempCellposePath, setTempCellposePath] = useState('labels/Cellpose');
+    const [server, setServer] = useState('');
+    const [defaultStoreDir, setDefaultStoreDir] = useState('');
+    const [cellposeStoreDir, setCellposeStoreDir] = useState('');
 
-    const handleLoadStore = async () => {
-        if (!source) return;
+    const handleLoadStore = () => {
+        if (!server || !defaultStoreDir || !cellposeStoreDir) return;
 
-        await loadStore(source);
-        setShowZarrSelection(true);
+        // Update URL with all parameters and trigger full page reload
+        const params = new URLSearchParams();
+        params.set('server', server);
+        params.set('default_store_dir', defaultStoreDir);
+        params.set('cellpose_store_dir', cellposeStoreDir);
+
+        // Navigate to the page with URL params (full page load, not shallow)
+        router.push(`/zarr?${params.toString()}`);
     };
 
     const handleLoadExample = () => {
-        const exampleUrl = 'http://141.147.64.20:5500/';
-        const exampleZarrPath = '0';
-        const exampleCellposePath = 'labels/Cellpose';
-
-        setSource(exampleUrl);
-        setTempZarrPath(exampleZarrPath);
-        setTempCellposePath(exampleCellposePath);
-
-        // Update URL with all parameters
-        router.push(
-            `/zarr?src=${encodeURIComponent(exampleUrl)}&zarr=${encodeURIComponent(exampleZarrPath)}&cellpose=${encodeURIComponent(exampleCellposePath)}`,
-            undefined,
-            { shallow: true }
-        );
-
-        // Load store and then load the paths
-        loadStore(exampleUrl).then(() => {
-            loadZarrArray(exampleZarrPath).then(() => {
-                loadCellposeData(exampleCellposePath);
-            });
-        });
-    };
-
-    const handleZarrPathSubmit = async () => {
-        if (!tempZarrPath) return;
-
-        // Update URL with zarr path
-        const params = new URLSearchParams();
-        params.set('src', source);
-        params.set('zarr', tempZarrPath);
-        router.push(`/zarr?${params.toString()}`, undefined, { shallow: true });
-
-        setShowZarrSelection(false);
-        await loadZarrArray(tempZarrPath);
-        setShowCellposeSelection(true);
-    };
-
-    const handleCellposePathSubmit = async () => {
-        if (!tempCellposePath) return;
-
-        // Update URL with cellpose path
-        const params = new URLSearchParams();
-        params.set('src', source);
-        params.set('zarr', zarrPath);
-        params.set('cellpose', tempCellposePath);
-        router.push(`/zarr?${params.toString()}`, undefined, { shallow: true });
-
-        await loadCellposeData(tempCellposePath);
-        setShowCellposeSelection(false);
-
-        // Close the loader after a short delay to show success message
-        setTimeout(() => {
-            onClose();
-        }, 1000);
+        setServer('http://141.147.64.20:5500/');
+        setDefaultStoreDir('0');
+        setCellposeStoreDir('labels/Cellpose');
     };
 
     const handleBrowseAIDA = () => {
         router.push('/local');
         onClose();
-    };
-
-    const renderPathSelector = (
-        title: string,
-        description: string,
-        value: string,
-        onChange: (value: string) => void,
-        onSubmit: () => void,
-        placeholder: string
-    ) => {
-        return (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-                <div className="flex items-center justify-center mb-2 font-semibold text-center text-blue-800">
-                    <FolderIcon className="h-5 w-5 mr-2" />
-                    <span>{title}</span>
-                </div>
-                <div className="mb-3 text-sm text-blue-700">{description}</div>
-
-                {suggestedPaths.length > 0 && (
-                    <div className="mb-3">
-                        <div className="text-xs text-blue-600 mb-2">Available paths:</div>
-                        <div className="flex flex-wrap gap-2">
-                            {suggestedPaths.map((suggestion, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => onChange(suggestion.path)}
-                                    className={`px-3 py-1 text-white border-none rounded text-xs cursor-pointer transition-opacity hover:opacity-80 ${suggestion.hasOme ? 'bg-green-600' : suggestion.isGroup ? 'bg-blue-500' : 'bg-gray-600'}`}
-                                    title={suggestion.hasOme ? 'OME-Zarr group' : suggestion.isGroup ? 'Zarr group' : 'Zarr array'}
-                                >
-                                    {suggestion.path}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                <div className="flex gap-2 items-end">
-                    <div className="flex-1">
-                        <input
-                            type="text"
-                            value={value}
-                            onChange={(e) => onChange(e.target.value)}
-                            className="w-full p-2 border-2 border-blue-300 rounded-md text-sm outline-none focus:border-blue-500"
-                            placeholder={placeholder}
-                        />
-                    </div>
-                    <button
-                        onClick={onSubmit}
-                        disabled={!value}
-                        className={`px-4 py-2 text-white border-none rounded-md cursor-pointer text-sm font-bold whitespace-nowrap ${!value ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
-                    >
-                        Load
-                    </button>
-                </div>
-            </div>
-        );
     };
 
     return (
@@ -189,22 +86,47 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
 
                 {activeTab === 'zarr' && (
                     <>
-                        <div className="flex gap-4 items-end mb-5">
-                            <div className="flex-1 min-w-0">
-                                <label className="block mb-2 font-bold text-base text-gray-700">Store URL:</label>
+                        <div className="space-y-4 mb-5">
+                            <div>
+                                <label className="block mb-2 font-bold text-base text-gray-700">Server URL:</label>
                                 <input
                                     type="text"
-                                    value={source}
-                                    onChange={(e) => setSource(e.target.value)}
+                                    value={server}
+                                    onChange={(e) => setServer(e.target.value)}
                                     className="w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none focus:border-teal-500"
-                                    placeholder="Enter Zarr store URL"
-                                    disabled={!!store}
+                                    placeholder="e.g., http://141.147.64.20:5500/"
+                                    disabled={isLoading}
                                 />
                             </div>
+                            <div>
+                                <label className="block mb-2 font-bold text-base text-gray-700">Image Store Directory:</label>
+                                <input
+                                    type="text"
+                                    value={defaultStoreDir}
+                                    onChange={(e) => setDefaultStoreDir(e.target.value)}
+                                    className="w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none focus:border-teal-500"
+                                    placeholder="e.g., 0"
+                                    disabled={isLoading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-2 font-bold text-base text-gray-700">Labels Store Directory (e.g. Cellpose):</label>
+                                <input
+                                    type="text"
+                                    value={cellposeStoreDir}
+                                    onChange={(e) => setCellposeStoreDir(e.target.value)}
+                                    className="w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none focus:border-teal-500"
+                                    placeholder="e.g., labels/Cellpose"
+                                    disabled={isLoading}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 mb-5">
                             <button
                                 onClick={handleLoadStore}
-                                disabled={isLoading || !source || !!store}
-                                className={`px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold flex-shrink-0 whitespace-nowrap shadow-lg flex items-center ${isLoading || !source || !!store ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
+                                disabled={isLoading || !server || !defaultStoreDir || !cellposeStoreDir}
+                                className={`flex-1 px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold shadow-lg flex items-center justify-center ${isLoading || !server || !defaultStoreDir || !cellposeStoreDir ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
                             >
                                 {isLoading ? (<><RefreshIcon className="h-5 w-5 mr-2 animate-spin" /> Loading...</>) : (<><PlayIcon className="h-5 w-5 mr-2" /> Load Store</>)}
                             </button>
@@ -217,27 +139,9 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                                 className={`inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
                             >
                                 <BeakerIcon className="h-5 w-5 mr-2" />
-                                Load Example Store
+                                Fill Example Values
                             </button>
                         </div>
-
-                        {showZarrSelection && !hasLoadedArray && renderPathSelector(
-                            'Select Zarr Array Directory',
-                            'Choose the path to the zarr array within the store (e.g., "0", "1", etc.)',
-                            tempZarrPath,
-                            setTempZarrPath,
-                            handleZarrPathSubmit,
-                            'Enter zarr array path'
-                        )}
-
-                        {showCellposeSelection && hasLoadedArray && renderPathSelector(
-                            'Select Cellpose Segmentation Directory',
-                            'Choose the path to the cellpose segmentation data (e.g., "labels/Cellpose")',
-                            tempCellposePath,
-                            setTempCellposePath,
-                            handleCellposePathSubmit,
-                            'Enter cellpose path'
-                        )}
                     </>
                 )}
 
@@ -256,7 +160,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                     </div>
                 )}
 
-                {hasLoadedArray && !showCellposeSelection && <div className="mt-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-md text-base text-center font-bold"><CheckCircleIcon className="h-5 w-5 inline mr-2" />Zarr array loaded successfully!</div>}
+                {hasLoadedArray && <div className="mt-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-md text-base text-center font-bold"><CheckCircleIcon className="h-5 w-5 inline mr-2" />Store loaded successfully!</div>}
                 {isLoading && activeTab === 'zarr' && <div className="mt-4 text-center p-4 bg-blue-50 rounded-md text-teal-700 text-sm"><div className="mb-3 flex items-center justify-center"><RefreshIcon className="h-5 w-5 mr-2 animate-spin" />Loading...</div><div className="w-full h-1 bg-blue-200 rounded-full overflow-hidden"><div className="w-1/3 h-full bg-blue-500 rounded-full animate-pulse" /></div></div>}
                 {error && activeTab === 'zarr' && <div className="mt-4 p-4 bg-red-50 border border-red-200 text-red-800 rounded-md text-base text-center"><div className="flex items-center justify-center"><ExclamationIcon className="h-5 w-5 mr-2" />{error}</div></div>}
             </div>

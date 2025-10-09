@@ -506,6 +506,154 @@ export function ZarrStoreProvider({
 
   // Removed auto-load of Cellpose data - now requires manual selection
 
+  // Load everything from URL params in one go (avoids stale closure issues)
+  const loadFromUrlParams = useCallback(async (serverUrl: string, zarrPath: string, cellposePath: string) => {
+    try {
+      // Step 1: Load store
+      setState(prev => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+        infoMessage: null,
+        hasLoadedArray: false,
+        omeData: null,
+        msInfo: null,
+        cellposeArray: null,
+        cellposeArrays: [],
+        cellposeResolutions: [],
+        cellposeScales: [],
+        isCellposeLoading: true,
+        cellposeError: null
+      }))
+
+      const store = new zarrita.FetchStore(serverUrl)
+      const opened = await zarrita.open(store)
+
+      if (opened instanceof zarrita.Array) {
+        throw new Error("This appears to be an array, not a group. OME-Zarr requires group structure.")
+      }
+
+      const rootGroup = zarrita.root(store)
+
+      // Step 2 & 3: Load zarr array and cellpose in parallel
+      const [zarrResult, cellposeResult] = await Promise.allSettled([
+        // Load zarr array
+        (async () => {
+          const targetGroup = await zarrita.open(rootGroup.resolve(zarrPath))
+
+          if (!(targetGroup instanceof zarrita.Group)) {
+            throw new Error("Selected path does not point to a group")
+          }
+
+          setState(prev => ({
+            ...prev,
+            store,
+            root: targetGroup,
+            zarrPath
+          }))
+
+          // Process the group (this sets msInfo and hasLoadedArray)
+          await processGroup(targetGroup)
+        })(),
+
+        // Load cellpose
+        (async () => {
+          const cellposeGroup = await zarrita.open(rootGroup.resolve(cellposePath))
+
+          if (!(cellposeGroup instanceof zarrita.Group)) {
+            throw new Error('Cellpose path is not a group')
+          }
+
+          const attrs = cellposeGroup.attrs as any
+
+          if (attrs?.ome?.['image-label']?.properties) {
+            const properties = attrs.ome['image-label'].properties
+            if (state.onPropertiesFound) {
+              state.onPropertiesFound(properties)
+            }
+          }
+
+          // The metadata structure is: attrs.ome.multiscales[0]
+          const multiscalesAttr = attrs?.ome?.multiscales?.[0]
+
+          if (!multiscalesAttr?.datasets) {
+            throw new Error('No multiscales datasets found in cellpose group')
+          }
+
+          const datasets = multiscalesAttr.datasets
+          const arrays: zarrita.Array<zarrita.Uint32>[] = []
+          const resolutions: string[] = []
+          const scales: number[][] = []
+
+          for (const dataset of datasets) {
+            const resPath = dataset.path
+            const childArray = await zarrita.open(cellposeGroup.resolve(resPath), { kind: 'array' })
+
+            if (childArray instanceof zarrita.Array) {
+              arrays.push(childArray as zarrita.Array<zarrita.Uint32>)
+              resolutions.push(resPath)
+
+              const coordinateTransformations = dataset.coordinateTransformations || []
+              const scaleTransform = coordinateTransformations.find((t: any) => t.type === 'scale')
+              if (scaleTransform?.scale) {
+                scales.push(scaleTransform.scale)
+              } else {
+                scales.push([1, 1, 1])
+              }
+            }
+          }
+
+          const defaultArray = arrays.length > 0 ? arrays[0] : null
+
+          return { arrays, resolutions, scales, defaultArray }
+        })()
+      ])
+
+      // Handle zarr result
+      if (zarrResult.status === 'rejected') {
+        throw new Error(`Failed to load zarr array: ${zarrResult.reason}`)
+      }
+
+      // Handle cellpose result
+      if (cellposeResult.status === 'fulfilled') {
+        const { arrays, resolutions, scales, defaultArray } = cellposeResult.value
+        setState(prev => ({
+          ...prev,
+          cellposeArray: defaultArray,
+          cellposeArrays: arrays,
+          cellposeResolutions: resolutions,
+          cellposeScales: scales,
+          cellposePath,
+          selectedCellposeResolution: 0,
+          isCellposeLoading: false,
+          cellposeError: null,
+          isLoading: false
+        }))
+      } else {
+        const errorMessage = cellposeResult.reason instanceof Error ? cellposeResult.reason.message : 'Unknown error loading Cellpose data'
+        setState(prev => ({
+          ...prev,
+          cellposeError: errorMessage,
+          cellposeArray: null,
+          cellposeArrays: [],
+          cellposeResolutions: [],
+          cellposeScales: [],
+          cellposePath,
+          isCellposeLoading: false,
+          isLoading: false
+        }))
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      setState(prev => ({
+        ...prev,
+        error: `Failed to load: ${errorMessage}`,
+        isLoading: false,
+        isCellposeLoading: false
+      }))
+    }
+  }, [processGroup, state.onPropertiesFound])
+
   // Function to change the selected Cellpose resolution
   const setSelectedCellposeResolution = useCallback((index: number) => {
     setState(prev => {
@@ -533,6 +681,7 @@ export function ZarrStoreProvider({
     setCellposePath,
     loadZarrArray,
     loadCellposeData,
+    loadFromUrlParams,
     navigateToSuggestion,
     refreshCellposeData,
     setPropertiesCallback,

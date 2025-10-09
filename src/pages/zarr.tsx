@@ -44,7 +44,7 @@ export default function ZarrWorkspace() {
 	const { query } = router
 	const {
 		source, zarrPath, cellposePath,
-		loadStore, loadZarrArray, loadCellposeData,
+		loadStore, loadZarrArray, loadCellposeData, loadFromUrlParams,
 		hasLoadedArray, msInfo, isLoading, store, cellposeArray
 	} = useZarrStore()
 
@@ -52,43 +52,31 @@ export default function ZarrWorkspace() {
 	const [select3D, setSelect3D] = useState(false)
 	const [polygonCoords, setPolygonCoords] = useState<number[][][]>([])
 	const [showLoader, setShowLoader] = useState(true)
-	const [hasInitialized, setHasInitialized] = useState(false)
-	const [shouldAutoCloseLoader, setShouldAutoCloseLoader] = useState(false)
+	const [loadedUrlKey, setLoadedUrlKey] = useState<string>('')
 
 	// Auto-load if navigated directly with URL parameters
 	useEffect(() => {
-		if (hasInitialized) return
+		// Wait for router to be ready
+		if (!router.isReady) return
 
-		const srcParam = typeof query.src === 'string' ? query.src : null
-		const zarrParam = typeof query.zarr === 'string' ? query.zarr : null
-		const cellposeParam = typeof query.cellpose === 'string' ? query.cellpose : null
+		const serverParam = typeof query.server === 'string' ? query.server : null
+		const defaultStoreDirParam = typeof query.default_store_dir === 'string' ? query.default_store_dir : null
+		const cellposeStoreDirParam = typeof query.cellpose_store_dir === 'string' ? query.cellpose_store_dir : null
 
-		if (srcParam && zarrParam && cellposeParam && !isLoading && !store) {
-			setHasInitialized(true)
-			setShouldAutoCloseLoader(true)
-			loadStore(srcParam).then(() => {
-				loadZarrArray(zarrParam).then(() => {
-					loadCellposeData(cellposeParam)
-				})
-			})
-		} else if (srcParam && zarrParam && !isLoading && !store) {
-			setHasInitialized(true)
-			setShouldAutoCloseLoader(true)
-			loadStore(srcParam).then(() => {
-				loadZarrArray(zarrParam)
-			})
-		} else if (srcParam && !isLoading && !store) {
-			setHasInitialized(true)
-			loadStore(srcParam)
+		// If we have all URL params, hide loader and load data
+		if (serverParam && defaultStoreDirParam && cellposeStoreDirParam) {
+			// Create a unique key for this URL combination to prevent duplicate loads
+			const urlKey = `${serverParam}|${defaultStoreDirParam}|${cellposeStoreDirParam}`
+
+			if (urlKey === loadedUrlKey) return
+
+			setShowLoader(false)
+			setLoadedUrlKey(urlKey)
+
+			// Use the new single-function loader that avoids closure issues
+			loadFromUrlParams(serverParam, defaultStoreDirParam, cellposeStoreDirParam)
 		}
-	}, [query.src, query.zarr, query.cellpose, hasInitialized, isLoading, store, loadStore, loadZarrArray, loadCellposeData])
-
-	// Hide loader only when array is loaded AND we're auto-loading from URL
-	useEffect(() => {
-		if (hasLoadedArray && shouldAutoCloseLoader) {
-			setShowLoader(false);
-		}
-	}, [hasLoadedArray, shouldAutoCloseLoader]);
+	}, [router.isReady, query.server, query.default_store_dir, query.cellpose_store_dir, loadedUrlKey, loadFromUrlParams])
 
 	// src/pages/zarr.tsx
 

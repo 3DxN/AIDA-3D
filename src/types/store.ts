@@ -134,6 +134,7 @@ export interface ZarrStoreContextType extends ZarrStoreState {
   setCellposePath: (path: string) => void
   loadZarrArray: (zarrPath: string) => Promise<void>
   loadCellposeData: (cellposePath: string) => Promise<void>
+  loadFromUrlParams: (serverUrl: string, zarrPath: string, cellposePath: string) => Promise<void>
   navigateToSuggestion: (suggestionPath: string) => void
   refreshCellposeData: () => Promise<void>
   setPropertiesCallback: (callback: (properties: any[]) => void) => void
