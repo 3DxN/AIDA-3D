@@ -42,27 +42,53 @@ const defaultAnnotation: Annotation = {
 export default function ZarrWorkspace() {
 	const router = useRouter()
 	const { query } = router
-	const { source, loadStore, hasLoadedArray, msInfo, isLoading } = useZarrStore()
+	const {
+		source, zarrPath, cellposePath,
+		loadStore, loadZarrArray, loadCellposeData,
+		hasLoadedArray, msInfo, isLoading, store, cellposeArray
+	} = useZarrStore()
 
 	const [tile, setTile] = useState<[number, number]>([0, 0])
 	const [select3D, setSelect3D] = useState(false)
 	const [polygonCoords, setPolygonCoords] = useState<number[][][]>([])
-	const [showLoader, setShowLoader] = useState(true); // This state is new
+	const [showLoader, setShowLoader] = useState(true)
+	const [hasInitialized, setHasInitialized] = useState(false)
+	const [shouldAutoCloseLoader, setShouldAutoCloseLoader] = useState(false)
 
-	// Auto-load if navigated directly with ?src=
+	// Auto-load if navigated directly with URL parameters
 	useEffect(() => {
+		if (hasInitialized) return
+
 		const srcParam = typeof query.src === 'string' ? query.src : null
-		if (srcParam && !hasLoadedArray && !isLoading && (!source || source !== srcParam)) {
+		const zarrParam = typeof query.zarr === 'string' ? query.zarr : null
+		const cellposeParam = typeof query.cellpose === 'string' ? query.cellpose : null
+
+		if (srcParam && zarrParam && cellposeParam && !isLoading && !store) {
+			setHasInitialized(true)
+			setShouldAutoCloseLoader(true)
+			loadStore(srcParam).then(() => {
+				loadZarrArray(zarrParam).then(() => {
+					loadCellposeData(cellposeParam)
+				})
+			})
+		} else if (srcParam && zarrParam && !isLoading && !store) {
+			setHasInitialized(true)
+			setShouldAutoCloseLoader(true)
+			loadStore(srcParam).then(() => {
+				loadZarrArray(zarrParam)
+			})
+		} else if (srcParam && !isLoading && !store) {
+			setHasInitialized(true)
 			loadStore(srcParam)
 		}
-	}, [query.src, hasLoadedArray, isLoading, source, loadStore])
+	}, [query.src, query.zarr, query.cellpose, hasInitialized, isLoading, store, loadStore, loadZarrArray, loadCellposeData])
 
-	// This useEffect hook is also new
+	// Hide loader only when array is loaded AND we're auto-loading from URL
 	useEffect(() => {
-		if (hasLoadedArray) {
+		if (hasLoadedArray && shouldAutoCloseLoader) {
 			setShowLoader(false);
 		}
-	}, [hasLoadedArray]);
+	}, [hasLoadedArray, shouldAutoCloseLoader]);
 
 	// src/pages/zarr.tsx
 

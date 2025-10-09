@@ -91,10 +91,17 @@ export interface ZarrStoreState {
    */
   infoMessage: string | null
   /**
-   * Current source URL of the Zarr store
-   * This is used to reload the store or navigate to a different one
+   * Base server URL of the Zarr store (e.g., 'http://141.147.64.20:5500/')
    */
   source: string
+  /**
+   * Relative path to the zarr array directory within the store (e.g., '0')
+   */
+  zarrPath: string
+  /**
+   * Relative path to the cellpose segmentation directory (e.g., 'labels/Cellpose')
+   */
+  cellposePath: string
   /**
    * Whether the user has successfully loaded a multiscales image array
    * And to initialise the display of the viewer if so.
@@ -123,6 +130,10 @@ export interface ZarrStoreState {
 export interface ZarrStoreContextType extends ZarrStoreState {
   loadStore: (url: string) => Promise<void>
   setSource: (url: string) => void
+  setZarrPath: (path: string) => void
+  setCellposePath: (path: string) => void
+  loadZarrArray: (zarrPath: string) => Promise<void>
+  loadCellposeData: (cellposePath: string) => Promise<void>
   navigateToSuggestion: (suggestionPath: string) => void
   refreshCellposeData: () => Promise<void>
   setPropertiesCallback: (callback: (properties: any[]) => void) => void
@@ -132,4 +143,6 @@ export interface ZarrStoreContextType extends ZarrStoreState {
 export interface ZarrStoreProviderProps {
   children: ReactNode
   initialSource?: string
+  initialZarrPath?: string
+  initialCellposePath?: string
 }

@@ -14,100 +14,137 @@ import { ZarrStoreSuggestionType } from '../../types/store';
 export default function StoreLoader({ onClose }: { onClose: () => void }) {
     const router = useRouter();
     const {
-        source, root, setSource, loadStore, isLoading, error,
-        infoMessage, suggestedPaths, suggestionType, navigateToSuggestion, hasLoadedArray
+        source, root, setSource, loadStore, loadZarrArray, loadCellposeData, isLoading, error,
+        infoMessage, suggestedPaths, suggestionType, hasLoadedArray, zarrPath, cellposePath,
+        setZarrPath, setCellposePath, store
     } = useZarrStore();
 
     const [activeTab, setActiveTab] = useState<'zarr' | 'aida'>('zarr');
-
-    // --- START OF NEW CODE ---
-    // State to track if we are in the process of loading the example
-    const [isExampleLoading, setIsExampleLoading] = useState(false);
-
-    // This useEffect hook will run whenever `root` or `isExampleLoading` changes
-    useEffect(() => {
-        // We only proceed if we've initiated the example loading AND the root of the store is now available
-        if (isExampleLoading && root) {
-            navigateToSuggestion('0');
-            // Reset the flag so this doesn't run again accidentally
-            setIsExampleLoading(false);
-        }
-    }, [root, isExampleLoading, navigateToSuggestion]);
+    const [showZarrSelection, setShowZarrSelection] = useState(false);
+    const [showCellposeSelection, setShowCellposeSelection] = useState(false);
+    const [tempZarrPath, setTempZarrPath] = useState('');
+    const [tempCellposePath, setTempCellposePath] = useState('labels/Cellpose');
 
     const handleLoadStore = async () => {
         if (!source) return;
 
-        // Update URL with the source parameter
-        router.push(`/zarr?src=${encodeURIComponent(source)}`, undefined, { shallow: true });
-
         await loadStore(source);
+        setShowZarrSelection(true);
     };
 
     const handleLoadExample = () => {
         const exampleUrl = 'http://141.147.64.20:5500/';
+        const exampleZarrPath = '0';
+        const exampleCellposePath = 'labels/Cellpose';
+
         setSource(exampleUrl);
+        setTempZarrPath(exampleZarrPath);
+        setTempCellposePath(exampleCellposePath);
 
-        // Update URL with the source parameter
-        router.push(`/zarr?src=${encodeURIComponent(exampleUrl)}`, undefined, { shallow: true });
+        // Update URL with all parameters
+        router.push(
+            `/zarr?src=${encodeURIComponent(exampleUrl)}&zarr=${encodeURIComponent(exampleZarrPath)}&cellpose=${encodeURIComponent(exampleCellposePath)}`,
+            undefined,
+            { shallow: true }
+        );
 
-        // Set our flag to true and start loading the store.
-        // The useEffect above will handle the next step.
-        setIsExampleLoading(true);
-        loadStore(exampleUrl);
+        // Load store and then load the paths
+        loadStore(exampleUrl).then(() => {
+            loadZarrArray(exampleZarrPath).then(() => {
+                loadCellposeData(exampleCellposePath);
+            });
+        });
     };
-    // --- END OF NEW CODE ---
+
+    const handleZarrPathSubmit = async () => {
+        if (!tempZarrPath) return;
+
+        // Update URL with zarr path
+        const params = new URLSearchParams();
+        params.set('src', source);
+        params.set('zarr', tempZarrPath);
+        router.push(`/zarr?${params.toString()}`, undefined, { shallow: true });
+
+        setShowZarrSelection(false);
+        await loadZarrArray(tempZarrPath);
+        setShowCellposeSelection(true);
+    };
+
+    const handleCellposePathSubmit = async () => {
+        if (!tempCellposePath) return;
+
+        // Update URL with cellpose path
+        const params = new URLSearchParams();
+        params.set('src', source);
+        params.set('zarr', zarrPath);
+        params.set('cellpose', tempCellposePath);
+        router.push(`/zarr?${params.toString()}`, undefined, { shallow: true });
+
+        await loadCellposeData(tempCellposePath);
+        setShowCellposeSelection(false);
+
+        // Close the loader after a short delay to show success message
+        setTimeout(() => {
+            onClose();
+        }, 1000);
+    };
 
     const handleBrowseAIDA = () => {
         router.push('/local');
         onClose();
     };
 
-    const renderSuggestions = () => {
-        // ... (this function remains unchanged)
-        let suggestionTitle: string;
-        let suggestionDescription: string;
-        let SuggestionIcon: React.ComponentType<{ className?: string }>;
-
-        switch (suggestionType) {
-            case ZarrStoreSuggestionType.PLATE_WELL:
-                suggestionTitle = 'OME-Plate/Well structure detected';
-                suggestionDescription = 'This format is not supported for direct viewing.';
-                SuggestionIcon = TableIcon;
-                break;
-            default:
-                suggestionTitle = 'Try one of these paths';
-                suggestionDescription = 'Click to load a potential OME-Zarr location:';
-                SuggestionIcon = LightBulbIcon;
-                break;
-        }
-
+    const renderPathSelector = (
+        title: string,
+        description: string,
+        value: string,
+        onChange: (value: string) => void,
+        onSubmit: () => void,
+        placeholder: string
+    ) => {
         return (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-800">
-                <div className="flex items-center justify-center mb-2 font-semibold text-center">
-                    <SuggestionIcon className="h-5 w-5 mr-2" />
-                    <span>{suggestionTitle}</span>
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                <div className="flex items-center justify-center mb-2 font-semibold text-center text-blue-800">
+                    <FolderIcon className="h-5 w-5 mr-2" />
+                    <span>{title}</span>
                 </div>
-                {suggestionDescription && <div className="mb-3 text-sm">{suggestionDescription}</div>}
-                <div className="flex flex-col items-center gap-2 w-full">
-                    <div className="flex flex-wrap justify-center gap-2 w-full">
-                        {root && root.path !== "/" && (
-                            <button
-                                onClick={() => navigateToSuggestion('..')}
-                                className="px-3 py-1 text-white border-none rounded text-xs cursor-pointer bg-gray-400 hover:bg-gray-600"
-                                title="Go up one directory"
-                            >..</button>
-                        )}
-                        {suggestedPaths.map((suggestion, index) => (
-                            <button
-                                key={index}
-                                onClick={() => navigateToSuggestion(suggestion.path)}
-                                className={`px-3 py-1 text-white border-none rounded text-xs cursor-pointer transition-opacity hover:opacity-80 ${suggestion.hasOme ? 'bg-green-600' : suggestion.isGroup ? 'bg-blue-500' : 'bg-gray-600'}`}
-                                title={suggestion.hasOme ? 'OME-Zarr group' : suggestion.isGroup ? 'Zarr group' : 'Zarr array'}
-                            >
-                                {suggestion.path}
-                            </button>
-                        ))}
+                <div className="mb-3 text-sm text-blue-700">{description}</div>
+
+                {suggestedPaths.length > 0 && (
+                    <div className="mb-3">
+                        <div className="text-xs text-blue-600 mb-2">Available paths:</div>
+                        <div className="flex flex-wrap gap-2">
+                            {suggestedPaths.map((suggestion, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => onChange(suggestion.path)}
+                                    className={`px-3 py-1 text-white border-none rounded text-xs cursor-pointer transition-opacity hover:opacity-80 ${suggestion.hasOme ? 'bg-green-600' : suggestion.isGroup ? 'bg-blue-500' : 'bg-gray-600'}`}
+                                    title={suggestion.hasOme ? 'OME-Zarr group' : suggestion.isGroup ? 'Zarr group' : 'Zarr array'}
+                                >
+                                    {suggestion.path}
+                                </button>
+                            ))}
+                        </div>
                     </div>
+                )}
+
+                <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                        <input
+                            type="text"
+                            value={value}
+                            onChange={(e) => onChange(e.target.value)}
+                            className="w-full p-2 border-2 border-blue-300 rounded-md text-sm outline-none focus:border-blue-500"
+                            placeholder={placeholder}
+                        />
+                    </div>
+                    <button
+                        onClick={onSubmit}
+                        disabled={!value}
+                        className={`px-4 py-2 text-white border-none rounded-md cursor-pointer text-sm font-bold whitespace-nowrap ${!value ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    >
+                        Load
+                    </button>
                 </div>
             </div>
         );
@@ -161,12 +198,13 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                                     onChange={(e) => setSource(e.target.value)}
                                     className="w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none focus:border-teal-500"
                                     placeholder="Enter Zarr store URL"
+                                    disabled={!!store}
                                 />
                             </div>
                             <button
                                 onClick={handleLoadStore}
-                                disabled={isLoading || !source}
-                                className={`px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold flex-shrink-0 whitespace-nowrap shadow-lg flex items-center ${isLoading || !source ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
+                                disabled={isLoading || !source || !!store}
+                                className={`px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold flex-shrink-0 whitespace-nowrap shadow-lg flex items-center ${isLoading || !source || !!store ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
                             >
                                 {isLoading ? (<><RefreshIcon className="h-5 w-5 mr-2 animate-spin" /> Loading...</>) : (<><PlayIcon className="h-5 w-5 mr-2" /> Load Store</>)}
                             </button>
@@ -182,6 +220,24 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                                 Load Example Store
                             </button>
                         </div>
+
+                        {showZarrSelection && !hasLoadedArray && renderPathSelector(
+                            'Select Zarr Array Directory',
+                            'Choose the path to the zarr array within the store (e.g., "0", "1", etc.)',
+                            tempZarrPath,
+                            setTempZarrPath,
+                            handleZarrPathSubmit,
+                            'Enter zarr array path'
+                        )}
+
+                        {showCellposeSelection && hasLoadedArray && renderPathSelector(
+                            'Select Cellpose Segmentation Directory',
+                            'Choose the path to the cellpose segmentation data (e.g., "labels/Cellpose")',
+                            tempCellposePath,
+                            setTempCellposePath,
+                            handleCellposePathSubmit,
+                            'Enter cellpose path'
+                        )}
                     </>
                 )}
 
@@ -200,9 +256,9 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                     </div>
                 )}
 
-                {hasLoadedArray && <div className="mt-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-md text-base text-center font-bold"><CheckCircleIcon className="h-5 w-5 inline mr-2" />Store loaded!</div>}
-                {isLoading && !hasLoadedArray && activeTab === 'zarr' && <div className="mt-4 text-center p-4 bg-blue-50 rounded-md text-teal-700 text-sm"><div className="mb-3 flex items-center justify-center"><RefreshIcon className="h-5 w-5 mr-2 animate-spin" />Loading Zarr store...</div><div className="w-full h-1 bg-blue-200 rounded-full overflow-hidden"><div className="w-1/3 h-full bg-blue-500 rounded-full animate-pulse" /></div></div>}
-                {(infoMessage || error) && !hasLoadedArray && activeTab === 'zarr' && <div className={`mt-4 p-4 rounded-md text-base text-center ${[ZarrStoreSuggestionType.PLATE_WELL, ZarrStoreSuggestionType.NO_MULTISCALE].includes(suggestionType) ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>{suggestionType === ZarrStoreSuggestionType.PLATE_WELL ? <div className="text-center mb-3 flex items-center justify-center"><TableIcon className="h-5 w-5 mr-2" /><strong>OME-Plate/Well Structure Detected</strong></div> : infoMessage ? <div className="flex items-center justify-center"><InformationCircleIcon className="h-5 w-5 mr-2" />{infoMessage}</div> : <div className="flex items-center justify-center"><ExclamationIcon className="h-5 w-5 mr-2" />{error}</div>}{renderSuggestions()}</div>}
+                {hasLoadedArray && !showCellposeSelection && <div className="mt-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-md text-base text-center font-bold"><CheckCircleIcon className="h-5 w-5 inline mr-2" />Zarr array loaded successfully!</div>}
+                {isLoading && activeTab === 'zarr' && <div className="mt-4 text-center p-4 bg-blue-50 rounded-md text-teal-700 text-sm"><div className="mb-3 flex items-center justify-center"><RefreshIcon className="h-5 w-5 mr-2 animate-spin" />Loading...</div><div className="w-full h-1 bg-blue-200 rounded-full overflow-hidden"><div className="w-1/3 h-full bg-blue-500 rounded-full animate-pulse" /></div></div>}
+                {error && activeTab === 'zarr' && <div className="mt-4 p-4 bg-red-50 border border-red-200 text-red-800 rounded-md text-base text-center"><div className="flex items-center justify-center"><ExclamationIcon className="h-5 w-5 mr-2" />{error}</div></div>}
             </div>
         </div>
     );
