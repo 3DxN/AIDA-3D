@@ -58,7 +58,8 @@ export function ZarrStoreProvider({
     hasLoadedArray: false,
     suggestedPaths: [],
     suggestionType: ZarrStoreSuggestionType.NO_OME,
-    onPropertiesFound: undefined
+    onPropertiesFound: undefined,
+    cellposeProperties: null
   })
 
   const setSource = useCallback((url: string) => {
@@ -74,7 +75,22 @@ export function ZarrStoreProvider({
   }, [])
 
   const setPropertiesCallback = useCallback((callback: (properties: any[]) => void) => {
-    setState(prev => ({ ...prev, onPropertiesFound: callback }))
+    console.log('📋 setPropertiesCallback called - registering callback')
+    setState(prev => {
+      console.log('📋 Current cellposeProperties in state:', prev.cellposeProperties?.length || 0, 'items')
+      // If we have pending properties, call the callback immediately
+      if (prev.cellposeProperties && prev.cellposeProperties.length > 0) {
+        console.log('✅ Callback registered, invoking with stored properties:', prev.cellposeProperties.length, 'items')
+        try {
+          callback(prev.cellposeProperties)
+        } catch (error) {
+          console.error('❌ Error invoking callback:', error)
+        }
+      } else {
+        console.log('⚠️ No properties in state yet, callback will be invoked when properties are loaded')
+      }
+      return { ...prev, onPropertiesFound: callback }
+    })
   }, [])
 
   // Cellpose detection utility - now loads all resolutions
@@ -97,8 +113,10 @@ export function ZarrStoreProvider({
         if (cellposeGroup instanceof zarrita.Group) {
           // Check for properties in the zarr.json attributes
           const attrs = cellposeGroup.attrs as any
+          console.log('🔍 Checking for properties in cellpose group (detectCellposeArray)')
+
           if (attrs?.ome?.['image-label']?.properties) {
-            console.log('🔍 Found properties in Cellpose zarr.json:', attrs.ome['image-label'].properties)
+            console.log('🔍 Found properties in Cellpose zarr.json:', attrs.ome['image-label'].properties.length, 'items')
 
             // Trigger properties loading callback if available
             if (state.onPropertiesFound) {
@@ -107,7 +125,12 @@ export function ZarrStoreProvider({
               } catch (error) {
                 console.error('❌ Error loading properties from zarr.json:', error)
               }
+            } else {
+              console.warn('⚠️ Properties found but no callback registered yet')
             }
+          } else {
+            console.warn('⚠️ No properties found in detectCellposeArray')
+            console.warn('   attrs structure:', attrs)
           }
 
           // Drill into OME multiscales metadata
@@ -565,11 +588,23 @@ export function ZarrStoreProvider({
           }
 
           const attrs = cellposeGroup.attrs as any
+          let properties: any[] | null = null
+
+          console.log('🔍 Checking for properties in cellpose group at path:', cellposePath)
+          console.log('🔍 cellposeGroup.attrs structure:', attrs)
 
           if (attrs?.ome?.['image-label']?.properties) {
-            const properties = attrs.ome['image-label'].properties
-            if (state.onPropertiesFound) {
-              state.onPropertiesFound(properties)
+            properties = attrs.ome['image-label'].properties
+            console.log('✅ Found', properties.length, 'properties in cellpose metadata')
+            console.log('   Properties will be stored in state for callback to retrieve')
+          } else {
+            console.warn('⚠️ No properties found at attrs.ome[\'image-label\'].properties')
+            console.warn('   Available paths:', Object.keys(attrs || {}))
+            if (attrs?.ome) {
+              console.warn('   attrs.ome keys:', Object.keys(attrs.ome))
+              if (attrs.ome?.['image-label']) {
+                console.warn('   attrs.ome[\'image-label\'] keys:', Object.keys(attrs.ome['image-label']))
+              }
             }
           }
 
@@ -605,7 +640,7 @@ export function ZarrStoreProvider({
 
           const defaultArray = arrays.length > 0 ? arrays[0] : null
 
-          return { arrays, resolutions, scales, defaultArray }
+          return { arrays, resolutions, scales, defaultArray, properties }
         })()
       ])
 
@@ -616,19 +651,32 @@ export function ZarrStoreProvider({
 
       // Handle cellpose result
       if (cellposeResult.status === 'fulfilled') {
-        const { arrays, resolutions, scales, defaultArray } = cellposeResult.value
-        setState(prev => ({
-          ...prev,
-          cellposeArray: defaultArray,
-          cellposeArrays: arrays,
-          cellposeResolutions: resolutions,
-          cellposeScales: scales,
-          cellposePath,
-          selectedCellposeResolution: 0,
-          isCellposeLoading: false,
-          cellposeError: null,
-          isLoading: false
-        }))
+        const { arrays, resolutions, scales, defaultArray, properties } = cellposeResult.value
+        setState(prev => {
+          // Invoke callback immediately if it's registered and we have properties
+          if (properties && properties.length > 0 && prev.onPropertiesFound) {
+            console.log('✅ Invoking callback immediately after properties loaded:', properties.length, 'items')
+            try {
+              prev.onPropertiesFound(properties)
+            } catch (error) {
+              console.error('❌ Error invoking callback after properties loaded:', error)
+            }
+          }
+
+          return {
+            ...prev,
+            cellposeArray: defaultArray,
+            cellposeArrays: arrays,
+            cellposeResolutions: resolutions,
+            cellposeScales: scales,
+            cellposePath,
+            cellposeProperties: properties,
+            selectedCellposeResolution: 0,
+            isCellposeLoading: false,
+            cellposeError: null,
+            isLoading: false
+          }
+        })
       } else {
         const errorMessage = cellposeResult.reason instanceof Error ? cellposeResult.reason.message : 'Unknown error loading Cellpose data'
         setState(prev => ({

@@ -125,6 +125,10 @@ export interface ZarrStoreState {
    * Callback function to handle properties found in Cellpose zarr.json
    */
   onPropertiesFound?: (properties: any[]) => void
+  /**
+   * Properties loaded from Cellpose metadata (stored for when callback is registered)
+   */
+  cellposeProperties: any[] | null
 }
 
 export interface ZarrStoreContextType extends ZarrStoreState {
