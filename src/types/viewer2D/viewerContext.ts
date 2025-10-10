@@ -45,12 +45,13 @@ export interface Viewer2DDataContextType {
   setViewerSize: (size: ViewerSize) => void
   
   // Data access
-  frameBoundCellposeData: zarrita.Chunk<zarrita.DataType> | null
+  frameBoundCellposeData: zarrita.Chunk<zarrita.DataType> | null // High-res single Z layer for 2D overlay
+  frameBoundCellposeMeshData: zarrita.Chunk<zarrita.DataType> | null // Low-res all Z layers for mesh creation
   isDataLoading: boolean
   dataError: string | null
 
   // Cellpose resolution and scaling
-  cellposeScale: number[] // [z_scale, y_scale, x_scale] for current resolution
+  cellposeScale: number[] // [z_scale, y_scale, x_scale] for mesh resolution
 }
 
 export interface Viewer2DDataProviderProps {

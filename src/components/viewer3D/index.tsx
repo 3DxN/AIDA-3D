@@ -66,7 +66,7 @@ const Viewer3D = (props: {
 
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
-	const { frameBoundCellposeData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow, cellposeScale } = useViewer2DData();
+	const { frameBoundCellposeMeshData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow, cellposeScale } = useViewer2DData();
 	const { setPropertiesCallback } = useZarrStore();
 
 	// Function to handle automatic properties loading from Cellpose zarr.json
@@ -231,7 +231,7 @@ const Viewer3D = (props: {
 
 	// Generate and render mesh from voxel data
 	useEffect(() => {
-		if (scene && camera && renderer && frameBoundCellposeData) {
+		if (scene && camera && renderer && frameBoundCellposeMeshData) {
 			setIsLoading(true);
 
 			if (content) {
@@ -263,7 +263,7 @@ const Viewer3D = (props: {
 			// Pass scale factors to ensure proper proportions at different resolutions
 			console.log('🔧 Generating meshes with voxel scale:', cellposeScale);
 			const meshDataArray = generateMeshesFromVoxelData(
-				frameBoundCellposeData,
+				frameBoundCellposeMeshData,
 				relativeCurrentZSlice,
 				filterIncompleteNuclei,
 				cellposeScale
@@ -401,7 +401,7 @@ const Viewer3D = (props: {
 			renderer.render(scene, camera);
 			setIsLoading(false);
 		}
-	}, [scene, camera, renderer, frameBoundCellposeData, filterIncompleteNuclei]);
+	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei]);
 
 	// Adjust selections
 	useEffect(() => {
@@ -517,7 +517,7 @@ const Viewer3D = (props: {
 		if (renderer && scene && camera) {
 			renderer.render(scene, camera);
 		}
-	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeData]);
+	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeMeshData]);
 
 	// Update colors based on labels (only as fallback when no ColorMaps are active)
 	useEffect(() => {

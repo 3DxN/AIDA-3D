@@ -46,7 +46,8 @@ export function ZarrStoreProvider({
     cellposeArrays: [],
     cellposeResolutions: [],
     cellposeScales: [],
-    selectedCellposeResolution: 0,
+    selectedCellposeOverlayResolution: 0,
+    selectedCellposeMeshResolution: 3,
     isCellposeLoading: false,
     cellposeError: null,
     isLoading: false,
@@ -469,7 +470,8 @@ export function ZarrStoreProvider({
         cellposeArrays: arrays,
         cellposeResolutions: resolutions,
         cellposeScales: scales,
-        selectedCellposeResolution: 0,
+        selectedCellposeOverlayResolution: 0,
+        selectedCellposeMeshResolution: Math.min(3, arrays.length - 1),
         isCellposeLoading: false,
         cellposeError: null
       }))
@@ -671,7 +673,8 @@ export function ZarrStoreProvider({
             cellposeScales: scales,
             cellposePath,
             cellposeProperties: properties,
-            selectedCellposeResolution: 0,
+            selectedCellposeOverlayResolution: 0,
+            selectedCellposeMeshResolution: Math.min(3, arrays.length - 1),
             isCellposeLoading: false,
             cellposeError: null,
             isLoading: false
@@ -702,21 +705,32 @@ export function ZarrStoreProvider({
     }
   }, [processGroup, state.onPropertiesFound])
 
-  // Function to change the selected Cellpose resolution
-  const setSelectedCellposeResolution = useCallback((index: number) => {
+  // Function to change the selected Cellpose overlay resolution
+  const setSelectedCellposeOverlayResolution = useCallback((index: number) => {
     setState(prev => {
       if (index >= 0 && index < prev.cellposeArrays.length) {
-        const newArray = prev.cellposeArrays[index]
-        console.log(`📊 Switching to Cellpose resolution ${index}: ${prev.cellposeResolutions[index]}`)
-        console.log(`   Array shape: ${newArray.shape.join(' × ')}`)
-        console.log(`   Array object changed: ${newArray !== prev.cellposeArray}`)
+        console.log(`📊 Switching to Cellpose overlay resolution ${index}: ${prev.cellposeResolutions[index]}`)
         return {
           ...prev,
-          selectedCellposeResolution: index,
-          cellposeArray: newArray
+          selectedCellposeOverlayResolution: index
         }
       }
-      console.warn(`❌ Invalid resolution index: ${index} (available: 0-${prev.cellposeArrays.length - 1})`)
+      console.warn(`❌ Invalid overlay resolution index: ${index} (available: 0-${prev.cellposeArrays.length - 1})`)
+      return prev
+    })
+  }, [])
+
+  // Function to change the selected Cellpose mesh resolution
+  const setSelectedCellposeMeshResolution = useCallback((index: number) => {
+    setState(prev => {
+      if (index >= 0 && index < prev.cellposeArrays.length) {
+        console.log(`📊 Switching to Cellpose mesh resolution ${index}: ${prev.cellposeResolutions[index]}`)
+        return {
+          ...prev,
+          selectedCellposeMeshResolution: index
+        }
+      }
+      console.warn(`❌ Invalid mesh resolution index: ${index} (available: 0-${prev.cellposeArrays.length - 1})`)
       return prev
     })
   }, [])
@@ -733,7 +747,8 @@ export function ZarrStoreProvider({
     navigateToSuggestion,
     refreshCellposeData,
     setPropertiesCallback,
-    setSelectedCellposeResolution
+    setSelectedCellposeOverlayResolution,
+    setSelectedCellposeMeshResolution
   }
 
   return (

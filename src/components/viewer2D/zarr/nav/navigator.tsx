@@ -9,7 +9,8 @@ import UnifiedSlider from '../../../interaction/UnifiedSlider'
 import Switch from '../../../interaction/Switch'
 import ChannelSelector from './ChannelSelector'
 import ContrastLimitsSelector from './ContrastLimitsSelector'
-import CellposeResolutionSelector from './CellposeResolutionSelector'
+import CellposeOverlayResolutionSelector from './CellposeOverlayResolutionSelector'
+import CellposeMeshResolutionSelector from './CellposeMeshResolutionSelector'
 
 export default function NavigationControls({ onToggle }: { onToggle?: (open: boolean) => void }) {
     // Get all data from contexts instead of props
@@ -109,8 +110,9 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                             </div>
                         </div>
 
-                        {/* Cellpose Resolution Selector */}
-                        <CellposeResolutionSelector />
+                        {/* Cellpose Resolution Selectors */}
+                        <CellposeOverlayResolutionSelector />
+                        <CellposeMeshResolutionSelector />
 
                         {/* Channel Selection */}
                         <div className="px-4 py-2 border-b border-gray-200">

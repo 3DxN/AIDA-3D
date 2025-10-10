@@ -67,9 +67,13 @@ export interface ZarrStoreState {
    */
   cellposeScales: number[][]
   /**
-   * Currently selected Cellpose resolution index
+   * Currently selected Cellpose resolution index for 2D overlay (high-res single z layer)
    */
-  selectedCellposeResolution: number
+  selectedCellposeOverlayResolution: number
+  /**
+   * Currently selected Cellpose resolution index for mesh creation (low-res all z layers)
+   */
+  selectedCellposeMeshResolution: number
   /**
    * Whether the Cellpose array is currently being loaded
    */
@@ -142,7 +146,8 @@ export interface ZarrStoreContextType extends ZarrStoreState {
   navigateToSuggestion: (suggestionPath: string) => void
   refreshCellposeData: () => Promise<void>
   setPropertiesCallback: (callback: (properties: any[]) => void) => void
-  setSelectedCellposeResolution: (index: number) => void
+  setSelectedCellposeOverlayResolution: (index: number) => void
+  setSelectedCellposeMeshResolution: (index: number) => void
 }
 
 export interface ZarrStoreProviderProps {
