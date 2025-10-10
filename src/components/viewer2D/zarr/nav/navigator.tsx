@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid'
+import { Disclosure } from '@headlessui/react'
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext'
 import { useZarrStore } from '../../../../lib/contexts/ZarrStoreContext'
 
@@ -10,6 +11,10 @@ import Switch from '../../../interaction/Switch'
 import ChannelSelector from './ChannelSelector'
 import ContrastLimitsSelector from './ContrastLimitsSelector'
 import CellposeResolutionSelector from './CellposeResolutionSelector'
+
+function classNames(...classes: (string | boolean | undefined)[]) {
+    return classes.filter(Boolean).join(' ')
+}
 
 export default function NavigationControls({ onToggle }: { onToggle?: (open: boolean) => void }) {
     // Get all data from contexts instead of props
@@ -85,7 +90,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
 
             {/* Content */}
             {isCollapsed && (
-                <div className="bg-white border-l border-gray-200 h-screen shadow text-gray-800 flex flex-col divide-y w-48 absolute right-0 top-0 z-10">
+                <div className="bg-white border-l border-gray-200 h-screen shadow text-gray-800 flex flex-col divide-y w-48 absolute right-0 top-0 z-10 overflow-y-auto">
                     {/* Close button */}
                     <button
                         onClick={() => handleToggle(false)}
@@ -96,52 +101,135 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                     </button>
 
                     {/* Navigation Content */}
-                    <div className="flex-1">
-                        {/* Overlays */}
-                        <div className="px-4 py-2 border-b border-gray-200">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3">Overlays</h3>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-800">Cellpose Nuclei</span>
-                                <Switch
-                                    enabled={cellposeOverlayOn}
-                                    onChange={navigationHandlers.onCellposeOverlayToggle}
-                                />
-                            </div>
-                        </div>
+                    {/* Segmentation Section */}
+                    <Disclosure className="shadow-sm" as="div">
+                        {({ open }) => (
+                            <>
+                                <Disclosure.Button
+                                    className={classNames(
+                                        'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
+                                    )}
+                                >
+                                    <svg
+                                        className={classNames(
+                                            open ? 'text-gray-400 rotate-90' : 'text-gray-300',
+                                            'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
+                                        )}
+                                        viewBox="0 0 20 20"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
+                                    </svg>
+                                    Segmentation
+                                </Disclosure.Button>
+                                <Disclosure.Panel className="relative">
+                                    <div className="mx-4 flex my-2 justify-between">
+                                        <div className="text-sm">Cellpose Nuclei</div>
+                                        <Switch
+                                            enabled={cellposeOverlayOn}
+                                            onChange={navigationHandlers.onCellposeOverlayToggle}
+                                        />
+                                    </div>
+                                    <CellposeResolutionSelector />
+                                </Disclosure.Panel>
+                            </>
+                        )}
+                    </Disclosure>
 
-                        {/* Cellpose Resolution Selector */}
-                        <CellposeResolutionSelector />
+                    {/* Channel Selection Section */}
+                    <Disclosure className="shadow-sm" as="div">
+                        {({ open }) => (
+                            <>
+                                <Disclosure.Button
+                                    className={classNames(
+                                        'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
+                                    )}
+                                >
+                                    <svg
+                                        className={classNames(
+                                            open ? 'text-gray-400 rotate-90' : 'text-gray-300',
+                                            'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
+                                        )}
+                                        viewBox="0 0 20 20"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
+                                    </svg>
+                                    Channels
+                                </Disclosure.Button>
+                                <Disclosure.Panel className="relative">
+                                    <div className="px-4 py-2">
+                                        <ChannelSelector
+                                            channelNames={msInfo.channels}
+                                            channelMap={channelMap}
+                                            onChannelChange={navigationHandlers.onChannelChange}
+                                        />
+                                    </div>
+                                </Disclosure.Panel>
+                            </>
+                        )}
+                    </Disclosure>
 
-                        {/* Channel Selection */}
-                        <div className="px-4 py-2 border-b border-gray-200">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3">Channels</h3>
-                            <ChannelSelector
-                                channelNames={msInfo.channels}
-                                channelMap={channelMap}
-                                onChannelChange={navigationHandlers.onChannelChange}
-                            />
-                        </div>
+                    {/* Contrast Limits Section */}
+                    <Disclosure className="shadow-sm" as="div">
+                        {({ open }) => (
+                            <>
+                                <Disclosure.Button
+                                    className={classNames(
+                                        'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
+                                    )}
+                                >
+                                    <svg
+                                        className={classNames(
+                                            open ? 'text-gray-400 rotate-90' : 'text-gray-300',
+                                            'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
+                                        )}
+                                        viewBox="0 0 20 20"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
+                                    </svg>
+                                    Contrast
+                                </Disclosure.Button>
+                                <Disclosure.Panel className="relative">
+                                    <div className="px-4 py-2">
+                                        <ContrastLimitsSelector
+                                            contrastLimitsProps={{
+                                                contrastLimits,
+                                                maxContrastLimit,
+                                                onContrastLimitsChange: navigationHandlers.onContrastLimitsChange
+                                            }}
+                                            channelMap={channelMap}
+                                        />
+                                    </div>
+                                </Disclosure.Panel>
+                            </>
+                        )}
+                    </Disclosure>
 
-                        {/* Contrast Limits */}
-                        <div className="px-4 py-2 border-b border-gray-200">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3">Contrast</h3>
-                            <ContrastLimitsSelector
-                                contrastLimitsProps={{
-                                    contrastLimits,
-                                    maxContrastLimit,
-                                    onContrastLimitsChange: navigationHandlers.onContrastLimitsChange
-                                }}
-                                channelMap={channelMap}
-                            />
-                        </div>
-
-                        {/* Frame Selection and Navigation - Side by Side */}
-                        <div className="px-4 py-2 border-b border-gray-200">
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* Frame Selection - Left Side */}
-                                <div>
-                                    <h3 className="text-sm font-medium text-gray-700 mb-3">Frame</h3>
-                                    <div className="space-y-3">
+                    {/* Frame Section */}
+                    <Disclosure className="shadow-sm" as="div">
+                        {({ open }) => (
+                            <>
+                                <Disclosure.Button
+                                    className={classNames(
+                                        'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
+                                    )}
+                                >
+                                    <svg
+                                        className={classNames(
+                                            open ? 'text-gray-400 rotate-90' : 'text-gray-300',
+                                            'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
+                                        )}
+                                        viewBox="0 0 20 20"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
+                                    </svg>
+                                    Frame
+                                </Disclosure.Button>
+                                <Disclosure.Panel className="relative">
+                                    <div className="px-4 py-2 space-y-3">
                                         <div>
                                             <div className="text-xs font-medium text-gray-700 mb-2">Center (X, Y)</div>
                                             <div className="flex space-x-2">
@@ -162,7 +250,6 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                             </div>
                                         </div>
 
-                                        {/* Frame Size Control */}
                                         <div>
                                             <div className="text-xs font-medium text-gray-700 mb-2">Size (W × H)</div>
                                             <div className="flex space-x-2">
@@ -185,12 +272,34 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                </Disclosure.Panel>
+                            </>
+                        )}
+                    </Disclosure>
 
-                                {/* Navigation - Right Side */}
-                                <div>
-                                    <h3 className="text-sm font-medium text-gray-700 mb-3">Navigation</h3>
-                                    <div className="space-y-1">
+                    {/* Navigation Section */}
+                    <Disclosure className="shadow-sm" as="div">
+                        {({ open }) => (
+                            <>
+                                <Disclosure.Button
+                                    className={classNames(
+                                        'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
+                                    )}
+                                >
+                                    <svg
+                                        className={classNames(
+                                            open ? 'text-gray-400 rotate-90' : 'text-gray-300',
+                                            'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
+                                        )}
+                                        viewBox="0 0 20 20"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
+                                    </svg>
+                                    Navigation
+                                </Disclosure.Button>
+                                <Disclosure.Panel className="relative">
+                                    <div className="px-4 py-2 space-y-1">
                                         <UnifiedSlider
                                             label="Current Z layer"
                                             value={tempZSlice ?? zSlice}
@@ -241,10 +350,10 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                             condition={Boolean(msInfo.shape.z && msInfo.shape.z > 1)}
                                         />
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                                </Disclosure.Panel>
+                            </>
+                        )}
+                    </Disclosure>
                 </div>
             )}
         </>

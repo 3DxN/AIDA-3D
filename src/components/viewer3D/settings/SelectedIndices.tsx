@@ -14,7 +14,7 @@ const SelectedIndices = (props: { selected: Mesh[] }) => {
 	})
 
 	return (
-		<Disclosure className="shadow-sm" as="div" defaultOpen>
+		<Disclosure className="shadow-sm" as="div">
 			{({ open }) => (
 				<>
 					<Disclosure.Button
@@ -34,7 +34,7 @@ const SelectedIndices = (props: { selected: Mesh[] }) => {
 						</svg>
 						Selected Nuclei
 					</Disclosure.Button>
-					<Disclosure.Panel className="relative px-4 py-2 w-48">
+					<Disclosure.Panel className="relative px-4 py-2">
 						{selectedIndices.length > 0 ? (
 							<div className="max-h-40 overflow-y-auto">
 								<ul className="list-disc pl-5">

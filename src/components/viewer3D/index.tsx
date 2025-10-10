@@ -222,9 +222,9 @@ const Viewer3D = (props: {
 			newCamera.aspect = canvas.clientWidth / canvas.clientHeight;
 			newCamera.updateProjectionMatrix();
 
-			resizeRendererToDisplaySize(newRenderer);
+			resizeRendererToDisplaySize(newRenderer, newCamera);
 			window.addEventListener('resize', () =>
-				resizeRendererToDisplaySize(newRenderer)
+				resizeRendererToDisplaySize(newRenderer, newCamera)
 			);
 		}
 	}, []);
@@ -569,8 +569,8 @@ const Viewer3D = (props: {
 	}, [featureData, content, renderer, scene, camera, updateNucleusColors, globalPropertyTypes]);
 
 	return (
-		<div className="w-full h-full flex border-l border-l-teal-500 overflow-hidden">
-			<div className="flex-grow flex items-center justify-center bg-gray-100 relative overflow-hidden">
+		<div className="w-full h-full border-l border-l-teal-500 overflow-hidden relative">
+			<div className="w-full h-full flex items-center justify-center bg-gray-100 overflow-hidden">
 				{!tile && !content && (
 					<div className="absolute text-gray-500">
 						Generating 3D model from voxel data...
@@ -591,19 +591,21 @@ const Viewer3D = (props: {
 					setSelect3D={setSelect3D}
 				/>
 			)}
-			<Settings
-				renderer={renderer}
-				scene={scene}
-				camera={camera}
-				content={content}
-				featureData={featureData}
-				selected={selectedMeshesState}
-				setFeatureData={setFeatureData}
-				globalProperties={globalProperties}
-				globalPropertyTypes={globalPropertyTypes}
-				filterIncompleteNuclei={filterIncompleteNuclei}
-				setFilterIncompleteNuclei={setFilterIncompleteNuclei}
-			/>
+			<div className="absolute top-0 right-0 h-full">
+				<Settings
+					renderer={renderer}
+					scene={scene}
+					camera={camera}
+					content={content}
+					featureData={featureData}
+					selected={selectedMeshesState}
+					setFeatureData={setFeatureData}
+					globalProperties={globalProperties}
+					globalPropertyTypes={globalPropertyTypes}
+					filterIncompleteNuclei={filterIncompleteNuclei}
+					setFilterIncompleteNuclei={setFilterIncompleteNuclei}
+				/>
+			</div>
 		</div>
 	);
 };

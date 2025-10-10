@@ -48,7 +48,7 @@ export default function Settings(props: {
 		setIsOpen(newState);
 		if (renderer) {
 			setTimeout(() => {
-				resizeRendererToDisplaySize(renderer);
+				resizeRendererToDisplaySize(renderer, camera);
 				if (scene && camera) {
 					renderer.render(scene, camera);
 				}
@@ -69,10 +69,10 @@ export default function Settings(props: {
 			)}
 
 			{isOpen && (
-				<div className="bg-white border-l border-gray-200 h-full shadow text-gray-800 flex flex-col divide-y overflow-y-auto">
+				<div className="bg-white border-l border-gray-200 h-full shadow text-gray-800 flex flex-col divide-y overflow-y-auto w-64">
 					<button
 						onClick={() => handleToggle(false)}
-						className="w-48 flex justify-between hover:bg-gray-100 p-2 items-center focus:outline-none  ring-inset focus:ring-2 focus:ring-teal-500"
+						className="w-full flex justify-between hover:bg-gray-100 p-2 items-center focus:outline-none  ring-inset focus:ring-2 focus:ring-teal-500"
 					>
 						Settings
 						<ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
