@@ -47,7 +47,7 @@ export function ZarrStoreProvider({
     cellposeResolutions: [],
     cellposeScales: [],
     selectedCellposeOverlayResolution: 0,
-    selectedCellposeMeshResolution: 3,
+    selectedCellposeMeshResolution: 2,
     isCellposeLoading: false,
     cellposeError: null,
     isLoading: false,
@@ -471,7 +471,7 @@ export function ZarrStoreProvider({
         cellposeResolutions: resolutions,
         cellposeScales: scales,
         selectedCellposeOverlayResolution: 0,
-        selectedCellposeMeshResolution: Math.min(3, arrays.length - 1),
+        selectedCellposeMeshResolution: Math.min(2, arrays.length - 1),
         isCellposeLoading: false,
         cellposeError: null
       }))
@@ -674,7 +674,7 @@ export function ZarrStoreProvider({
             cellposePath,
             cellposeProperties: properties,
             selectedCellposeOverlayResolution: 0,
-            selectedCellposeMeshResolution: Math.min(3, arrays.length - 1),
+            selectedCellposeMeshResolution: Math.min(2, arrays.length - 1),
             isCellposeLoading: false,
             cellposeError: null,
             isLoading: false

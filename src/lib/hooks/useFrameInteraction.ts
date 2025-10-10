@@ -164,7 +164,7 @@ export function useFrameInteraction(
                 dragMode: 'none',
                 startPos: [0, 0],
                 startFrameCenter: [0, 0],
-                startFrameSize: [100, 100]
+                startFrameSize: [200, 200]
             });
             return true; // Stop propagation
         }
