@@ -10,7 +10,8 @@ import UnifiedSlider from '../../../interaction/UnifiedSlider'
 import Switch from '../../../interaction/Switch'
 import ChannelSelector from './ChannelSelector'
 import ContrastLimitsSelector from './ContrastLimitsSelector'
-import CellposeResolutionSelector from './CellposeResolutionSelector'
+import CellposeOverlayResolutionSelector from './CellposeOverlayResolutionSelector'
+import CellposeMeshResolutionSelector from './CellposeMeshResolutionSelector'
 
 function classNames(...classes: (string | boolean | undefined)[]) {
     return classes.filter(Boolean).join(' ')
@@ -130,7 +131,9 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                             onChange={navigationHandlers.onCellposeOverlayToggle}
                                         />
                                     </div>
-                                    <CellposeResolutionSelector />
+                                    {/* Cellpose Resolution Selectors */}
+                                    <CellposeOverlayResolutionSelector />
+                                    <CellposeMeshResolutionSelector />
                                 </Disclosure.Panel>
                             </>
                         )}
