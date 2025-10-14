@@ -26,7 +26,8 @@
       "Bash(netsh interface ipv4 show:*)",
       "Bash(reg query:*)",
       "Bash(nslookup:*)",
-      "Read(//c/Windows/System32/drivers/etc/**)"
+      "Read(//c/Windows/System32/drivers/etc/**)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,6 +1,5 @@
 import * as zarr from "zarrita";
 import type * as viv from "@vivjs/types";
-import { computeHistogramEqualizationMapping, type HistogramEqualizationMapping } from "../utils/histogramEqualization";
 
 // TODO: Export from top-level zarrita
 type Slice = ReturnType<typeof zarr.slice>;
@@ -28,8 +27,6 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
   readonly #transform: (
     arr: zarr.TypedArray<zarr.NumberDataType | zarr.BigintDataType>,
   ) => zarr.TypedArray<Lowercase<viv.SupportedDtype>>;
-  #histogramEqualizationOn: boolean = false;
-  #histogramMapping: HistogramEqualizationMapping | null = null;
 
   #pendingId: undefined | number = undefined;
   #pending: Array<{
@@ -43,13 +40,12 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
 
   constructor(
     arr: zarr.Array<zarr.DataType, zarr.Readable>,
-    options: { labels: viv.Properties<Array<string>>; tileSize: number; histogramEqualizationOn?: boolean },
+    options: { labels: viv.Properties<Array<string>>; tileSize: number },
   ) {
     assert(arr.is("number") || arr.is("bigint"), `Unsupported viv dtype: ${arr.dtype}`);
     this.#arr = arr;
     this.labels = options.labels;
     this.tileSize = options.tileSize;
-    this.#histogramEqualizationOn = options.histogramEqualizationOn ?? false;
     /**
      * Some `zarrita` data types are not supported by Viv and require casting.
      *
@@ -140,12 +136,7 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
       zarr
         .get(this.#arr, request.selection, { opts: { signal: request.signal } })
         .then(({ data, shape }) => {
-          let transformedData = this.#transform(data);
-
-          // Apply histogram equalization if enabled
-          if (this.#histogramEqualizationOn && this.#histogramMapping) {
-            transformedData = this.#histogramMapping.apply(transformedData);
-          }
+          const transformedData = this.#transform(data);
 
           resolve({
             data: transformedData,
@@ -159,41 +150,6 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
     this.#pending = [];
   }
 
-  /**
-   * Update the histogram equalization setting
-   * When enabling, computes the global histogram from a sample of the data
-   */
-  async setHistogramEqualization(enabled: boolean): Promise<void> {
-    this.#histogramEqualizationOn = enabled;
-
-    if (enabled) {
-      // Compute global histogram from a downsampled version of the image
-      // We sample the center region at lower resolution to get representative data
-      const sampleSelection = this.labels.map((label) => {
-        if (label === X_AXIS_NAME) {
-          const w = this.#width;
-          return zarr.slice(Math.floor(w * 0.25), Math.floor(w * 0.75));
-        } else if (label === Y_AXIS_NAME) {
-          const h = this.#height;
-          return zarr.slice(Math.floor(h * 0.25), Math.floor(h * 0.75));
-        } else {
-          return 0;
-        }
-      });
-
-      try {
-        const { data } = await zarr.get(this.#arr, sampleSelection);
-        const transformedData = this.#transform(data);
-        this.#histogramMapping = computeHistogramEqualizationMapping(transformedData, this.dtype);
-      } catch (error) {
-        console.error("Failed to compute histogram equalization mapping:", error);
-        this.#histogramEqualizationOn = false;
-        this.#histogramMapping = null;
-      }
-    } else {
-      this.#histogramMapping = null;
-    }
-  }
 }
 
 function buildZarrSelection(

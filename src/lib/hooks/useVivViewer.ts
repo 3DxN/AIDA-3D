@@ -75,8 +75,7 @@ export default function useVivViewer(
                         labels: ['t', 'c', 'z', 'y', 'x'].filter(
                             key => Object.keys(msInfo.shape).includes(key)
                         ) as viv.Properties<string[]>,
-                        tileSize: resolutionArray.chunks.at(-1)!,
-                        histogramEqualizationOn: navigationState?.histogramEqualizationOn ?? false
+                        tileSize: resolutionArray.chunks.at(-1)!
                     })
                     allLoaders.push(loader)
                 } catch (error) {
@@ -88,22 +87,6 @@ export default function useVivViewer(
 
         loadAllResolutions()
     }, [msInfo, root])
-
-    // Update histogram equalization when the setting changes
-    useEffect(() => {
-        async function updateHistogramEqualization() {
-            if (vivLoaders.length === 0) return
-
-            // Update all loaders with the new histogram equalization setting
-            await Promise.all(
-                vivLoaders.map(loader =>
-                    loader.setHistogramEqualization(navigationState?.histogramEqualizationOn ?? false)
-                )
-            )
-        }
-
-        updateHistogramEqualization()
-    }, [vivLoaders, navigationState?.histogramEqualizationOn])
 
     // Compute selections based on navigation state
     const selections = useMemo(() => {
@@ -228,10 +211,6 @@ export default function useVivViewer(
             const entries = Object.entries(navigationState.channelMap)
             for (let i = 0; i < entries.length; i++) {
                 if (entries[i][1] === index) {
-                    // If histogram equalization is on, use full range so VivJS doesn't remap the equalized values
-                    if (navigationState.histogramEqualizationOn) {
-                        return [0, maxValue];
-                    }
                     return [0, navigationState.contrastLimits[i]]
                 }
             }
@@ -258,7 +237,7 @@ export default function useVivViewer(
             }
             return baseProps
         })
-    }, [vivLoaders, views, selections, colors, navigationState.channelMap, navigationState.contrastLimits, navigationState.histogramEqualizationOn, msInfo.shape.c, msInfo.dtype])
+    }, [vivLoaders, views, selections, colors, navigationState.channelMap, navigationState.contrastLimits, msInfo.shape.c, msInfo.dtype])
 
     // Generate default layer props (for initial render)
     const layerProps = useMemo(() => createLayerProps([]), [createLayerProps])
