@@ -87,7 +87,23 @@ export default function useVivViewer(
         }
 
         loadAllResolutions()
-    }, [msInfo, root, navigationState?.histogramEqualizationOn])
+    }, [msInfo, root])
+
+    // Update histogram equalization when the setting changes
+    useEffect(() => {
+        async function updateHistogramEqualization() {
+            if (vivLoaders.length === 0) return
+
+            // Update all loaders with the new histogram equalization setting
+            await Promise.all(
+                vivLoaders.map(loader =>
+                    loader.setHistogramEqualization(navigationState?.histogramEqualizationOn ?? false)
+                )
+            )
+        }
+
+        updateHistogramEqualization()
+    }, [vivLoaders, navigationState?.histogramEqualizationOn])
 
     // Compute selections based on navigation state
     const selections = useMemo(() => {
