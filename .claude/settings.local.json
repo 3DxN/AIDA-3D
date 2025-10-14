@@ -24,7 +24,9 @@
       "Bash(cmd /c:*)",
       "Bash(tasklist)",
       "Bash(netsh interface ipv4 show:*)",
-      "Bash(reg query:*)"
+      "Bash(reg query:*)",
+      "Bash(nslookup:*)",
+      "Read(//c/Windows/System32/drivers/etc/**)"
     ],
     "deny": [],
     "ask": []
