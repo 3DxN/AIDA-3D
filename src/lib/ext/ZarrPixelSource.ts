@@ -1,5 +1,6 @@
 import * as zarr from "zarrita";
 import type * as viv from "@vivjs/types";
+import { applyHistogramEqualization } from "../utils/histogramEqualization";
 
 // TODO: Export from top-level zarrita
 type Slice = ReturnType<typeof zarr.slice>;
@@ -27,6 +28,7 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
   readonly #transform: (
     arr: zarr.TypedArray<zarr.NumberDataType | zarr.BigintDataType>,
   ) => zarr.TypedArray<Lowercase<viv.SupportedDtype>>;
+  #histogramEqualizationOn: boolean = false;
 
   #pendingId: undefined | number = undefined;
   #pending: Array<{
@@ -40,12 +42,13 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
 
   constructor(
     arr: zarr.Array<zarr.DataType, zarr.Readable>,
-    options: { labels: viv.Properties<Array<string>>; tileSize: number },
+    options: { labels: viv.Properties<Array<string>>; tileSize: number; histogramEqualizationOn?: boolean },
   ) {
     assert(arr.is("number") || arr.is("bigint"), `Unsupported viv dtype: ${arr.dtype}`);
     this.#arr = arr;
     this.labels = options.labels;
     this.tileSize = options.tileSize;
+    this.#histogramEqualizationOn = options.histogramEqualizationOn ?? false;
     /**
      * Some `zarrita` data types are not supported by Viv and require casting.
      *
@@ -136,8 +139,15 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
       zarr
         .get(this.#arr, request.selection, { opts: { signal: request.signal } })
         .then(({ data, shape }) => {
+          let transformedData = this.#transform(data);
+
+          // Apply histogram equalization if enabled
+          if (this.#histogramEqualizationOn) {
+            transformedData = applyHistogramEqualization(transformedData, this.dtype);
+          }
+
           resolve({
-            data: this.#transform(data),
+            data: transformedData,
             width: shape[1],
             height: shape[0],
           });
@@ -146,6 +156,13 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
     }
     this.#pendingId = undefined;
     this.#pending = [];
+  }
+
+  /**
+   * Update the histogram equalization setting
+   */
+  setHistogramEqualization(enabled: boolean): void {
+    this.#histogramEqualizationOn = enabled;
   }
 }
 

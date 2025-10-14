@@ -75,7 +75,8 @@ export default function useVivViewer(
                         labels: ['t', 'c', 'z', 'y', 'x'].filter(
                             key => Object.keys(msInfo.shape).includes(key)
                         ) as viv.Properties<string[]>,
-                        tileSize: resolutionArray.chunks.at(-1)!
+                        tileSize: resolutionArray.chunks.at(-1)!,
+                        histogramEqualizationOn: navigationState?.histogramEqualizationOn ?? false
                     })
                     allLoaders.push(loader)
                 } catch (error) {
@@ -86,7 +87,7 @@ export default function useVivViewer(
         }
 
         loadAllResolutions()
-    }, [msInfo, root])
+    }, [msInfo, root, navigationState?.histogramEqualizationOn])
 
     // Compute selections based on navigation state
     const selections = useMemo(() => {

@@ -15,7 +15,16 @@
       "mcp__playwright__browser_console_messages",
       "mcp__playwright__browser_network_requests",
       "mcp__playwright__browser_wait_for",
-      "mcp__playwright__browser_click"
+      "mcp__playwright__browser_click",
+      "Bash(ipconfig:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(netsh advfirewall:*)",
+      "Bash(ping:*)",
+      "Bash(cmd /c:*)",
+      "Bash(tasklist)",
+      "Bash(netsh interface ipv4 show:*)",
+      "Bash(reg query:*)"
     ],
     "deny": [],
     "ask": []

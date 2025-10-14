@@ -51,7 +51,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         return null
     }
 
-    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn } = navigationState
+    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn, histogramEqualizationOn } = navigationState
 
     // Calculate navigation limits from msInfo
     const maxZSlice = msInfo.shape.z ? msInfo.shape.z - 1 : 0
@@ -73,6 +73,10 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         onCellposeOverlayToggle: (newState: boolean) => setNavigationState({
             ...navigationState,
             cellposeOverlayOn: newState
+        }),
+        onHistogramEqualizationToggle: (newState: boolean) => setNavigationState({
+            ...navigationState,
+            histogramEqualizationOn: newState
         }),
     }
 
@@ -195,7 +199,14 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                     Contrast
                                 </Disclosure.Button>
                                 <Disclosure.Panel className="relative">
-                                    <div className="px-4 py-2">
+                                    <div className="px-4 py-2 space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <div className="text-sm">Histogram Equalization</div>
+                                            <Switch
+                                                enabled={histogramEqualizationOn}
+                                                onChange={navigationHandlers.onHistogramEqualizationToggle}
+                                            />
+                                        </div>
                                         <ContrastLimitsSelector
                                             contrastLimitsProps={{
                                                 contrastLimits,
