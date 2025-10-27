@@ -25,6 +25,8 @@ export default function Settings(props: {
 	setFeatureData: (data: any) => void;
 	globalProperties: any;
 	globalPropertyTypes: any;
+	filterIncompleteNuclei: boolean;
+	setFilterIncompleteNuclei: (value: boolean) => void;
 }) {
 	const {
 		renderer,
@@ -36,18 +38,29 @@ export default function Settings(props: {
 		setFeatureData,
 		globalProperties,
 		globalPropertyTypes,
+		filterIncompleteNuclei,
+		setFilterIncompleteNuclei,
 	} = props;
 
 	const [isOpen, setIsOpen] = useState(true);
+
+	const handleToggle = (newState: boolean) => {
+		setIsOpen(newState);
+		if (renderer) {
+			setTimeout(() => {
+				resizeRendererToDisplaySize(renderer, camera);
+				if (scene && camera) {
+					renderer.render(scene, camera);
+				}
+			}, 0);
+		}
+	};
 
 	return (
 		<>
 			{!isOpen && (
 				<button
-					onClick={() => {
-						setIsOpen(true);
-						if (renderer) resizeRendererToDisplaySize(renderer);
-					}}
+					onClick={() => handleToggle(true)}
 					className="rounded-bl-md hover:bg-gray-100 border-gray-200 shadow p-2 bg-white absolute top-0 right-0 inline-flex items-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
 				>
 					<ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
@@ -56,13 +69,10 @@ export default function Settings(props: {
 			)}
 
 			{isOpen && (
-				<div className="bg-white border-l border-gray-200 h-screen shadow text-gray-800 flex flex-col divide-y overflow-y-auto">
+				<div className="bg-white border-l border-gray-200 h-full shadow text-gray-800 flex flex-col divide-y overflow-y-auto w-64">
 					<button
-						onClick={() => {
-							setIsOpen(false);
-							if (renderer) resizeRendererToDisplaySize(renderer);
-						}}
-						className="w-48 flex justify-between hover:bg-gray-100 p-2 items-center focus:outline-none  ring-inset focus:ring-2 focus:ring-teal-500"
+						onClick={() => handleToggle(false)}
+						className="w-full flex justify-between hover:bg-gray-100 p-2 items-center focus:outline-none  ring-inset focus:ring-2 focus:ring-teal-500"
 					>
 						Settings
 						<ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
@@ -93,6 +103,8 @@ export default function Settings(props: {
 						selected={selected}
 						globalProperties={globalProperties}
 						globalPropertyTypes={globalPropertyTypes}
+						filterIncompleteNuclei={filterIncompleteNuclei}
+						setFilterIncompleteNuclei={setFilterIncompleteNuclei}
 					/>
 					<Orientation
 						renderer={renderer}

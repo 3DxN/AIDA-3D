@@ -42,27 +42,41 @@ const defaultAnnotation: Annotation = {
 export default function ZarrWorkspace() {
 	const router = useRouter()
 	const { query } = router
-	const { source, loadStore, hasLoadedArray, msInfo, isLoading } = useZarrStore()
+	const {
+		source, zarrPath, cellposePath,
+		loadStore, loadZarrArray, loadCellposeData, loadFromUrlParams,
+		hasLoadedArray, msInfo, isLoading, store, cellposeArray
+	} = useZarrStore()
 
 	const [tile, setTile] = useState<[number, number]>([0, 0])
 	const [select3D, setSelect3D] = useState(false)
 	const [polygonCoords, setPolygonCoords] = useState<number[][][]>([])
-	const [showLoader, setShowLoader] = useState(true); // This state is new
+	const [showLoader, setShowLoader] = useState(true)
+	const [loadedUrlKey, setLoadedUrlKey] = useState<string>('')
 
-	// Auto-load if navigated directly with ?src=
+	// Auto-load if navigated directly with URL parameters
 	useEffect(() => {
-		const srcParam = typeof query.src === 'string' ? query.src : null
-		if (srcParam && !hasLoadedArray && !isLoading && (!source || source !== srcParam)) {
-			loadStore(srcParam)
-		}
-	}, [query.src, hasLoadedArray, isLoading, source, loadStore])
+		// Wait for router to be ready
+		if (!router.isReady) return
 
-	// This useEffect hook is also new
-	useEffect(() => {
-		if (hasLoadedArray) {
-			setShowLoader(false);
+		const serverParam = typeof query.server === 'string' ? query.server : null
+		const defaultStoreDirParam = typeof query.default_store_dir === 'string' ? query.default_store_dir : null
+		const cellposeStoreDirParam = typeof query.cellpose_store_dir === 'string' ? query.cellpose_store_dir : null
+
+		// If we have all URL params, hide loader and load data
+		if (serverParam && defaultStoreDirParam && cellposeStoreDirParam) {
+			// Create a unique key for this URL combination to prevent duplicate loads
+			const urlKey = `${serverParam}|${defaultStoreDirParam}|${cellposeStoreDirParam}`
+
+			if (urlKey === loadedUrlKey) return
+
+			setShowLoader(false)
+			setLoadedUrlKey(urlKey)
+
+			// Use the new single-function loader that avoids closure issues
+			loadFromUrlParams(serverParam, defaultStoreDirParam, cellposeStoreDirParam)
 		}
-	}, [hasLoadedArray]);
+	}, [router.isReady, query.server, query.default_store_dir, query.cellpose_store_dir, loadedUrlKey, loadFromUrlParams])
 
 	// src/pages/zarr.tsx
 
@@ -71,8 +85,8 @@ export default function ZarrWorkspace() {
 			<Head>
 				<title>Zarr Viewer - AIDA 3D</title>
 			</Head>
-			<div className="min-w-full h-screen flex bg-gray-100">
-				<div className="w-1/2 relative border-r border-gray-200">
+			<div className="min-w-full h-screen flex flex-col portrait:flex-col landscape:flex-row bg-gray-100">
+				<div className="w-full portrait:w-full landscape:w-1/2 portrait:h-1/2 landscape:h-full relative border-r border-gray-200">
 					{showLoader ? (
 						<StoreLoader onClose={() => setShowLoader(false)} />
 					) : hasLoadedArray && msInfo ? (
@@ -93,7 +107,7 @@ export default function ZarrWorkspace() {
 						</div>
 					)}
 				</div>
-				<div className="w-1/2 relative">
+				<div className="w-full portrait:w-full landscape:w-1/2 portrait:h-1/2 landscape:h-full relative">
 					{hasLoadedArray && msInfo ? (
 						<Viewer3D
 							tile={tile}

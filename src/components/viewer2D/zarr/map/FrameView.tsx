@@ -6,7 +6,7 @@ import type { DragMode } from '../../../../types/viewer2D/frame'
 
 export const FRAME_VIEW_ID = 'frame';
 export const MIN_FRAME_SIZE = 30; // Minimum size for the frame
-export const MAX_FRAME_SIZE = 200; // Maximum size for the frame
+export const MAX_FRAME_SIZE = 500; // Maximum size for the frame
 
 /**
  * Create interactive polygon frame overlay layers with handles

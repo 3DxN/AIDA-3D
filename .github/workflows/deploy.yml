@@ -1,0 +1,65 @@
+# .github/workflows/deploy.yml
+
+name: Build and Deploy to Production
+
+# This workflow runs whenever you push to the 'anton_main' branch
+on:
+  push:
+    branches: [ anton_main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # Use a standard Linux runner
+
+    steps:
+      # 1. Checkout the code from the repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Set up Node.js environment
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Use your project's Node.js version
+          cache: 'npm'
+
+      # 3. Install dependencies, build the project, and remove dev dependencies
+      - name: Install, Build, and Prune
+        run: |
+          npm ci
+          npm run build # Make sure you have a "build" script in package.json
+          npm prune --omit=dev
+
+      # 4. Bundle the deployment package into a single .tar.gz file
+      - name: Bundle Artifacts
+        run: |
+          tar -czf deployment-package.tar.gz \
+            .next/ \
+            node_modules/ \
+            package.json \
+            package-lock.json \
+            public/ \
+            deploy.sh \
+            ecosystem.config.js
+
+      # 5. Set up SSH key
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          # Verify key format
+          ssh-keygen -l -f ~/.ssh/deploy_key
+
+      # 6. Copy and deploy
+      - name: Deploy to Server
+        run: |
+          scp -i ~/.ssh/deploy_key deployment-package.tar.gz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.TARGET_DIR }}/
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            cd ${{ secrets.TARGET_DIR }}
+            tar -xzf deployment-package.tar.gz
+            rm deployment-package.tar.gz
+            ./deploy.sh
+          "
+
