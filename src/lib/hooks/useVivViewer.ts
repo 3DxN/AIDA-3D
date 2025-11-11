@@ -89,6 +89,7 @@ export default function useVivViewer(
     }, [msInfo, root])
 
     // Compute selections based on navigation state
+    // Each selection corresponds to a rendered layer for a specific channel
     const selections = useMemo(() => {
         if (!navigationState.channelMap) {
             console.log("No channel map available, returning empty selections")
@@ -96,22 +97,34 @@ export default function useVivViewer(
         }
 
         const shape = msInfo.shape
-        const selection: Record<string, number> = {}
-        if (shape.z && shape.z >= 0) {
-            selection.z = navigationState.zSlice
-        }
-        if (shape.t && shape.t >= 0) {
-            selection.t = navigationState.timeSlice
-        }
-        return [selection]
+        const channelMap = navigationState.channelMap
+        
+        // Create a selection for each mapped channel (nucleus, cytoplasm, etc.)
+        const roleSelections = Object.entries(channelMap)
+            .filter(entry => entry[1] !== null)
+            .map(([role, channelIndex]) => {
+                const selection: Record<string, number> = {
+                    c: channelIndex as number  // Select the specific channel for this role
+                }
+                if (shape.z && shape.z >= 0) {
+                    selection.z = navigationState.zSlice
+                }
+                if (shape.t && shape.t >= 0) {
+                    selection.t = navigationState.timeSlice
+                }
+                return selection
+            })
+        
+        return roleSelections.length > 0 ? roleSelections : []
     }, [navigationState, msInfo.shape])
 
     // Generate colors based on channel map
+    // Return one color per selected channel, in the order they appear in channelMap
     const colors = useMemo(() => {
-        // Default color palette for multiple channels (grayscale)
+        // Default color palette for rendering roles
         const defaultColors = [
-            [255, 255, 255], // Nucleus (white/grayscale)
-            [128, 128, 128], // Cytoplasm (gray)
+            [0, 255, 0],    // Nucleus (green)
+            [255, 0, 0],    // Cytoplasm (red)
         ]
 
         if (!navigationState.channelMap) {
@@ -120,17 +133,17 @@ export default function useVivViewer(
         }
 
         const channelMap = navigationState.channelMap
-        const channelMapEntries = Object.entries(channelMap)
-
-        return Array.from({ length: msInfo.shape.c! }, (_, i) => {
-            for (let j = 0; j < channelMapEntries.length; j++) {
-                if (channelMapEntries[j][1] === i) {
-                    return defaultColors[j]
-                }
-            }
-            return [0, 0, 0] // Default to black if no mapping found
-        })
-    }, [navigationState.channelMap, msInfo.shape.c])
+        
+        // Create colors array with one entry per mapped (non-null) channel, in role order
+        const roleColors = Object.entries(channelMap)
+            .filter(entry => entry[1] !== null)
+            .map(([role, channelIndex], roleIndex) => {
+                // Use the corresponding color from defaultColors, cycling if needed
+                return defaultColors[roleIndex % defaultColors.length]
+            })
+        
+        return roleColors.length > 0 ? roleColors : [defaultColors[0]]
+    }, [navigationState.channelMap])
 
     // Overview configuration
     const overview = useMemo(() => ({
@@ -207,19 +220,19 @@ export default function useVivViewer(
 
         const maxValue = getMaxValueForDtype(msInfo.dtype);
 
-        const contrastLimits = Array.from({ length: msInfo.shape.c }, (_, index) => {
-            const entries = Object.entries(navigationState.channelMap)
-            for (let i = 0; i < entries.length; i++) {
-                if (entries[i][1] === index) {
-                    return [0, navigationState.contrastLimits[i]]
-                }
-            }
-            return [0, maxValue] // For debugging purposes, use full range
-        }) as [number, number][]
+        // Create contrast limits array with one entry per selected channel, in role order
+        const contrastLimits = Object.entries(navigationState.channelMap)
+            .filter(entry => entry[1] !== null)
+            .map(([role, channelIndex], roleIndex) => {
+                // Use the contrast limit for this role (stored by index in contrastLimits array)
+                return [0, navigationState.contrastLimits[roleIndex]] as [number, number]
+            })
 
-        const channelsVisible = Array.from({ length: msInfo.shape.c }, (_, index) => {
-            return Object.values(navigationState.channelMap).includes(index)
-        })
+        // All selected channels are visible (we only render them because selections filters)
+        const channelsVisible = Array.from(
+            { length: Object.values(navigationState.channelMap).filter(c => c !== null).length },
+            () => true
+        )
 
         const baseProps = {
             loader: vivLoaders,
