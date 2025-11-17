@@ -49,5 +49,6 @@ export function getInitialNavigationState(msInfo: IMultiscaleInfo): NavigationSt
         channelMap: getDefaultChannelMap(msInfo.channels),
         cellposeOverlayOn: true,
         histogramEqualizationOn: false,
+        heStainingOn: false,
     }
 }

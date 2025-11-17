@@ -12,6 +12,9 @@ import ZarrPixelSource from '../ext/ZarrPixelSource'
 import { FrameView, FRAME_VIEW_ID } from '../../components/viewer2D/zarr/map/FrameView'
 import { useResizeObserver } from './useResizeObserver'
 import { useViewer2DData } from '../contexts/Viewer2DDataContext'
+import { shouldUseHEStaining, getRenderingMode, HE_STAIN_COLORS } from '../utils/channelMixer'
+import { adjustContrastForHEStaining } from '../utils/heStainTransform'
+import { createHeShaderUniforms, applyHeStainShaderToLayer } from '../shaders/heStainShaderRenderer'
 
 import type * as viv from "@vivjs/types"
 import type { Layer, View } from 'deck.gl'
@@ -120,8 +123,10 @@ export default function useVivViewer(
 
     // Generate colors based on channel map
     // Return one color per selected channel, in the order they appear in channelMap
+    // When both nucleus and cytoplasm are selected with H&E staining enabled, use H&E pseudo-color scheme
     const colors = useMemo(() => {
         // Default color palette for rendering roles
+        // Green for nucleus, red for cytoplasm creates yellow overlap (false-color rendering)
         const defaultColors = [
             [0, 255, 0],    // Nucleus (green)
             [255, 0, 0],    // Cytoplasm (red)
@@ -133,17 +138,65 @@ export default function useVivViewer(
         }
 
         const channelMap = navigationState.channelMap
+        const renderingMode = getRenderingMode(channelMap)
+        const canUseHEStaining = shouldUseHEStaining(channelMap)
+        const heStainingEnabled = navigationState.heStainingOn && canUseHEStaining
+        
+        // Debug logging with detailed state info
+        console.log('🎨 Color generation:', {
+            heStainingOn: navigationState.heStainingOn,
+            canUseHEStaining,
+            heStainingEnabled,
+            channelMap,
+            willUseHEMixing: heStainingEnabled ? 'YES' : 'NO'
+        })
         
         // Create colors array with one entry per mapped (non-null) channel, in role order
         const roleColors = Object.entries(channelMap)
             .filter(entry => entry[1] !== null)
             .map(([role, channelIndex], roleIndex) => {
-                // Use the corresponding color from defaultColors, cycling if needed
+                // H&E pseudo-color staining: map to real histopathology colors
+                if (heStainingEnabled) {
+                    if (role === 'nucleus') {
+                        // Hematoxylin: blue-purple color for nuclei
+                        const color = [
+                            Math.round(HE_STAIN_COLORS.hematoxylin[0] * 255),
+                            Math.round(HE_STAIN_COLORS.hematoxylin[1] * 255),
+                            Math.round(HE_STAIN_COLORS.hematoxylin[2] * 255)
+                        ]                        
+                        console.log('👍 Nucleus H&E color (should be ~[163, 20, 204]):', color)
+                        return color
+                    } else if (role === 'cytoplasm') {
+                        // Eosin: pink-red color for cytoplasm
+                        const color = [
+                            Math.round(HE_STAIN_COLORS.eosin[0] * 255),
+                            Math.round(HE_STAIN_COLORS.eosin[1] * 255),
+                            Math.round(HE_STAIN_COLORS.eosin[2] * 255)
+                        ]
+                        console.log('👍 Cytoplasm H&E color (should be ~[54, 25, 10]):', color)
+                        return color
+                    }
+                }
+                
+                // Default false-color rendering (green for nucleus, red for cytoplasm)
+                if (canUseHEStaining) {
+                    if (role === 'nucleus') {
+                        console.log('❌ Using FALLBACK nucleus color [0, 0, 255] - H&E not enabled!')
+                        return [0, 0, 255]  // Green for nucleus
+                    } else if (role === 'cytoplasm') {
+                        console.log('❌ Using FALLBACK cytoplasm color [0, 255, 0] - H&E not enabled!')
+                        return [0, 255, 0]  // Red for cytoplasm
+                    }
+                }
+                
+                // Fall back to default colors for single channel or unrecognized roles
+                console.log(`⚠️ FALLBACK: role "${role}" (index ${roleIndex}):`, defaultColors[roleIndex % defaultColors.length])
                 return defaultColors[roleIndex % defaultColors.length]
             })
         
+        console.log('✅ Final colors array being sent to Viv:', roleColors.map(c => `[${c.join(', ')}]`).join(' + '))
         return roleColors.length > 0 ? roleColors : [defaultColors[0]]
-    }, [navigationState.channelMap])
+    }, [navigationState.channelMap, navigationState.heStainingOn])
 
     // Overview configuration
     const overview = useMemo(() => ({
@@ -206,6 +259,10 @@ export default function useVivViewer(
             return []
         }
 
+        // Detect false-color rendering mode
+        const useFalseColor = shouldUseHEStaining(navigationState.channelMap)
+        const renderingMode = getRenderingMode(navigationState.channelMap)
+
         // Get max value for dtype to use for full-range contrast limits
         const getMaxValueForDtype = (dtype: string): number => {
             switch (dtype) {
@@ -224,8 +281,25 @@ export default function useVivViewer(
         const contrastLimits = Object.entries(navigationState.channelMap)
             .filter(entry => entry[1] !== null)
             .map(([role, channelIndex], roleIndex) => {
-                // Use the contrast limit for this role (stored by index in contrastLimits array)
-                return [0, navigationState.contrastLimits[roleIndex]] as [number, number]
+                // Get base contrast limit for this role
+                const baseContrast = navigationState.contrastLimits[roleIndex] ?? 255
+                
+                // Apply non-linear H&E enhancement if enabled
+                // The transformation reduces intensity range, so we boost contrast to compensate
+                if (navigationState.heStainingOn && shouldUseHEStaining(navigationState.channelMap)) {
+                    const { adjustedNucleusContrast, adjustedCytoplasmContrast } = 
+                        adjustContrastForHEStaining(baseContrast, baseContrast)
+                    
+                    const adjustedContrast = role === 'nucleus' 
+                        ? adjustedNucleusContrast 
+                        : adjustedCytoplasmContrast
+                    
+                    console.log(`📊 H&E contrast boost for ${role}: ${baseContrast} → ${Math.round(adjustedContrast)}`)
+                    return [0, adjustedContrast] as [number, number]
+                }
+                
+                // Use original contrast limit
+                return [0, baseContrast] as [number, number]
             })
 
         // All selected channels are visible (we only render them because selections filters)
@@ -239,8 +313,39 @@ export default function useVivViewer(
             selections,
             colors,
             contrastLimits,
-            channelsVisible
+            channelsVisible,
+            // False-color rendering metadata for use by overlay components
+            falseColorMode: {
+                enabled: useFalseColor,
+                renderingMode: renderingMode,
+                nucleusChannelIndex: navigationState.channelMap.nucleus,
+                cytoplasmChannelIndex: navigationState.channelMap.cytoplasm,
+            },
+            // H&E Shader Configuration
+            // Apply non-linear H&E transformation at GPU level for real-time rendering
+            ...(navigationState.heStainingOn && useFalseColor ? {
+                shaderUniforms: createHeShaderUniforms(navigationState, navigationState.channelMap),
+                useHeShader: true,
+                heShaderConfig: {
+                    enabled: true,
+                    nucleusChannelIndex: navigationState.channelMap.nucleus,
+                    cytoplasmChannelIndex: navigationState.channelMap.cytoplasm,
+                }
+            } : {})
         }
+
+        // Debug: Log what's actually being sent to Viv
+        console.log('📊 VIV LAYER PROPS:', {
+            numLoaders: vivLoaders.length,
+            numSelections: selections.length,
+            colors: colors,
+            selections: selections,
+            contrastLimits: contrastLimits,
+            channelsVisible: channelsVisible,
+            heShaderEnabled: navigationState.heStainingOn && useFalseColor ? true : false,
+            heShaderUniforms: navigationState.heStainingOn && useFalseColor ? 
+                createHeShaderUniforms(navigationState, navigationState.channelMap) : null
+        })
 
         // Return layer props for each view in the same order as views array
         return views.map((view) => {

@@ -53,6 +53,13 @@ export interface VivLayerProps {
   contrastLimits: [number, number][];
   channelsVisible: boolean[];
   frameOverlayLayers?: Layer[]; // Optional for frame view
+  // False-color rendering metadata
+  falseColorMode?: {
+    enabled: boolean;
+    renderingMode: 'single' | 'dual';
+    nucleusChannelIndex?: number | null;
+    cytoplasmChannelIndex?: number | null;
+  };
 }
 
 export interface VivViewerActions {

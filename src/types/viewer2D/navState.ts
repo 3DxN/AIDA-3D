@@ -10,6 +10,7 @@ export interface NavigationState {
     contrastLimits: ContrastLimits
     cellposeOverlayOn: boolean
     histogramEqualizationOn: boolean
+    heStainingOn: boolean
 }
 
 export interface NavigationLimits {
