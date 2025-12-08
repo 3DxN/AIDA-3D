@@ -21,6 +21,7 @@ const ContrastLimitsSelector = ({
 
   return (
     <div>
+      <div className="text-xs font-medium text-gray-700 mb-2">Contrast Limits</div>
       {Object.entries(channelMap).map(([role, channelIndex]) => {
         if (channelIndex === null || channelIndex === undefined) {
           return null;
