@@ -45,7 +45,7 @@ export function getInitialNavigationState(msInfo: IMultiscaleInfo): NavigationSt
         yOffset: 0,
         zSlice: msInfo.shape.z ? Math.floor(msInfo.shape.z / 2) : 0,
         timeSlice: 0,
-        contrastLimits: [getDefaultMaxContrastLimit(dtype), getDefaultMaxContrastLimit(dtype)],
+        contrastLimits: [1000, 300], // nucleus: 1000, cytoplasm: 300
         channelMap: getDefaultChannelMap(msInfo.channels),
         cellposeOverlayOn: true,
         histogramEqualizationOn: false,

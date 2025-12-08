@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import UnifiedSlider from '../../../interaction/UnifiedSlider';
 
 import type { ContrastLimitsProps } from '../../../../types/viewer2D/navProps';
 import type { ChannelMapping } from '../../../../types/viewer2D/navTypes';
@@ -32,19 +31,20 @@ const ContrastLimitsSelector = ({
 
         return (
           <div key={role} className="mb-3">
-            <UnifiedSlider
-              label={role}
+            <label className="block text-sm text-gray-700 mb-1">{role}</label>
+            <input
+              type="number"
               value={currentLimit}
-              minValue={0}
-              maxValue={maxLimit}
-              onChange={(newValue) => {
-                const newLimit = Array.isArray(newValue) ? newValue[0] : newValue;
+              min={0}
+              max={maxLimit}
+              onChange={(e) => {
+                const newLimit = parseInt(e.target.value) || 0;
                 const newLimits = contrastLimits.map((limit, index) =>
                   index === channelIndex ? newLimit : limit
                 ) as [number | null, number | null];
                 onContrastLimitsChange(newLimits);
               }}
-              valueDisplay={`${currentLimit}/${maxLimit}`}
+              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
             />
           </div>
         );
