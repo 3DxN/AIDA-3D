@@ -281,25 +281,26 @@ export default function useVivViewer(
         const contrastLimits = Object.entries(navigationState.channelMap)
             .filter(entry => entry[1] !== null)
             .map(([role, channelIndex], roleIndex) => {
-                // Get base contrast limit for this role
-                const baseContrast = navigationState.contrastLimits[roleIndex] ?? 255
-                
+                // Get contrast limits for this role [lower, upper]
+                const limits = navigationState.contrastLimits[roleIndex] ?? [0, 255]
+                const [lowerLimit, upperLimit] = limits
+
                 // Apply non-linear H&E enhancement if enabled
                 // The transformation reduces intensity range, so we boost contrast to compensate
                 if (navigationState.heStainingOn && shouldUseHEStaining(navigationState.channelMap)) {
-                    const { adjustedNucleusContrast, adjustedCytoplasmContrast } = 
-                        adjustContrastForHEStaining(baseContrast, baseContrast)
-                    
-                    const adjustedContrast = role === 'nucleus' 
-                        ? adjustedNucleusContrast 
+                    const { adjustedNucleusContrast, adjustedCytoplasmContrast } =
+                        adjustContrastForHEStaining(upperLimit, upperLimit)
+
+                    const adjustedUpper = role === 'nucleus'
+                        ? adjustedNucleusContrast
                         : adjustedCytoplasmContrast
-                    
-                    console.log(`📊 H&E contrast boost for ${role}: ${baseContrast} → ${Math.round(adjustedContrast)}`)
-                    return [0, adjustedContrast] as [number, number]
+
+                    console.log(`📊 H&E contrast boost for ${role}: [${lowerLimit}, ${upperLimit}] → [${lowerLimit}, ${Math.round(adjustedUpper)}]`)
+                    return [lowerLimit, adjustedUpper] as [number, number]
                 }
-                
-                // Use original contrast limit
-                return [0, baseContrast] as [number, number]
+
+                // Use original contrast limits
+                return [lowerLimit, upperLimit] as [number, number]
             })
 
         // All selected channels are visible (we only render them because selections filters)
