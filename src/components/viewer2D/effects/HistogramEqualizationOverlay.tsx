@@ -1,34 +1,40 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { VivViewState } from '../../../types/viewer2D/vivViewer';
+import { ChannelMapping } from '../../../types/viewer2D/navTypes';
 
 interface HistogramEqualizationOverlayProps {
   enabled: boolean;
   containerRef: React.RefObject<HTMLDivElement>;
   viewState: VivViewState | null;
   containerSize: { width: number; height: number };
+  channelMap: ChannelMapping;
 }
 
 export const HistogramEqualizationOverlay: React.FC<HistogramEqualizationOverlayProps> = ({
   enabled,
   containerRef,
   viewState,
-  containerSize
+  containerSize,
+  channelMap
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>();
+  const cachedLUTsRef = useRef<{ nucleus: Uint8ClampedArray | null; cytoplasm: Uint8ClampedArray | null }>({
+    nucleus: null,
+    cytoplasm: null
+  });
+  const lastComputeTimeRef = useRef<number>(0);
+  const computeThrottleMs = 500; // Only recompute every 500ms
 
-  const computeHistogramLUT = useCallback((imageData: ImageData): Uint8ClampedArray => {
+  const computeChannelIntensities = useCallback((imageData: ImageData) => {
     const { data, width } = imageData;
-    let numValidPixels = 0;
+    const nucleusIntensities: number[] = [];
+    const cytoplasmIntensities: number[] = [];
 
-    // Build histogram for each channel, excluding black/background pixels
-    const histograms = [
-      new Uint32Array(256).fill(0),  // R
-      new Uint32Array(256).fill(0),  // G
-      new Uint32Array(256).fill(0)   // B
-    ];
+    // Downsample: only sample every 4th pixel in both dimensions for speed
+    const step = 4;
 
-    for (let i = 0; i < data.length; i += 4) {
+    for (let i = 0; i < data.length; i += 4 * step) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
@@ -39,58 +45,133 @@ export const HistogramEqualizationOverlay: React.FC<HistogramEqualizationOverlay
         continue;
       }
 
-      histograms[0][r]++;
-      histograms[1][g]++;
-      histograms[2][b]++;
-      numValidPixels++;
+      // For false-color rendering, separate channels by color contribution
+      // Default rendering: nucleus appears as blue (B channel), cytoplasm as green (G channel)
+      // We extract the intensity from each color channel
+      const nucleusIntensity = b; // Blue channel for nucleus
+      const cytoplasmIntensity = g; // Green channel for cytoplasm
+
+      if (nucleusIntensity > 0) {
+        nucleusIntensities.push(nucleusIntensity);
+      }
+      if (cytoplasmIntensity > 0) {
+        cytoplasmIntensities.push(cytoplasmIntensity);
+      }
     }
 
-    // If no valid pixels, return identity LUT
-    if (numValidPixels === 0) {
-      const identityLUT = new Uint8ClampedArray(768);
+    return { nucleusIntensities, cytoplasmIntensities };
+  }, []);
+
+  const computeHistogramLUTForChannel = useCallback((intensities: number[]): Uint8ClampedArray => {
+    if (intensities.length === 0) {
+      // Return identity LUT
+      const identityLUT = new Uint8ClampedArray(256);
       for (let i = 0; i < 256; i++) {
-        identityLUT[i] = i;           // R
-        identityLUT[256 + i] = i;     // G
-        identityLUT[512 + i] = i;     // B
+        identityLUT[i] = i;
       }
       return identityLUT;
     }
 
-    // Compute CDFs and LUTs for each channel
-    const luts = histograms.map(histogram => {
-      const cdf = new Uint32Array(256);
-      cdf[0] = histogram[0];
-      for (let i = 1; i < 256; i++) {
-        cdf[i] = cdf[i - 1] + histogram[i];
-      }
+    // Build histogram
+    const histogram = new Uint32Array(256).fill(0);
+    for (const intensity of intensities) {
+      histogram[Math.min(255, Math.max(0, Math.floor(intensity)))]++;
+    }
 
-      let cdfMin = cdf[0];
-      for (let i = 0; i < 256; i++) {
-        if (cdf[i] > 0) {
-          cdfMin = cdf[i];
-          break;
+    // Step 1: Apply Gaussian smoothing for overall smoothness
+    const gaussianFiltered = new Uint32Array(256);
+    const kernelSize = 7;
+    const sigma = 2.5;
+    const kernel: number[] = [];
+    let kernelSum = 0;
+
+    // Create Gaussian kernel
+    for (let i = 0; i < kernelSize; i++) {
+      const x = i - Math.floor(kernelSize / 2);
+      const value = Math.exp(-(x * x) / (2 * sigma * sigma));
+      kernel.push(value);
+      kernelSum += value;
+    }
+
+    // Normalize kernel
+    for (let i = 0; i < kernelSize; i++) {
+      kernel[i] /= kernelSum;
+    }
+
+    // Apply Gaussian smoothing to histogram
+    for (let i = 0; i < 256; i++) {
+      let sum = 0;
+      for (let j = 0; j < kernelSize; j++) {
+        const idx = i + j - Math.floor(kernelSize / 2);
+        if (idx >= 0 && idx < 256) {
+          sum += histogram[idx] * kernel[j];
+        }
+      }
+      gaussianFiltered[i] = Math.round(sum);
+    }
+
+    // Step 2: Apply median filtering to remove remaining noise spikes
+    const smoothed = new Uint32Array(256);
+    const medianWindowSize = 5;
+
+    for (let i = 0; i < 256; i++) {
+      const window: number[] = [];
+      const halfWindow = Math.floor(medianWindowSize / 2);
+
+      // Collect values in window
+      for (let j = -halfWindow; j <= halfWindow; j++) {
+        const idx = i + j;
+        if (idx >= 0 && idx < 256) {
+          window.push(gaussianFiltered[idx]);
         }
       }
 
-      const lut = new Uint8ClampedArray(256);
-      const cdfRange = numValidPixels - cdfMin;
+      // Sort and get median
+      window.sort((a, b) => a - b);
+      smoothed[i] = window[Math.floor(window.length / 2)];
+    }
 
-      for (let i = 0; i < 256; i++) {
-        if (cdfRange > 0) {
-          lut[i] = Math.round(((cdf[i] - cdfMin) / cdfRange) * 255);
-        } else {
-          lut[i] = i;
-        }
+    // Compute CDF from smoothed histogram
+    const cdf = new Uint32Array(256);
+    cdf[0] = smoothed[0];
+    for (let i = 1; i < 256; i++) {
+      cdf[i] = cdf[i - 1] + smoothed[i];
+    }
+
+    // Find minimum non-zero CDF value
+    let cdfMin = cdf[0];
+    for (let i = 0; i < 256; i++) {
+      if (cdf[i] > 0) {
+        cdfMin = cdf[i];
+        break;
       }
+    }
 
-      return lut;
-    });
+    // Create lookup table
+    const lut = new Uint8ClampedArray(256);
+    const cdfRange = cdf[255] - cdfMin;
 
-    return new Uint8ClampedArray(luts.flatMap(lut => Array.from(lut)));
+    for (let i = 0; i < 256; i++) {
+      if (cdfRange > 0) {
+        lut[i] = Math.round(((cdf[i] - cdfMin) / cdfRange) * 255);
+      } else {
+        lut[i] = i;
+      }
+    }
+
+    return lut;
   }, []);
 
   const applyHistogramEqualization = useCallback(() => {
     if (!enabled || !canvasRef.current || !containerRef.current || !viewState) {
+      return;
+    }
+
+    // Check if both nucleus and cytoplasm are selected
+    const hasNucleus = channelMap.nucleus !== null;
+    const hasCytoplasm = channelMap.cytoplasm !== null;
+
+    if (!hasNucleus && !hasCytoplasm) {
       return;
     }
 
@@ -131,25 +212,54 @@ export const HistogramEqualizationOverlay: React.FC<HistogramEqualizationOverlay
     // Get image data from the temp canvas
     const imageData = tempCtx.getImageData(0, 0, canvasWidth, canvasHeight);
 
-    // Compute and apply histogram equalization
-    const luts = computeHistogramLUT(imageData);
-    const lutR = luts.slice(0, 256);
-    const lutG = luts.slice(256, 512);
-    const lutB = luts.slice(512, 768);
+    // Check if we need to recompute LUTs (throttled)
+    const now = Date.now();
+    const shouldRecompute = now - lastComputeTimeRef.current > computeThrottleMs;
 
+    let nucleusLUT = cachedLUTsRef.current.nucleus;
+    let cytoplasmLUT = cachedLUTsRef.current.cytoplasm;
+
+    if (shouldRecompute || !nucleusLUT || !cytoplasmLUT) {
+      // Extract intensity data for each channel
+      const { nucleusIntensities, cytoplasmIntensities } = computeChannelIntensities(imageData);
+
+      // Compute histogram equalization LUTs for each channel
+      nucleusLUT = hasNucleus ? computeHistogramLUTForChannel(nucleusIntensities) : null;
+      cytoplasmLUT = hasCytoplasm ? computeHistogramLUTForChannel(cytoplasmIntensities) : null;
+
+      // Cache the LUTs
+      cachedLUTsRef.current = { nucleus: nucleusLUT, cytoplasm: cytoplasmLUT };
+      lastComputeTimeRef.current = now;
+    }
+
+    // Apply equalization to each channel separately and combine
     for (let i = 0; i < imageData.data.length; i += 4) {
       const r = imageData.data[i];
       const g = imageData.data[i + 1];
       const b = imageData.data[i + 2];
       const a = imageData.data[i + 3];
 
-      // Only apply to non-background pixels
-      if (a > 0 && !(r === 0 && g === 0 && b === 0)) {
-        imageData.data[i] = lutR[r];         // R
-        imageData.data[i + 1] = lutG[g];     // G
-        imageData.data[i + 2] = lutB[b];     // B
+      // Skip background pixels
+      if (a === 0 || (r === 0 && g === 0 && b === 0)) {
+        continue;
       }
-      // Alpha and background pixels stay the same
+
+      if (hasNucleus && hasCytoplasm && nucleusLUT && cytoplasmLUT) {
+        // Both channels: apply equalization to each separately, then average
+        const nucleusB = nucleusLUT[b];
+        const cytoplasmG = cytoplasmLUT[g];
+
+        // Average the two equalized contributions
+        imageData.data[i] = 0;
+        imageData.data[i + 1] = Math.round(cytoplasmG / 2);
+        imageData.data[i + 2] = Math.round(nucleusB / 2);
+      } else if (hasNucleus && nucleusLUT) {
+        // Only nucleus channel - apply to blue
+        imageData.data[i + 2] = nucleusLUT[b];
+      } else if (hasCytoplasm && cytoplasmLUT) {
+        // Only cytoplasm channel - apply to green
+        imageData.data[i + 1] = cytoplasmLUT[g];
+      }
     }
 
     // Put the equalized image back to temp canvas
@@ -157,7 +267,7 @@ export const HistogramEqualizationOverlay: React.FC<HistogramEqualizationOverlay
 
     // Draw the result to the overlay canvas, scaling to match overlay dimensions
     ctx.drawImage(tempCanvas, 0, 0, canvasWidth, canvasHeight, 0, 0, overlayCanvas.width, overlayCanvas.height);
-  }, [enabled, containerRef, viewState, containerSize, computeHistogramLUT]);
+  }, [enabled, containerRef, viewState, containerSize, channelMap, computeChannelIntensities, computeHistogramLUTForChannel]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
