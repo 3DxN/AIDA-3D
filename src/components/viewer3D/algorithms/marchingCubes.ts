@@ -119,7 +119,12 @@ const march = (grid: number[][][], isoLevel: number) => {
 
 // src/components/viewer3D/algorithms/marchingCubes.ts
 
-export const generateMeshesFromVoxelData = (input: Chunk<Uint32>, currentZSlice?: number) => {
+export const generateMeshesFromVoxelData = (
+	input: Chunk<Uint32>,
+	currentZSlice?: number,
+	filterIncompleteNuclei: boolean = true,
+	voxelScale?: number[] // [z_scale, y_scale, x_scale] from OME metadata
+) => {
 	const meshDataArray = [];
 	const { data, shape, stride } = input;
 	const dims = shape; // e.g., [depth, height, width]
@@ -149,8 +154,8 @@ export const generateMeshesFromVoxelData = (input: Chunk<Uint32>, currentZSlice?
 		}
 
 		// If this nucleus is on the boundary, we will not generate a mesh for it at all.
-		if (isOnBoundary) {
-			//continue; // Skip to the next nucleus label
+		if (isOnBoundary && filterIncompleteNuclei) {
+			continue; // Skip to the next nucleus label
 		}
 
 		// If not on the boundary, proceed with mesh generation
@@ -165,6 +170,11 @@ export const generateMeshesFromVoxelData = (input: Chunk<Uint32>, currentZSlice?
 		const { vertices, indices } = march(binaryGrid, 0.5);
 
 		if (vertices.length > 0 && indices.length > 0) {
+			// Get voxel scale factors (default to 1.0 if not provided)
+			const zScale = voxelScale?.[0] ?? 1.0;
+			const yScale = voxelScale?.[1] ?? 1.0;
+			const xScale = voxelScale?.[2] ?? 1.0;
+
 			// Transform vertices to global coordinate system relative to origin
 			const transformedVertices = vertices.map(vertex => {
 				// Center x and y around origin (same as plane positioning)
@@ -176,8 +186,13 @@ export const generateMeshesFromVoxelData = (input: Chunk<Uint32>, currentZSlice?
 				const currentZ = currentZSlice !== undefined ? currentZSlice : dims[0] / 2;
 				const transformedZ = vertex.z - currentZ; // Direct offset from current slice
 
-				// No coordinate flips needed - use direct coordinates
-				return new THREE.Vector3(centeredX, centeredY, transformedZ);
+				// Apply voxel scale factors to correct for anisotropic voxels
+				// This ensures proper proportions when X/Y resolution changes but Z stays the same
+				const scaledX = centeredX * xScale;
+				const scaledY = centeredY * yScale;
+				const scaledZ = transformedZ * zScale;
+
+				return new THREE.Vector3(scaledX, scaledY, scaledZ);
 			});
 			meshDataArray.push({ label, vertices: transformedVertices, indices });
 		}

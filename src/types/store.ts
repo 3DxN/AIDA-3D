@@ -55,6 +55,26 @@ export interface ZarrStoreState {
    */
   cellposeArray: ZArray<FetchStore> | null
   /**
+   * All available Cellpose resolution arrays
+   */
+  cellposeArrays: ZArray<FetchStore>[]
+  /**
+   * Available Cellpose resolution paths (e.g., ['0', '1', '2'])
+   */
+  cellposeResolutions: string[]
+  /**
+   * Scale factors for each Cellpose resolution level [z, y, x]
+   */
+  cellposeScales: number[][]
+  /**
+   * Currently selected Cellpose resolution index for 2D overlay (high-res single z layer)
+   */
+  selectedCellposeOverlayResolution: number
+  /**
+   * Currently selected Cellpose resolution index for mesh creation (low-res all z layers)
+   */
+  selectedCellposeMeshResolution: number
+  /**
    * Whether the Cellpose array is currently being loaded
    */
   isCellposeLoading: boolean
@@ -75,10 +95,17 @@ export interface ZarrStoreState {
    */
   infoMessage: string | null
   /**
-   * Current source URL of the Zarr store
-   * This is used to reload the store or navigate to a different one
+   * Base server URL of the Zarr store (e.g., 'http://141.147.64.20:5500/')
    */
   source: string
+  /**
+   * Relative path to the zarr array directory within the store (e.g., '0')
+   */
+  zarrPath: string
+  /**
+   * Relative path to the cellpose segmentation directory (e.g., 'labels/Cellpose')
+   */
+  cellposePath: string
   /**
    * Whether the user has successfully loaded a multiscales image array
    * And to initialise the display of the viewer if so.
@@ -102,17 +129,30 @@ export interface ZarrStoreState {
    * Callback function to handle properties found in Cellpose zarr.json
    */
   onPropertiesFound?: (properties: any[]) => void
+  /**
+   * Properties loaded from Cellpose metadata (stored for when callback is registered)
+   */
+  cellposeProperties: any[] | null
 }
 
 export interface ZarrStoreContextType extends ZarrStoreState {
   loadStore: (url: string) => Promise<void>
   setSource: (url: string) => void
+  setZarrPath: (path: string) => void
+  setCellposePath: (path: string) => void
+  loadZarrArray: (zarrPath: string) => Promise<void>
+  loadCellposeData: (cellposePath: string) => Promise<void>
+  loadFromUrlParams: (serverUrl: string, zarrPath: string, cellposePath: string) => Promise<void>
   navigateToSuggestion: (suggestionPath: string) => void
   refreshCellposeData: () => Promise<void>
   setPropertiesCallback: (callback: (properties: any[]) => void) => void
+  setSelectedCellposeOverlayResolution: (index: number) => void
+  setSelectedCellposeMeshResolution: (index: number) => void
 }
 
 export interface ZarrStoreProviderProps {
   children: ReactNode
   initialSource?: string
+  initialZarrPath?: string
+  initialCellposePath?: string
 }

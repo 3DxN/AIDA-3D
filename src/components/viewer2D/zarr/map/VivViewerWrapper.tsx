@@ -8,6 +8,7 @@ import useVivViewer from '../../../../lib/hooks/useVivViewer'
 import useFrameInitialisation from '../../../../lib/hooks/useFrameInitialisation'
 import { CellposeOverlay } from './CellposeOverlay'
 import { SelectionBox } from '../../overlay/SelectionBox'
+import { HistogramEqualizationOverlay } from '../../effects/HistogramEqualizationOverlay'
 
 
 const VivViewerWrapper: React.FC = () => {
@@ -120,6 +121,12 @@ const VivViewerWrapper: React.FC = () => {
                     onHover: handleHover,
                     getCursor
                 }}
+            />
+            <HistogramEqualizationOverlay
+                enabled={navigationState.histogramEqualizationOn}
+                containerRef={containerRef}
+                viewState={controlledDetailViewState}
+                containerSize={containerDimensions}
             />
             <CellposeOverlay
                 viewState={controlledDetailViewState}

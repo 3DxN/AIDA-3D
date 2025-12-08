@@ -193,6 +193,20 @@ export default function useVivViewer(
             return []
         }
 
+        // Get max value for dtype to use for full-range contrast limits
+        const getMaxValueForDtype = (dtype: string): number => {
+            switch (dtype) {
+                case 'uint8': return 255;
+                case 'uint16': return 65535;
+                case 'uint32': return 4294967295;
+                case 'float32':
+                case 'float64': return 1.0;
+                default: return 65535;
+            }
+        };
+
+        const maxValue = getMaxValueForDtype(msInfo.dtype);
+
         const contrastLimits = Array.from({ length: msInfo.shape.c }, (_, index) => {
             const entries = Object.entries(navigationState.channelMap)
             for (let i = 0; i < entries.length; i++) {
@@ -200,7 +214,7 @@ export default function useVivViewer(
                     return [0, navigationState.contrastLimits[i]]
                 }
             }
-            return [0, 42069] // For debugging purposes
+            return [0, maxValue] // For debugging purposes, use full range
         }) as [number, number][]
 
         const channelsVisible = Array.from({ length: msInfo.shape.c }, (_, index) => {
@@ -223,7 +237,7 @@ export default function useVivViewer(
             }
             return baseProps
         })
-    }, [vivLoaders, views, selections, colors, navigationState.channelMap, navigationState.contrastLimits, msInfo.shape.c])
+    }, [vivLoaders, views, selections, colors, navigationState.channelMap, navigationState.contrastLimits, msInfo.shape.c, msInfo.dtype])
 
     // Generate default layer props (for initial render)
     const layerProps = useMemo(() => createLayerProps([]), [createLayerProps])

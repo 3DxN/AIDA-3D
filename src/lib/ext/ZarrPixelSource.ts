@@ -136,8 +136,10 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
       zarr
         .get(this.#arr, request.selection, { opts: { signal: request.signal } })
         .then(({ data, shape }) => {
+          const transformedData = this.#transform(data);
+
           resolve({
-            data: this.#transform(data),
+            data: transformedData,
             width: shape[1],
             height: shape[0],
           });
@@ -147,6 +149,7 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
     this.#pendingId = undefined;
     this.#pending = [];
   }
+
 }
 
 function buildZarrSelection(

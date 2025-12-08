@@ -53,6 +53,7 @@ const Viewer3D = (props: {
 	const [selectedMeshesState, setSelectedMeshesState] = useState<THREE.Mesh[]>([]);
 	const crossSectionPlane = useRef<THREE.Mesh | null>(null);
 	const [isCameraInitialized, setIsCameraInitialized] = useState(false);
+	const [filterIncompleteNuclei, setFilterIncompleteNuclei] = useState(true);
 
 
 	// New label storage refs
@@ -65,7 +66,7 @@ const Viewer3D = (props: {
 
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
-	const { frameBoundCellposeData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow } = useViewer2DData();
+	const { frameBoundCellposeMeshData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow, cellposeScale } = useViewer2DData();
 	const { setPropertiesCallback } = useZarrStore();
 
 	// Function to handle automatic properties loading from Cellpose zarr.json
@@ -205,6 +206,8 @@ const Viewer3D = (props: {
 				0.25,
 				20
 			);
+			// Invert camera up vector to compensate for y-reflection
+			newCamera.up.set(0, -1, 0);
 			setCamera(newCamera);
 
 			const newScene = new THREE.Scene();
@@ -219,16 +222,16 @@ const Viewer3D = (props: {
 			newCamera.aspect = canvas.clientWidth / canvas.clientHeight;
 			newCamera.updateProjectionMatrix();
 
-			resizeRendererToDisplaySize(newRenderer);
+			resizeRendererToDisplaySize(newRenderer, newCamera);
 			window.addEventListener('resize', () =>
-				resizeRendererToDisplaySize(newRenderer)
+				resizeRendererToDisplaySize(newRenderer, newCamera)
 			);
 		}
 	}, []);
 
 	// Generate and render mesh from voxel data
 	useEffect(() => {
-		if (scene && camera && renderer && frameBoundCellposeData) {
+		if (scene && camera && renderer && frameBoundCellposeMeshData) {
 			setIsLoading(true);
 
 			if (content) {
@@ -256,7 +259,15 @@ const Viewer3D = (props: {
 			// Calculate the relative z position within the frameBoundCellposeData
 			// The current slice should be at frameZLayersBelow index within the slice
 			const relativeCurrentZSlice = frameZLayersBelow;
-			const meshDataArray = generateMeshesFromVoxelData(frameBoundCellposeData, relativeCurrentZSlice);
+
+			// Pass scale factors to ensure proper proportions at different resolutions
+			console.log('🔧 Generating meshes with voxel scale:', cellposeScale);
+			const meshDataArray = generateMeshesFromVoxelData(
+				frameBoundCellposeMeshData,
+				relativeCurrentZSlice,
+				filterIncompleteNuclei,
+				cellposeScale
+			);
 			const newContentGroup = new THREE.Group();
 
 			meshDataArray.forEach(({ label, vertices, indices }) => {
@@ -349,6 +360,9 @@ const Viewer3D = (props: {
 				crossSectionPlane.current = planeMesh;
 			}
 
+			// Reflect in z direction
+			newContentGroup.scale.set(1, 1, -1);
+
 			scene.add(newContentGroup);
 			setContent(newContentGroup);
 
@@ -368,8 +382,8 @@ const Viewer3D = (props: {
 				// Zoomed in for better detail view
 				const distanceScale = Math.max(2.0, planeSize / 40); // 4x more zoomed in
 
-				// Position camera to view from the front (matching 2D viewer orientation)
-				camera.position.set(0, 0, size * distanceScale);
+				// Position camera 180 degrees around (viewing from the back)
+				camera.position.set(0, 0, -size * distanceScale);
 				camera.lookAt(0, 0, 0);
 				setIsCameraInitialized(true);
 			}
@@ -380,12 +394,14 @@ const Viewer3D = (props: {
 			camera.updateProjectionMatrix();
 
 			const axesHelper = new THREE.AxesHelper(size);
+			// Flip z-axis to match reflected content, and flip y to keep green pointing up
+			axesHelper.scale.set(1, -1, -1);
 			scene.add(axesHelper);
 
 			renderer.render(scene, camera);
 			setIsLoading(false);
 		}
-	}, [scene, camera, renderer, frameBoundCellposeData]);
+	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei]);
 
 	// Adjust selections
 	useEffect(() => {
@@ -501,7 +517,7 @@ const Viewer3D = (props: {
 		if (renderer && scene && camera) {
 			renderer.render(scene, camera);
 		}
-	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeData]);
+	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeMeshData]);
 
 	// Update colors based on labels (only as fallback when no ColorMaps are active)
 	useEffect(() => {
@@ -553,8 +569,8 @@ const Viewer3D = (props: {
 	}, [featureData, content, renderer, scene, camera, updateNucleusColors, globalPropertyTypes]);
 
 	return (
-		<div className="min-w-full h-screen flex border-l border-l-teal-500">
-			<div className="flex-grow flex items-center justify-center bg-gray-100 relative">
+		<div className="w-full h-full border-l border-l-teal-500 overflow-hidden relative">
+			<div className="w-full h-full flex items-center justify-center bg-gray-100 overflow-hidden">
 				{!tile && !content && (
 					<div className="absolute text-gray-500">
 						Generating 3D model from voxel data...
@@ -575,17 +591,21 @@ const Viewer3D = (props: {
 					setSelect3D={setSelect3D}
 				/>
 			)}
-			<Settings
-				renderer={renderer}
-				scene={scene}
-				camera={camera}
-				content={content}
-				featureData={featureData}
-				selected={selectedMeshesState}
-				setFeatureData={setFeatureData}
-				globalProperties={globalProperties}
-				globalPropertyTypes={globalPropertyTypes}
-			/>
+			<div className="absolute top-0 right-0 h-full">
+				<Settings
+					renderer={renderer}
+					scene={scene}
+					camera={camera}
+					content={content}
+					featureData={featureData}
+					selected={selectedMeshesState}
+					setFeatureData={setFeatureData}
+					globalProperties={globalProperties}
+					globalPropertyTypes={globalPropertyTypes}
+					filterIncompleteNuclei={filterIncompleteNuclei}
+					setFilterIncompleteNuclei={setFilterIncompleteNuclei}
+				/>
+			</div>
 		</div>
 	);
 };

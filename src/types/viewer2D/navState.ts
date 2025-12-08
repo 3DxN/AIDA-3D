@@ -9,6 +9,7 @@ export interface NavigationState {
     channelMap: ChannelMapping
     contrastLimits: ContrastLimits
     cellposeOverlayOn: boolean
+    histogramEqualizationOn: boolean
 }
 
 export interface NavigationLimits {

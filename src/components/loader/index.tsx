@@ -14,96 +14,37 @@ import { ZarrStoreSuggestionType } from '../../types/store';
 export default function StoreLoader({ onClose }: { onClose: () => void }) {
     const router = useRouter();
     const {
-        source, root, setSource, loadStore, isLoading, error,
-        infoMessage, suggestedPaths, suggestionType, navigateToSuggestion, hasLoadedArray
+        loadStore, loadZarrArray, loadCellposeData, isLoading, error,
+        hasLoadedArray
     } = useZarrStore();
 
     const [activeTab, setActiveTab] = useState<'zarr' | 'aida'>('zarr');
+    const [server, setServer] = useState('');
+    const [defaultStoreDir, setDefaultStoreDir] = useState('');
+    const [cellposeStoreDir, setCellposeStoreDir] = useState('');
 
-    // --- START OF NEW CODE ---
-    // State to track if we are in the process of loading the example
-    const [isExampleLoading, setIsExampleLoading] = useState(false);
+    const handleLoadStore = () => {
+        if (!server || !defaultStoreDir || !cellposeStoreDir) return;
 
-    // This useEffect hook will run whenever `root` or `isExampleLoading` changes
-    useEffect(() => {
-        // We only proceed if we've initiated the example loading AND the root of the store is now available
-        if (isExampleLoading && root) {
-            navigateToSuggestion('0');
-            // Reset the flag so this doesn't run again accidentally
-            setIsExampleLoading(false);
-        }
-    }, [root, isExampleLoading, navigateToSuggestion]);
+        // Update URL with all parameters and trigger full page reload
+        const params = new URLSearchParams();
+        params.set('server', server);
+        params.set('default_store_dir', defaultStoreDir);
+        params.set('cellpose_store_dir', cellposeStoreDir);
 
-    const handleLoadStore = async () => {
-        if (!source) return;
-        await loadStore(source);
+        // Navigate to the page with URL params (full page load, not shallow)
+        router.push(`/zarr?${params.toString()}`);
     };
 
     const handleLoadExample = () => {
-        const exampleUrl = 'http://141.147.64.20:5500/';
-        setSource(exampleUrl);
-
-        // Set our flag to true and start loading the store.
-        // The useEffect above will handle the next step.
-        setIsExampleLoading(true);
-        loadStore(exampleUrl);
+        setServer('http://141.147.64.20:5500/');
+        setDefaultStoreDir('0');
+        setCellposeStoreDir('labels/Cellpose');
     };
-    // --- END OF NEW CODE ---
 
     const handleBrowseAIDA = () => {
         router.push('/local');
         onClose();
-    };
-
-    const renderSuggestions = () => {
-        // ... (this function remains unchanged)
-        let suggestionTitle: string;
-        let suggestionDescription: string;
-        let SuggestionIcon: React.ComponentType<{ className?: string }>;
-
-        switch (suggestionType) {
-            case ZarrStoreSuggestionType.PLATE_WELL:
-                suggestionTitle = 'OME-Plate/Well structure detected';
-                suggestionDescription = 'This format is not supported for direct viewing.';
-                SuggestionIcon = TableIcon;
-                break;
-            default:
-                suggestionTitle = 'Try one of these paths';
-                suggestionDescription = 'Click to load a potential OME-Zarr location:';
-                SuggestionIcon = LightBulbIcon;
-                break;
-        }
-
-        return (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-800">
-                <div className="flex items-center justify-center mb-2 font-semibold text-center">
-                    <SuggestionIcon className="h-5 w-5 mr-2" />
-                    <span>{suggestionTitle}</span>
-                </div>
-                {suggestionDescription && <div className="mb-3 text-sm">{suggestionDescription}</div>}
-                <div className="flex flex-col items-center gap-2 w-full">
-                    <div className="flex flex-wrap justify-center gap-2 w-full">
-                        {root && root.path !== "/" && (
-                            <button
-                                onClick={() => navigateToSuggestion('..')}
-                                className="px-3 py-1 text-white border-none rounded text-xs cursor-pointer bg-gray-400 hover:bg-gray-600"
-                                title="Go up one directory"
-                            >..</button>
-                        )}
-                        {suggestedPaths.map((suggestion, index) => (
-                            <button
-                                key={index}
-                                onClick={() => navigateToSuggestion(suggestion.path)}
-                                className={`px-3 py-1 text-white border-none rounded text-xs cursor-pointer transition-opacity hover:opacity-80 ${suggestion.hasOme ? 'bg-green-600' : suggestion.isGroup ? 'bg-blue-500' : 'bg-gray-600'}`}
-                                title={suggestion.hasOme ? 'OME-Zarr group' : suggestion.isGroup ? 'Zarr group' : 'Zarr array'}
-                            >
-                                {suggestion.path}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        );
     };
 
     return (
@@ -145,21 +86,47 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
 
                 {activeTab === 'zarr' && (
                     <>
-                        <div className="flex gap-4 items-end mb-5">
-                            <div className="flex-1 min-w-0">
-                                <label className="block mb-2 font-bold text-base text-gray-700">Store URL:</label>
+                        <div className="space-y-4 mb-5">
+                            <div>
+                                <label className="block mb-2 font-bold text-base text-gray-700">Server URL:</label>
                                 <input
                                     type="text"
-                                    value={source}
-                                    onChange={(e) => setSource(e.target.value)}
+                                    value={server}
+                                    onChange={(e) => setServer(e.target.value)}
                                     className="w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none focus:border-teal-500"
-                                    placeholder="Enter Zarr store URL"
+                                    placeholder="e.g., http://141.147.64.20:5500/"
+                                    disabled={isLoading}
                                 />
                             </div>
+                            <div>
+                                <label className="block mb-2 font-bold text-base text-gray-700">Image Store Directory:</label>
+                                <input
+                                    type="text"
+                                    value={defaultStoreDir}
+                                    onChange={(e) => setDefaultStoreDir(e.target.value)}
+                                    className="w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none focus:border-teal-500"
+                                    placeholder="e.g., 0"
+                                    disabled={isLoading}
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-2 font-bold text-base text-gray-700">Labels Store Directory (e.g. Cellpose):</label>
+                                <input
+                                    type="text"
+                                    value={cellposeStoreDir}
+                                    onChange={(e) => setCellposeStoreDir(e.target.value)}
+                                    className="w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none focus:border-teal-500"
+                                    placeholder="e.g., labels/Cellpose"
+                                    disabled={isLoading}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 mb-5">
                             <button
                                 onClick={handleLoadStore}
-                                disabled={isLoading || !source}
-                                className={`px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold flex-shrink-0 whitespace-nowrap shadow-lg flex items-center ${isLoading || !source ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
+                                disabled={isLoading || !server || !defaultStoreDir || !cellposeStoreDir}
+                                className={`flex-1 px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold shadow-lg flex items-center justify-center ${isLoading || !server || !defaultStoreDir || !cellposeStoreDir ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
                             >
                                 {isLoading ? (<><RefreshIcon className="h-5 w-5 mr-2 animate-spin" /> Loading...</>) : (<><PlayIcon className="h-5 w-5 mr-2" /> Load Store</>)}
                             </button>
@@ -172,7 +139,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                                 className={`inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
                             >
                                 <BeakerIcon className="h-5 w-5 mr-2" />
-                                Load Example Store
+                                Fill Example Values
                             </button>
                         </div>
                     </>
@@ -193,9 +160,9 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                     </div>
                 )}
 
-                {hasLoadedArray && <div className="mt-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-md text-base text-center font-bold"><CheckCircleIcon className="h-5 w-5 inline mr-2" />Store loaded!</div>}
-                {isLoading && !hasLoadedArray && activeTab === 'zarr' && <div className="mt-4 text-center p-4 bg-blue-50 rounded-md text-teal-700 text-sm"><div className="mb-3 flex items-center justify-center"><RefreshIcon className="h-5 w-5 mr-2 animate-spin" />Loading Zarr store...</div><div className="w-full h-1 bg-blue-200 rounded-full overflow-hidden"><div className="w-1/3 h-full bg-blue-500 rounded-full animate-pulse" /></div></div>}
-                {(infoMessage || error) && !hasLoadedArray && activeTab === 'zarr' && <div className={`mt-4 p-4 rounded-md text-base text-center ${[ZarrStoreSuggestionType.PLATE_WELL, ZarrStoreSuggestionType.NO_MULTISCALE].includes(suggestionType) ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>{suggestionType === ZarrStoreSuggestionType.PLATE_WELL ? <div className="text-center mb-3 flex items-center justify-center"><TableIcon className="h-5 w-5 mr-2" /><strong>OME-Plate/Well Structure Detected</strong></div> : infoMessage ? <div className="flex items-center justify-center"><InformationCircleIcon className="h-5 w-5 mr-2" />{infoMessage}</div> : <div className="flex items-center justify-center"><ExclamationIcon className="h-5 w-5 mr-2" />{error}</div>}{renderSuggestions()}</div>}
+                {hasLoadedArray && <div className="mt-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-md text-base text-center font-bold"><CheckCircleIcon className="h-5 w-5 inline mr-2" />Store loaded successfully!</div>}
+                {isLoading && activeTab === 'zarr' && <div className="mt-4 text-center p-4 bg-blue-50 rounded-md text-teal-700 text-sm"><div className="mb-3 flex items-center justify-center"><RefreshIcon className="h-5 w-5 mr-2 animate-spin" />Loading...</div><div className="w-full h-1 bg-blue-200 rounded-full overflow-hidden"><div className="w-1/3 h-full bg-blue-500 rounded-full animate-pulse" /></div></div>}
+                {error && activeTab === 'zarr' && <div className="mt-4 p-4 bg-red-50 border border-red-200 text-red-800 rounded-md text-base text-center"><div className="flex items-center justify-center"><ExclamationIcon className="h-5 w-5 mr-2" />{error}</div></div>}
             </div>
         </div>
     );

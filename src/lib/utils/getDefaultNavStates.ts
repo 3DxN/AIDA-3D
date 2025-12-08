@@ -48,5 +48,6 @@ export function getInitialNavigationState(msInfo: IMultiscaleInfo): NavigationSt
         contrastLimits: [getDefaultMaxContrastLimit(dtype), getDefaultMaxContrastLimit(dtype)],
         channelMap: getDefaultChannelMap(msInfo.channels),
         cellposeOverlayOn: true,
+        histogramEqualizationOn: false,
     }
 }

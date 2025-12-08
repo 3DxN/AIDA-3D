@@ -344,7 +344,7 @@ const Viewer = (props: {
 	}, [imageUrls, annotationData.classes, annotationData.layers])
 
 	return (
-		<div className="min-w-full min-h-screen flex bg-gray-100">
+		<div className="w-full h-full flex bg-gray-100 overflow-hidden">
 			{/* Toolbar */}
 			{map && (
 				<Toolbar
