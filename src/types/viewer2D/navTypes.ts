@@ -3,4 +3,5 @@ export type ChannelMapping = {
   cytoplasm: number | null; // Channel index for cytoplasm, null if not selected
 }
 
-export type ContrastLimits = [number | null, number | null]
+// Each channel has [lower, upper] contrast limits, or null if not selected
+export type ContrastLimits = [[number, number] | null, [number, number] | null]

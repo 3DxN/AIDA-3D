@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 
 import NavigationControls from './nav/navigator'
 import VivViewerWrapper from './map/VivViewerWrapper'
-import { getDefaultMaxContrastLimit, getInitialNavigationState } from '../../../lib/utils/getDefaultNavStates'
+import { getInitialNavigationState } from '../../../lib/utils/getDefaultNavStates'
 import { useZarrStore } from '../../../lib/contexts/ZarrStoreContext'
 import { useViewer2DData } from '../../../lib/contexts/Viewer2DDataContext'
 
@@ -24,15 +24,9 @@ export default function ZarrViewer() {
 
     // Get the default navigation state (z-slice, channel map, etc.)
     const initialNavState = getInitialNavigationState(msInfo);
-    
-    // Calculate default contrast limit based on data type
-    const maxContrastLimit = getDefaultMaxContrastLimit(msInfo.dtype);
 
-    // Set the full, initial navigation state, including default contrast limits for the first channel
-    setNavigationState({
-      ...initialNavState,
-      contrastLimits: [maxContrastLimit, 1024] // Default cytoplasm is on
-    });
+    // Set the full, initial navigation state with default contrast limits
+    setNavigationState(initialNavState);
 
   }, [hasLoadedArray, msInfo, navigationState, setNavigationState])
 

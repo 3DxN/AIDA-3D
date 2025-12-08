@@ -5,6 +5,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid'
 import { Disclosure } from '@headlessui/react'
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext'
 import { useZarrStore } from '../../../../lib/contexts/ZarrStoreContext'
+import { shouldUseHEStaining } from '../../../../lib/utils/channelMixer'
 
 import UnifiedSlider from '../../../interaction/UnifiedSlider'
 import Switch from '../../../interaction/Switch'
@@ -51,7 +52,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         return null
     }
 
-    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn, histogramEqualizationOn } = navigationState
+    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn, histogramEqualizationOn, heStainingOn } = navigationState
 
     // Calculate navigation limits from msInfo
     const maxZSlice = msInfo.shape.z ? msInfo.shape.z - 1 : 0
@@ -77,6 +78,10 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         onHistogramEqualizationToggle: (newState: boolean) => setNavigationState({
             ...navigationState,
             histogramEqualizationOn: newState
+        }),
+        onHEStainingToggle: (newState: boolean) => setNavigationState({
+            ...navigationState,
+            heStainingOn: newState
         }),
     }
 
@@ -207,6 +212,20 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                                 onChange={navigationHandlers.onHistogramEqualizationToggle}
                                             />
                                         </div>
+                                        <div className="flex justify-between items-center">
+                                            <div className="text-sm" title="Pseudo-color H&E staining for nucleus (blue-purple) and cytoplasm (pink-red)">
+                                                H&E Staining
+                                            </div>
+                                            <Switch
+                                                enabled={heStainingOn && shouldUseHEStaining(channelMap)}
+                                                onChange={navigationHandlers.onHEStainingToggle}
+                                            />
+                                        </div>
+                                        {heStainingOn && !shouldUseHEStaining(channelMap) && (
+                                            <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                                                H&E staining requires both nucleus and cytoplasm channels to be selected.
+                                            </div>
+                                        )}
                                         <ContrastLimitsSelector
                                             contrastLimitsProps={{
                                                 contrastLimits,
