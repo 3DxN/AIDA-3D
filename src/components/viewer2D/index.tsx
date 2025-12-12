@@ -221,7 +221,7 @@ const Viewer = (props: {
 			// TODO: dynamically set this tileSize from either user input of a
 			//			 configuration file.
 			const gutter = 25
-			const tileSize = 302
+			const tileSize = 682 // Value in original demo: 302
 			const overlap = 0
 			const gridSize = tileSize - overlap
 			const cols = Math.floor(imageWidth / tileSize)
@@ -278,8 +278,8 @@ const Viewer = (props: {
 
 					// TODO: check why the 3D model is reflected. This is potentially
 					//       something strange with the way the 3D demo data was prepared.
-					feature.set('3D-row', i + 3 * j)
-					feature.set('3D-col', 0)
+					feature.set('3D-row', j) 
+					feature.set('3D-col', i)
 
 					vectorSource.addFeature(feature)
 				}
