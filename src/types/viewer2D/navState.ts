@@ -11,6 +11,9 @@ export interface NavigationState {
     cellposeOverlayOn: boolean
     histogramEqualizationOn: boolean
     heStainingOn: boolean
+    heStainHematoxylinWeight: number  // Hematoxylin color weight (default 2.56)
+    heStainEosinWeight: number        // Eosin color weight (default 0.1)
+    heStainMaxIntensity: number       // Maximum intensity for normalization (default 65535)
 }
 
 export interface NavigationLimits {
@@ -29,4 +32,5 @@ export interface NavigationHandlers {
     onTimeSliceChange: (value: number) => void
     onChannelChange: (role: keyof ChannelMapping, value: number | null) => void
     onContrastLimitsChange: (limits: ContrastLimits) => void
+    onHEStainParamChange: (param: 'hematoxylinWeight' | 'eosinWeight' | 'maxIntensity', value: number) => void
 }

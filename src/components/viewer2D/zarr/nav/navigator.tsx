@@ -52,7 +52,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         return null
     }
 
-    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn, histogramEqualizationOn, heStainingOn } = navigationState
+    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn, histogramEqualizationOn, heStainingOn, heStainHematoxylinWeight, heStainEosinWeight, heStainMaxIntensity } = navigationState
 
     // Calculate navigation limits from msInfo
     const maxZSlice = msInfo.shape.z ? msInfo.shape.z - 1 : 0
@@ -83,6 +83,15 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
             ...navigationState,
             heStainingOn: newState
         }),
+        onHEStainParamChange: (param: 'hematoxylinWeight' | 'eosinWeight' | 'maxIntensity', value: number) => {
+            const stateKey = param === 'hematoxylinWeight' ? 'heStainHematoxylinWeight' :
+                             param === 'eosinWeight' ? 'heStainEosinWeight' :
+                             'heStainMaxIntensity'
+            setNavigationState({
+                ...navigationState,
+                [stateKey]: value
+            })
+        },
     }
 
     return (
@@ -226,6 +235,52 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                                 H&E staining requires both nucleus and cytoplasm channels to be selected.
                                             </div>
                                         )}
+
+                                        {/* H&E Staining Parameters */}
+                                        {heStainingOn && shouldUseHEStaining(channelMap) && (
+                                            <div className="space-y-3 border-t pt-3">
+                                                <div className="text-xs font-medium text-gray-700">H&E Parameters</div>
+
+                                                {/* Hematoxylin Weight */}
+                                                <div>
+                                                    <label className="block text-xs text-gray-600 mb-1" title="Controls hematoxylin (nuclear) stain intensity">
+                                                        Hematoxylin Weight
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={heStainHematoxylinWeight}
+                                                        min={0.5}
+                                                        max={20.0}
+                                                        step={0.1}
+                                                        onChange={(e) => {
+                                                            const value = parseFloat(e.target.value) || 0.5;
+                                                            navigationHandlers.onHEStainParamChange('hematoxylinWeight', value);
+                                                        }}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                                    />
+                                                </div>
+
+                                                {/* Eosin Weight */}
+                                                <div>
+                                                    <label className="block text-xs text-gray-600 mb-1" title="Controls eosin (cytoplasmic) stain intensity">
+                                                        Eosin Weight
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={heStainEosinWeight}
+                                                        min={0.01}
+                                                        max={5.0}
+                                                        step={0.01}
+                                                        onChange={(e) => {
+                                                            const value = parseFloat(e.target.value) || 0.01;
+                                                            navigationHandlers.onHEStainParamChange('eosinWeight', value);
+                                                        }}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <ContrastLimitsSelector
                                             contrastLimitsProps={{
                                                 contrastLimits,

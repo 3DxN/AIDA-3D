@@ -40,6 +40,8 @@ export function getDefaultChannelMap(availableChannels: string[]): ChannelMappin
 // Centralized navigation state initialization
 export function getInitialNavigationState(msInfo: IMultiscaleInfo): NavigationState {
     const dtype = msInfo.dtype;
+    const maxIntensity = getDefaultMaxContrastLimit(dtype);
+
     return {
         xOffset: 0,
         yOffset: 0,
@@ -49,6 +51,10 @@ export function getInitialNavigationState(msInfo: IMultiscaleInfo): NavigationSt
         channelMap: getDefaultChannelMap(msInfo.channels),
         cellposeOverlayOn: true,
         histogramEqualizationOn: false,
-        heStainingOn: false,
+        heStainingOn: true,  // Enable H&E staining by default
+        // Beer-Lambert H&E staining parameters
+        heStainHematoxylinWeight: 10.0,   // Hematoxylin (nuclear) stain weight
+        heStainEosinWeight: 1.0,          // Eosin (cytoplasmic) stain weight
+        heStainMaxIntensity: maxIntensity // Defaults to dtype max (65535 for uint16)
     }
 }

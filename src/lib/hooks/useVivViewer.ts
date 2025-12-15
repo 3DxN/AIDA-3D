@@ -7,14 +7,14 @@ import {
     OVERVIEW_VIEW_ID,
     DETAIL_VIEW_ID,
 } from '@hms-dbmi/viv'
+import { ColorPaletteExtension } from '@vivjs/extensions'
 
 import ZarrPixelSource from '../ext/ZarrPixelSource'
 import { FrameView, FRAME_VIEW_ID } from '../../components/viewer2D/zarr/map/FrameView'
 import { useResizeObserver } from './useResizeObserver'
 import { useViewer2DData } from '../contexts/Viewer2DDataContext'
 import { shouldUseHEStaining, getRenderingMode, HE_STAIN_COLORS } from '../utils/channelMixer'
-import { adjustContrastForHEStaining } from '../utils/heStainTransform'
-import { createHeShaderUniforms, applyHeStainShaderToLayer } from '../shaders/heStainShaderRenderer'
+import { HEStainExtension } from '../extensions/HEStainExtension'
 
 import type * as viv from "@vivjs/types"
 import type { Layer, View } from 'deck.gl'
@@ -285,21 +285,8 @@ export default function useVivViewer(
                 const limits = navigationState.contrastLimits[roleIndex] ?? [0, 255]
                 const [lowerLimit, upperLimit] = limits
 
-                // Apply non-linear H&E enhancement if enabled
-                // The transformation reduces intensity range, so we boost contrast to compensate
-                if (navigationState.heStainingOn && shouldUseHEStaining(navigationState.channelMap)) {
-                    const { adjustedNucleusContrast, adjustedCytoplasmContrast } =
-                        adjustContrastForHEStaining(upperLimit, upperLimit)
-
-                    const adjustedUpper = role === 'nucleus'
-                        ? adjustedNucleusContrast
-                        : adjustedCytoplasmContrast
-
-                    console.log(`📊 H&E contrast boost for ${role}: [${lowerLimit}, ${upperLimit}] → [${lowerLimit}, ${Math.round(adjustedUpper)}]`)
-                    return [lowerLimit, adjustedUpper] as [number, number]
-                }
-
                 // Use original contrast limits
+                // Beer-Lambert transformation handles intensity scaling via weight parameters
                 return [lowerLimit, upperLimit] as [number, number]
             })
 
@@ -309,30 +296,33 @@ export default function useVivViewer(
             () => true
         )
 
+        // Setup extensions: always include ColorPaletteExtension, optionally add H&E extension
+        const extensions = [new ColorPaletteExtension()]
+        if (navigationState.heStainingOn && useFalseColor) {
+            extensions.push(new HEStainExtension())
+        }
+
         const baseProps = {
             loader: vivLoaders,
             selections,
             colors,
             contrastLimits,
             channelsVisible,
+            extensions,
+            // Add H&E props as layer props when enabled
+            ...(navigationState.heStainingOn && useFalseColor ? {
+                heStainHematoxylinWeight: navigationState.heStainHematoxylinWeight,
+                heStainEosinWeight: navigationState.heStainEosinWeight,
+                heStainMaxIntensity: navigationState.heStainMaxIntensity,
+                heStainEnabled: true
+            } : {}),
             // False-color rendering metadata for use by overlay components
             falseColorMode: {
                 enabled: useFalseColor,
                 renderingMode: renderingMode,
                 nucleusChannelIndex: navigationState.channelMap.nucleus,
                 cytoplasmChannelIndex: navigationState.channelMap.cytoplasm,
-            },
-            // H&E Shader Configuration
-            // Apply non-linear H&E transformation at GPU level for real-time rendering
-            ...(navigationState.heStainingOn && useFalseColor ? {
-                shaderUniforms: createHeShaderUniforms(navigationState, navigationState.channelMap),
-                useHeShader: true,
-                heShaderConfig: {
-                    enabled: true,
-                    nucleusChannelIndex: navigationState.channelMap.nucleus,
-                    cytoplasmChannelIndex: navigationState.channelMap.cytoplasm,
-                }
-            } : {})
+            }
         }
 
         // Debug: Log what's actually being sent to Viv
@@ -343,9 +333,13 @@ export default function useVivViewer(
             selections: selections,
             contrastLimits: contrastLimits,
             channelsVisible: channelsVisible,
-            heShaderEnabled: navigationState.heStainingOn && useFalseColor ? true : false,
-            heShaderUniforms: navigationState.heStainingOn && useFalseColor ? 
-                createHeShaderUniforms(navigationState, navigationState.channelMap) : null
+            numExtensions: extensions.length,
+            heStainEnabled: navigationState.heStainingOn && useFalseColor,
+            heStainParams: (navigationState.heStainingOn && useFalseColor) ? {
+                hematoxylinWeight: navigationState.heStainHematoxylinWeight,
+                eosinWeight: navigationState.heStainEosinWeight,
+                maxIntensity: navigationState.heStainMaxIntensity
+            } : null
         })
 
         // Return layer props for each view in the same order as views array
