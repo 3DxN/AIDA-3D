@@ -52,7 +52,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         return null
     }
 
-    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn, histogramEqualizationOn, heStainingOn } = navigationState
+    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn, histogramEqualizationOn, heStainingOn, heStainHematoxylinWeight, heStainEosinWeight, heStainMaxIntensity } = navigationState
 
     // Calculate navigation limits from msInfo
     const maxZSlice = msInfo.shape.z ? msInfo.shape.z - 1 : 0
@@ -83,6 +83,15 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
             ...navigationState,
             heStainingOn: newState
         }),
+        onHEStainParamChange: (param: 'hematoxylinWeight' | 'eosinWeight' | 'maxIntensity', value: number) => {
+            const stateKey = param === 'hematoxylinWeight' ? 'heStainHematoxylinWeight' :
+                             param === 'eosinWeight' ? 'heStainEosinWeight' :
+                             'heStainMaxIntensity'
+            setNavigationState({
+                ...navigationState,
+                [stateKey]: value
+            })
+        },
     }
 
     return (
@@ -226,6 +235,65 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                                 H&E staining requires both nucleus and cytoplasm channels to be selected.
                                             </div>
                                         )}
+
+                                        {/* H&E Staining Parameters */}
+                                        {heStainingOn && shouldUseHEStaining(channelMap) && (
+                                            <div className="space-y-3 border-t pt-3">
+                                                <div className="text-xs font-medium text-gray-700">H&E Parameters</div>
+
+                                                {/* Hematoxylin Weight */}
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="text-xs text-gray-600" title="Controls hematoxylin (nuclear) stain intensity">
+                                                            Hematoxylin
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">{heStainHematoxylinWeight.toFixed(2)}</div>
+                                                    </div>
+                                                    <UnifiedSlider
+                                                        value={heStainHematoxylinWeight}
+                                                        min={0.5}
+                                                        max={5.0}
+                                                        step={0.1}
+                                                        onChange={(value: number) => navigationHandlers.onHEStainParamChange('hematoxylinWeight', value)}
+                                                    />
+                                                </div>
+
+                                                {/* Eosin Weight */}
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="text-xs text-gray-600" title="Controls eosin (cytoplasmic) stain intensity">
+                                                            Eosin
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">{heStainEosinWeight.toFixed(2)}</div>
+                                                    </div>
+                                                    <UnifiedSlider
+                                                        value={heStainEosinWeight}
+                                                        min={0.01}
+                                                        max={1.0}
+                                                        step={0.01}
+                                                        onChange={(value: number) => navigationHandlers.onHEStainParamChange('eosinWeight', value)}
+                                                    />
+                                                </div>
+
+                                                {/* Max Intensity */}
+                                                <div className="space-y-1">
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="text-xs text-gray-600" title="Maximum intensity value for normalization">
+                                                            Max Intensity
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">{heStainMaxIntensity}</div>
+                                                    </div>
+                                                    <UnifiedSlider
+                                                        value={heStainMaxIntensity}
+                                                        min={1000}
+                                                        max={65535}
+                                                        step={1000}
+                                                        onChange={(value: number) => navigationHandlers.onHEStainParamChange('maxIntensity', value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <ContrastLimitsSelector
                                             contrastLimitsProps={{
                                                 contrastLimits,
