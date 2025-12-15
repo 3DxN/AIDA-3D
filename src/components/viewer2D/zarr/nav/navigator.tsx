@@ -242,53 +242,59 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                                 <div className="text-xs font-medium text-gray-700">H&E Parameters</div>
 
                                                 {/* Hematoxylin Weight */}
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between items-center">
-                                                        <div className="text-xs text-gray-600" title="Controls hematoxylin (nuclear) stain intensity">
-                                                            Hematoxylin
-                                                        </div>
-                                                        <div className="text-xs text-gray-500">{heStainHematoxylinWeight.toFixed(2)}</div>
-                                                    </div>
-                                                    <UnifiedSlider
+                                                <div>
+                                                    <label className="block text-xs text-gray-600 mb-1" title="Controls hematoxylin (nuclear) stain intensity">
+                                                        Hematoxylin Weight
+                                                    </label>
+                                                    <input
+                                                        type="number"
                                                         value={heStainHematoxylinWeight}
                                                         min={0.5}
                                                         max={5.0}
                                                         step={0.1}
-                                                        onChange={(value: number) => navigationHandlers.onHEStainParamChange('hematoxylinWeight', value)}
+                                                        onChange={(e) => {
+                                                            const value = parseFloat(e.target.value) || 0.5;
+                                                            navigationHandlers.onHEStainParamChange('hematoxylinWeight', value);
+                                                        }}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                                                     />
                                                 </div>
 
                                                 {/* Eosin Weight */}
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between items-center">
-                                                        <div className="text-xs text-gray-600" title="Controls eosin (cytoplasmic) stain intensity">
-                                                            Eosin
-                                                        </div>
-                                                        <div className="text-xs text-gray-500">{heStainEosinWeight.toFixed(2)}</div>
-                                                    </div>
-                                                    <UnifiedSlider
+                                                <div>
+                                                    <label className="block text-xs text-gray-600 mb-1" title="Controls eosin (cytoplasmic) stain intensity">
+                                                        Eosin Weight
+                                                    </label>
+                                                    <input
+                                                        type="number"
                                                         value={heStainEosinWeight}
                                                         min={0.01}
                                                         max={1.0}
                                                         step={0.01}
-                                                        onChange={(value: number) => navigationHandlers.onHEStainParamChange('eosinWeight', value)}
+                                                        onChange={(e) => {
+                                                            const value = parseFloat(e.target.value) || 0.01;
+                                                            navigationHandlers.onHEStainParamChange('eosinWeight', value);
+                                                        }}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                                                     />
                                                 </div>
 
                                                 {/* Max Intensity */}
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between items-center">
-                                                        <div className="text-xs text-gray-600" title="Maximum intensity value for normalization">
-                                                            Max Intensity
-                                                        </div>
-                                                        <div className="text-xs text-gray-500">{heStainMaxIntensity}</div>
-                                                    </div>
-                                                    <UnifiedSlider
+                                                <div>
+                                                    <label className="block text-xs text-gray-600 mb-1" title="Maximum intensity value for normalization">
+                                                        Max Intensity
+                                                    </label>
+                                                    <input
+                                                        type="number"
                                                         value={heStainMaxIntensity}
                                                         min={1000}
                                                         max={65535}
                                                         step={1000}
-                                                        onChange={(value: number) => navigationHandlers.onHEStainParamChange('maxIntensity', value)}
+                                                        onChange={(e) => {
+                                                            const value = parseInt(e.target.value) || 1000;
+                                                            navigationHandlers.onHEStainParamChange('maxIntensity', value);
+                                                        }}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                                                     />
                                                 </div>
                                             </div>

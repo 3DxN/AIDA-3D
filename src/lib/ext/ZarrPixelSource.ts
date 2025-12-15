@@ -29,6 +29,7 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
   ) => zarr.TypedArray<Lowercase<viv.SupportedDtype>>;
 
   #pendingId: undefined | number = undefined;
+  #pendingAbortController: AbortController | undefined = undefined;
   #pending: Array<{
     resolve: (data: VivPixelData) => void;
     reject: (err: unknown) => void;
@@ -121,7 +122,18 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
   async #fetchData(request: { selection: Array<number | Slice>; signal?: AbortSignal }): Promise<viv.PixelData> {
     const { promise, resolve, reject } = Promise.withResolvers<VivPixelData>();
     this.#pending.push({ request, resolve, reject });
-    this.#pendingId = this.#pendingId ?? requestAnimationFrame(() => this.#fetchPending());
+
+    // If there's no pending animation frame scheduled, start a new batch
+    if (this.#pendingId === undefined) {
+      // Cancel any previous batch that might still be running
+      if (this.#pendingAbortController) {
+        this.#pendingAbortController.abort();
+      }
+      // Create a new AbortController for this batch
+      this.#pendingAbortController = new AbortController();
+      this.#pendingId = requestAnimationFrame(() => this.#fetchPending());
+    }
+
     // @ts-expect-error - The missing generic ArrayBuffer type from Viv makes VivPixelData and viv.PixelData incompatible, even though they are.
     return promise;
   }
@@ -132,9 +144,19 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
    * TODO: There could be more optimizations (e.g., multi-get)
    */
   async #fetchPending() {
+    // Capture the current batch's AbortController
+    const batchAbortController = this.#pendingAbortController;
+    const batchSignal = batchAbortController?.signal;
+
+    // Process all pending requests
     for (const { request, resolve, reject } of this.#pending) {
+      // Merge the batch abort signal with any user-provided signal
+      const signal = request.signal
+        ? this.#mergeAbortSignals([batchSignal, request.signal])
+        : batchSignal;
+
       zarr
-        .get(this.#arr, request.selection, { opts: { signal: request.signal } })
+        .get(this.#arr, request.selection, { opts: { signal } })
         .then(({ data, shape }) => {
           const transformedData = this.#transform(data);
 
@@ -144,10 +166,38 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
             height: shape[0],
           });
         })
-        .catch((error) => reject(error));
+        .catch((error) => {
+          // Don't reject with AbortError - it's expected when requests are cancelled
+          if (error instanceof Error && error.name === 'AbortError') {
+            // Silently ignore cancelled requests
+            return;
+          }
+          reject(error);
+        });
     }
+
+    // Clear batch state
     this.#pendingId = undefined;
     this.#pending = [];
+  }
+
+  /**
+   * Merge multiple abort signals into one.
+   * The returned signal will abort when any of the input signals abort.
+   */
+  #mergeAbortSignals(signals: (AbortSignal | undefined)[]): AbortSignal {
+    const controller = new AbortController();
+    const actualSignals = signals.filter((s): s is AbortSignal => s !== undefined);
+
+    for (const signal of actualSignals) {
+      if (signal.aborted) {
+        controller.abort();
+        break;
+      }
+      signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+
+    return controller.signal;
   }
 
 }

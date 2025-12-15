@@ -33,6 +33,7 @@ export default class DynamicResolutionZarrPixelSource implements viv.PixelSource
   private cleanupInterval: NodeJS.Timeout | null = null;
 
   #pendingId: undefined | number = undefined;
+  #pendingAbortController: AbortController | undefined = undefined;
   #pending: Array<{
     resolve: (data: VivPixelData) => void;
     reject: (err: unknown) => void;
@@ -180,7 +181,18 @@ export default class DynamicResolutionZarrPixelSource implements viv.PixelSource
   async #fetchData(request: { selection: Array<number | Slice>; signal?: AbortSignal; resolutionIndex: number }): Promise<viv.PixelData> {
     const { promise, resolve, reject } = Promise.withResolvers<VivPixelData>();
     this.#pending.push({ request, resolve, reject });
-    this.#pendingId = this.#pendingId ?? requestAnimationFrame(() => this.#fetchPending());
+
+    // If there's no pending animation frame scheduled, start a new batch
+    if (this.#pendingId === undefined) {
+      // Cancel any previous batch that might still be running
+      if (this.#pendingAbortController) {
+        this.#pendingAbortController.abort();
+      }
+      // Create a new AbortController for this batch
+      this.#pendingAbortController = new AbortController();
+      this.#pendingId = requestAnimationFrame(() => this.#fetchPending());
+    }
+
     // @ts-expect-error - The missing generic ArrayBuffer type from Viv makes VivPixelData and viv.PixelData incompatible, even though they are.
     return promise;
   }
@@ -189,30 +201,66 @@ export default class DynamicResolutionZarrPixelSource implements viv.PixelSource
    * Fetch a pending batch of requests together and resolve independently.
    */
   async #fetchPending() {
+    // Capture the current batch's AbortController
+    const batchAbortController = this.#pendingAbortController;
+    const batchSignal = batchAbortController?.signal;
+
+    // Process all pending requests
     for (const { request, resolve, reject } of this.#pending) {
       const array = this.allArrays[request.resolutionIndex];
       const transform = this.transforms[request.resolutionIndex];
-      
+
       if (!array || !transform) {
         console.warn(`Missing array or transform for resolution index ${request.resolutionIndex}`);
         reject(new Error(`Missing array or transform for resolution index ${request.resolutionIndex}`));
         continue;
       }
-      
+
+      // Merge the batch abort signal with any user-provided signal
+      const signal = request.signal
+        ? this.#mergeAbortSignals([batchSignal, request.signal])
+        : batchSignal;
+
       try {
-        const { data, shape } = await zarr.get(array, request.selection, { opts: { signal: request.signal } });
+        const { data, shape } = await zarr.get(array, request.selection, { opts: { signal } });
         resolve({
           data: transform(data),
           width: shape[1],
           height: shape[0],
         });
       } catch (error) {
+        // Don't reject with AbortError - it's expected when requests are cancelled
+        if (error instanceof Error && error.name === 'AbortError') {
+          // Silently ignore cancelled requests
+          continue;
+        }
         console.error(`Failed to fetch data for resolution ${request.resolutionIndex}:`, error);
         reject(error);
       }
     }
+
+    // Clear batch state
     this.#pendingId = undefined;
     this.#pending = [];
+  }
+
+  /**
+   * Merge multiple abort signals into one.
+   * The returned signal will abort when any of the input signals abort.
+   */
+  #mergeAbortSignals(signals: (AbortSignal | undefined)[]): AbortSignal {
+    const controller = new AbortController();
+    const actualSignals = signals.filter((s): s is AbortSignal => s !== undefined);
+
+    for (const signal of actualSignals) {
+      if (signal.aborted) {
+        controller.abort();
+        break;
+      }
+      signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+
+    return controller.signal;
   }
 
   /**
