@@ -250,7 +250,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                                         type="number"
                                                         value={heStainHematoxylinWeight}
                                                         min={0.5}
-                                                        max={5.0}
+                                                        max={20.0}
                                                         step={0.1}
                                                         onChange={(e) => {
                                                             const value = parseFloat(e.target.value) || 0.5;
@@ -269,30 +269,11 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                                         type="number"
                                                         value={heStainEosinWeight}
                                                         min={0.01}
-                                                        max={1.0}
+                                                        max={5.0}
                                                         step={0.01}
                                                         onChange={(e) => {
                                                             const value = parseFloat(e.target.value) || 0.01;
                                                             navigationHandlers.onHEStainParamChange('eosinWeight', value);
-                                                        }}
-                                                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                                                    />
-                                                </div>
-
-                                                {/* Max Intensity */}
-                                                <div>
-                                                    <label className="block text-xs text-gray-600 mb-1" title="Maximum intensity value for normalization">
-                                                        Max Intensity
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        value={heStainMaxIntensity}
-                                                        min={1000}
-                                                        max={65535}
-                                                        step={1000}
-                                                        onChange={(e) => {
-                                                            const value = parseInt(e.target.value) || 1000;
-                                                            navigationHandlers.onHEStainParamChange('maxIntensity', value);
                                                         }}
                                                         className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                                                     />

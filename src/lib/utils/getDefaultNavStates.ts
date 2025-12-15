@@ -51,10 +51,10 @@ export function getInitialNavigationState(msInfo: IMultiscaleInfo): NavigationSt
         channelMap: getDefaultChannelMap(msInfo.channels),
         cellposeOverlayOn: true,
         histogramEqualizationOn: false,
-        heStainingOn: false,
-        // Beer-Lambert H&E staining parameters (from genHnE.py reference)
-        heStainHematoxylinWeight: 2.56,  // colorWeightNUCL default
-        heStainEosinWeight: 0.1,         // colorWeightCYTO default
+        heStainingOn: true,  // Enable H&E staining by default
+        // Beer-Lambert H&E staining parameters
+        heStainHematoxylinWeight: 10.0,   // Hematoxylin (nuclear) stain weight
+        heStainEosinWeight: 1.0,          // Eosin (cytoplasmic) stain weight
         heStainMaxIntensity: maxIntensity // Defaults to dtype max (65535 for uint16)
     }
 }

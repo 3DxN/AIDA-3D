@@ -62,11 +62,10 @@ export interface BeerLambertConfig {
 
 /**
  * Default configuration for H&E staining
- * Values from genHnE.py reference implementation
  */
 export const DEFAULT_BEER_LAMBERT_CONFIG: BeerLambertConfig = {
-  hematoxylinWeight: 2.56,  // colorWeightNUCL from reference
-  eosinWeight: 0.1,         // colorWeightCYTO from reference
+  hematoxylinWeight: 10.0,  // Hematoxylin (nuclear) stain weight
+  eosinWeight: 1.0,         // Eosin (cytoplasmic) stain weight
   maxIntensity: 65535,      // uint16 max (will be adjusted based on actual data range)
   enabled: true
 }
@@ -128,13 +127,13 @@ export function applyBeerLambertStaining(
  * @returns true if valid, false otherwise
  */
 export function validateBeerLambertConfig(config: BeerLambertConfig): boolean {
-  if (config.hematoxylinWeight < 0.5 || config.hematoxylinWeight > 5.0) {
-    console.warn(`Hematoxylin weight ${config.hematoxylinWeight} out of range [0.5, 5.0]`)
+  if (config.hematoxylinWeight < 0.5 || config.hematoxylinWeight > 20.0) {
+    console.warn(`Hematoxylin weight ${config.hematoxylinWeight} out of range [0.5, 20.0]`)
     return false
   }
 
-  if (config.eosinWeight < 0.01 || config.eosinWeight > 1.0) {
-    console.warn(`Eosin weight ${config.eosinWeight} out of range [0.01, 1.0]`)
+  if (config.eosinWeight < 0.01 || config.eosinWeight > 5.0) {
+    console.warn(`Eosin weight ${config.eosinWeight} out of range [0.01, 5.0]`)
     return false
   }
 
