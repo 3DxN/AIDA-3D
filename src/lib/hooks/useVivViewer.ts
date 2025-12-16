@@ -122,79 +122,50 @@ export default function useVivViewer(
     }, [navigationState, msInfo.shape])
 
     // Generate colors based on channel map
-    // Return one color per selected channel, in the order they appear in channelMap
-    // When both nucleus and cytoplasm are selected with H&E staining enabled, use H&E pseudo-color scheme
+    // IMPORTANT: These colors are ONLY used by ColorPaletteExtension when H&E staining is disabled.
+    // When H&E is enabled, HEStainExtension computes colors via Beer-Lambert law in the shader
+    // and completely overrides these values.
     const colors = useMemo(() => {
-        // Default color palette for rendering roles
-        // Green for nucleus, red for cytoplasm creates yellow overlap (false-color rendering)
+        // Default color palette for single-channel or unrecognized roles
         const defaultColors = [
-            [0, 255, 0],    // Nucleus (green)
-            [255, 0, 0],    // Cytoplasm (red)
+            [0, 255, 0],    // Green
+            [255, 0, 0],    // Red
         ]
 
         if (!navigationState.channelMap) {
-            console.log("Using default color")
             return [defaultColors[0]]
         }
 
         const channelMap = navigationState.channelMap
-        const renderingMode = getRenderingMode(channelMap)
-        const canUseHEStaining = shouldUseHEStaining(channelMap)
-        const heStainingEnabled = navigationState.heStainingOn && canUseHEStaining
-        
-        // Debug logging with detailed state info
-        console.log('🎨 Color generation:', {
-            heStainingOn: navigationState.heStainingOn,
-            canUseHEStaining,
-            heStainingEnabled,
-            channelMap,
-            willUseHEMixing: heStainingEnabled ? 'YES' : 'NO'
-        })
-        
+        const heStainingEnabled = navigationState.heStainingOn && shouldUseHEStaining(channelMap)
+
+        // Helper to convert normalized [0-1] color to RGB [0-255]
+        const toRGB = (normalized: readonly [number, number, number]): number[] =>
+            normalized.map(v => Math.round(v * 255))
+
         // Create colors array with one entry per mapped (non-null) channel, in role order
         const roleColors = Object.entries(channelMap)
             .filter(entry => entry[1] !== null)
             .map(([role, channelIndex], roleIndex) => {
-                // H&E pseudo-color staining: map to real histopathology colors
-                if (heStainingEnabled) {
-                    if (role === 'nucleus') {
-                        // Hematoxylin: blue-purple color for nuclei
-                        const color = [
-                            Math.round(HE_STAIN_COLORS.hematoxylin[0] * 255),
-                            Math.round(HE_STAIN_COLORS.hematoxylin[1] * 255),
-                            Math.round(HE_STAIN_COLORS.hematoxylin[2] * 255)
-                        ]                        
-                        console.log('👍 Nucleus H&E color (should be ~[163, 20, 204]):', color)
-                        return color
-                    } else if (role === 'cytoplasm') {
-                        // Eosin: pink-red color for cytoplasm
-                        const color = [
-                            Math.round(HE_STAIN_COLORS.eosin[0] * 255),
-                            Math.round(HE_STAIN_COLORS.eosin[1] * 255),
-                            Math.round(HE_STAIN_COLORS.eosin[2] * 255)
-                        ]
-                        console.log('👍 Cytoplasm H&E color (should be ~[54, 25, 10]):', color)
-                        return color
-                    }
+                // When H&E is enabled: Set placeholder colors (unused, shader handles rendering)
+                // When H&E is disabled: Set actual rendering colors for false-color display
+                if (role === 'nucleus') {
+                    // Nucleus: blue (false-color) or hematoxylin blue-purple (H&E placeholder)
+                    return heStainingEnabled
+                        ? toRGB(HE_STAIN_COLORS.hematoxylin)  // Placeholder, not actually used
+                        : [0, 0, 255]  // Blue for false-color rendering
+                } else if (role === 'cytoplasm') {
+                    // Cytoplasm: green (false-color) or eosin pink-red (H&E placeholder)
+                    return heStainingEnabled
+                        ? toRGB(HE_STAIN_COLORS.eosin)  // Placeholder, not actually used
+                        : [0, 255, 0]  // Green for false-color rendering
                 }
-                
-                // Default false-color rendering (green for nucleus, red for cytoplasm)
-                if (canUseHEStaining) {
-                    if (role === 'nucleus') {
-                        console.log('❌ Using FALLBACK nucleus color [0, 0, 255] - H&E not enabled!')
-                        return [0, 0, 255]  // Green for nucleus
-                    } else if (role === 'cytoplasm') {
-                        console.log('❌ Using FALLBACK cytoplasm color [0, 255, 0] - H&E not enabled!')
-                        return [0, 255, 0]  // Red for cytoplasm
-                    }
-                }
-                
-                // Fall back to default colors for single channel or unrecognized roles
-                console.log(`⚠️ FALLBACK: role "${role}" (index ${roleIndex}):`, defaultColors[roleIndex % defaultColors.length])
+
+                // Fallback for unrecognized roles
                 return defaultColors[roleIndex % defaultColors.length]
             })
-        
-        console.log('✅ Final colors array being sent to Viv:', roleColors.map(c => `[${c.join(', ')}]`).join(' + '))
+
+        console.log(`🎨 Colors (${heStainingEnabled ? 'H&E shader mode - unused placeholders' : 'false-color mode'}):`, roleColors)
         return roleColors.length > 0 ? roleColors : [defaultColors[0]]
     }, [navigationState.channelMap, navigationState.heStainingOn])
 
