@@ -13,6 +13,8 @@ import { useViewer2DData } from '../../lib/contexts/Viewer2DDataContext';
 import { useNucleusSelection } from '../../lib/contexts/NucleusSelectionContext';
 import { useNucleusColor } from '../../lib/contexts/NucleusColorContext';
 import { useZarrStore } from '../../lib/contexts/ZarrStoreContext';
+import { useROI } from '../../lib/contexts/ROIContext';
+import { getPolygonBounds } from '../../types/roi';
 
 import Settings from './settings';
 import Toolbar from './toolbar';
@@ -54,6 +56,7 @@ const Viewer3D = (props: {
 	const crossSectionPlane = useRef<THREE.Mesh | null>(null);
 	const [isCameraInitialized, setIsCameraInitialized] = useState(false);
 	const [filterIncompleteNuclei, setFilterIncompleteNuclei] = useState(true);
+	const lastROIId = useRef<string | null>(null);
 
 
 	// New label storage refs
@@ -67,6 +70,7 @@ const Viewer3D = (props: {
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
 	const { frameBoundCellposeMeshData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow, cellposeScale } = useViewer2DData();
+	const { selectedROI } = useROI();
 	const { setPropertiesCallback } = useZarrStore();
 
 	// Function to handle automatic properties loading from Cellpose zarr.json
@@ -262,12 +266,28 @@ const Viewer3D = (props: {
 
 			// Pass scale factors to ensure proper proportions at different resolutions
 			console.log('🔧 Generating meshes with voxel scale:', cellposeScale);
-			const meshDataArray = generateMeshesFromVoxelData(
+			let meshDataArray = generateMeshesFromVoxelData(
 				frameBoundCellposeMeshData,
 				relativeCurrentZSlice,
 				filterIncompleteNuclei,
-				cellposeScale
-			);
+												cellposeScale
+										);
+				
+										if (selectedROI && selectedROI.points.length >= 3) {				const roiPolygon = selectedROI.points;
+				meshDataArray = meshDataArray.filter(({ vertices }) => {
+					// Calculate centroid of the mesh in world coordinates
+					// Note: generateMeshesFromVoxelData returns vertices already offset by frameCenter
+					// We need to convert them back to image world coordinates to check against ROI points
+					const sumX = vertices.reduce((acc, v) => acc + v.x, 0);
+					const sumY = vertices.reduce((acc, v) => acc + v.y, 0);
+					const worldX = (sumX / vertices.length) + frameCenter[0];
+					const worldY = (sumY / vertices.length) + frameCenter[1];
+
+					// checkPointInPolygon returns < 0 for inside, > 0 for outside, 0 for on edge
+					return checkPointInPolygon(roiPolygon, [worldX, worldY]) <= 0;
+				});
+			}
+
 			const newContentGroup = new THREE.Group();
 
 			meshDataArray.forEach(({ label, vertices, indices }) => {
@@ -337,11 +357,18 @@ const Viewer3D = (props: {
 
 			// Add cross-section plane centered at global origin facing z direction
 			if (frameCenter && frameSize && frameSize[0] > 0 && frameSize[1] > 0) {
-				const bounds = getFrameBounds();
-				const width = bounds.right - bounds.left;
-				const height = bounds.bottom - bounds.top;
+				let width, height;
+				if (selectedROI) {
+					const bounds = getPolygonBounds(selectedROI.points);
+					width = bounds.size[0];
+					height = bounds.size[1];
+				} else {
+					const bounds = getFrameBounds();
+					width = bounds.right - bounds.left;
+					height = bounds.bottom - bounds.top;
+				}
 
-				// Create plane with 2D selection dimensions
+				// Create plane with dimensions
 				const planeGeometry = new THREE.PlaneGeometry(width, height);
 				const planeMaterial = new THREE.MeshBasicMaterial({
 					color: 0xffffff,
@@ -371,21 +398,28 @@ const Viewer3D = (props: {
 
 			// Don't center the content group - keep plane at global origin
 
-			// Only set camera position on first initialization, preserve user's camera state afterwards
-			if (!isCameraInitialized) {
+			// Only set camera position on first initialization or when ROI changes
+			if (!isCameraInitialized || selectedROI?.id !== lastROIId.current) {
 				// Calculate camera distance to ensure everything is comfortably visible
-				const bounds = getFrameBounds();
-				const frameWidth = bounds.right - bounds.left;
-				const frameHeight = bounds.bottom - bounds.top;
-				const planeSize = Math.max(frameWidth, frameHeight);
+				let planeSize;
+				if (selectedROI) {
+					const bounds = getPolygonBounds(selectedROI.points);
+					planeSize = Math.max(bounds.size[0], bounds.size[1]);
+				} else {
+					const bounds = getFrameBounds();
+					const frameWidth = bounds.right - bounds.left;
+					const frameHeight = bounds.bottom - bounds.top;
+					planeSize = Math.max(frameWidth, frameHeight);
+				}
 
 				// Zoomed in for better detail view
-				const distanceScale = Math.max(2.0, planeSize / 40); // 4x more zoomed in
+				const distanceScale = Math.max(2.0, planeSize / 40);
 
 				// Position camera 180 degrees around (viewing from the back)
 				camera.position.set(0, 0, -size * distanceScale);
 				camera.lookAt(0, 0, 0);
 				setIsCameraInitialized(true);
+				lastROIId.current = selectedROI?.id ?? null;
 			}
 
 			// Always update camera near/far planes for proper rendering
