@@ -27,9 +27,9 @@ export interface VivViewerState {
   containerDimensions: { width: number; height: number }
   detailViewDrag: VivDetailViewState
   controlledDetailViewState?: VivViewState | null
-  isManuallyPanning: boolean
   detailViewStateRef: React.RefObject<VivViewState | null>
   containerRef: React.RefObject<HTMLDivElement | null>
+  initialViewState?: VivViewState
 }
 
 export interface VivViewerComputed {

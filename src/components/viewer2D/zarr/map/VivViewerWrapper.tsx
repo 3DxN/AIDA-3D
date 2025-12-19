@@ -18,7 +18,8 @@ const VivViewerWrapper: React.FC = () => {
     const { root, msInfo } = useZarrStore()
     const { 
         navigationState, setFrameCenter, setFrameSize,
-        controlledDetailViewState, setControlledDetailViewState 
+        controlledDetailViewState, setControlledDetailViewState,
+        vivViewState 
     } = useViewer2DData()
     const { rois, selectedROI, isDrawing, drawingPoints, cursorPosition, addPoint, finishDrawing, setCursorPosition } = useROI()
 
@@ -27,7 +28,6 @@ const VivViewerWrapper: React.FC = () => {
         return <div className="flex items-center justify-center h-full text-gray-500">Loading viewer...</div>
     }
 
-    // Use the comprehensive Viv viewer hook first 
     const {
         vivLoaders,
         containerDimensions,
@@ -36,13 +36,12 @@ const VivViewerWrapper: React.FC = () => {
         containerRef,
         views,
         viewStates,
+        initialViewState,
         setDetailViewDrag,
-        setIsManuallyPanning,
         handleViewStateChange,
         createLayerProps
     } = useVivViewer(msInfo, navigationState, root, controlledDetailViewState, setControlledDetailViewState)
 
-    // Frame interaction hook no longer needs to create the overlay
     const {
         handleHover,
         getCursor,
@@ -54,16 +53,11 @@ const VivViewerWrapper: React.FC = () => {
         onClick
     } = useFrameInteraction(
         detailViewStateRef,
-        setIsManuallyPanning,
-        setDetailViewDrag,
-        detailViewDrag,
         setControlledDetailViewState,
     )
 
-    // Generate final layer props with frame overlays only (ROI uses canvas overlay)
     const finalLayerProps = createLayerProps(frameOverlayLayers)
 
-    // Handle hover - track cursor for drawing rubber-band
     const handleHoverWithCursor = useCallback((info: any) => {
         if (isDrawing && info.coordinate && info.viewport?.id === DETAIL_VIEW_ID) {
             setCursorPosition([info.coordinate[0], info.coordinate[1]])
@@ -73,11 +67,9 @@ const VivViewerWrapper: React.FC = () => {
         return handleHover(info)
     }, [isDrawing, handleHover, setCursorPosition, cursorPosition])
 
-    // State for ROI name prompt
     const [showNamePrompt, setShowNamePrompt] = useState(false)
     const [pendingROIName, setPendingROIName] = useState('')
 
-    // Handle click - intercept for ROI drawing
     const handleClick = useCallback((info: any, event: any) => {
         if (isDrawing && info.coordinate && info.viewport?.id === DETAIL_VIEW_ID) {
             const [x, y] = info.coordinate
@@ -85,7 +77,7 @@ const VivViewerWrapper: React.FC = () => {
             if (shouldClose) {
                 setShowNamePrompt(true)
             }
-            return true // Prevent other click handlers
+            return true
         }
         return onClick(info, event)
     }, [isDrawing, addPoint, onClick])
@@ -96,7 +88,6 @@ const VivViewerWrapper: React.FC = () => {
         setShowNamePrompt(false)
     }, [finishDrawing, pendingROIName, rois.length])
 
-    // Initialize frame when data is loaded
     useFrameInitialisation(
         msInfo,
         vivLoaders,
@@ -108,7 +99,6 @@ const VivViewerWrapper: React.FC = () => {
         detailViewStateRef
     )
 
-    // Loading state
     if (!msInfo || vivLoaders.length === 0 || views.length === 0) {
         return (
             <div
@@ -123,7 +113,8 @@ const VivViewerWrapper: React.FC = () => {
         )
     }
 
-    // Main viewer render
+    const currentViewState = vivViewState || controlledDetailViewState;
+
     return (
         <div
             ref={containerRef}
@@ -134,6 +125,7 @@ const VivViewerWrapper: React.FC = () => {
                 views={views}
                 layerProps={finalLayerProps}
                 viewStates={viewStates}
+                initialViewState={initialViewState}
                 // @ts-expect-error Incomplete viv type definitions
                 onViewStateChange={handleViewStateChange}
                 deckProps={{
@@ -159,11 +151,11 @@ const VivViewerWrapper: React.FC = () => {
             <HistogramEqualizationOverlay
                 enabled={navigationState.histogramEqualizationOn}
                 containerRef={containerRef}
-                viewState={controlledDetailViewState}
+                viewState={currentViewState}
                 containerSize={containerDimensions}
             />
             <CellposeOverlay
-                viewState={controlledDetailViewState}
+                viewState={currentViewState}
                 containerSize={containerDimensions}
             />
             <SelectionBox
@@ -171,14 +163,14 @@ const VivViewerWrapper: React.FC = () => {
                 containerSize={containerDimensions}
             />
             <ROIOverlay
-                viewState={controlledDetailViewState}
+                viewState={currentViewState}
                 containerSize={containerDimensions}
                 rois={rois}
                 selectedId={selectedROI?.id ?? null}
                 zSlice={navigationState?.zSlice ?? 0}
             />
             <ROIDrawingOverlay
-                viewState={controlledDetailViewState}
+                viewState={currentViewState}
                 containerSize={containerDimensions}
                 drawingPoints={drawingPoints}
                 cursorPosition={cursorPosition}

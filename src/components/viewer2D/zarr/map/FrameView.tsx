@@ -92,23 +92,21 @@ export function createFrameOverlayLayers(
 
   layers.push(fillLayer);
 
-  // Add a pickable frame area for moving the frame (separate from border/fill)
   const moveAreaLayerId = `frame-move-area-#${viewportId}#`;
   const moveAreaLayer = new PolygonLayer({
     id: moveAreaLayerId,
     data: [{ contour: framePolygon, type: 'move' }],
     getPolygon: (d: any) => d.contour,
-    getLineColor: [0, 0, 0, 0], // Completely invisible
-    getFillColor: [0, 0, 0, 0], // Completely invisible
+    getLineColor: [0, 0, 0, 0],
+    getFillColor: [0, 0, 0, 0],
     filled: true,
     stroked: false,
-    pickable: true, // This layer is pickable for moving the frame
+    pickable: !polygonPoints,
     coordinateSystem: 0
   });
 
   layers.push(moveAreaLayer);
 
-  // Add corner and edge handles if enabled - only for rectangular frames (no polygonPoints)
   if (showHandles && !polygonPoints) {
     const handleColor = [255, 255, 255, 255] as [number, number, number, number];
     const handleFillColor = [100, 150, 255, 200] as [number, number, number, number];

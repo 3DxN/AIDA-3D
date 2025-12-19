@@ -29,11 +29,10 @@ export default function useVivViewer(
     root: zarrita.Location<zarrita.FetchStore> | null,
     controlledDetailViewState: VivViewState | null,
     setControlledDetailViewState: (state: VivViewState | null) => void
-): Omit<VivViewerState, 'controlledDetailViewState'> & VivViewerComputed & VivViewerActions {
+): Omit<VivViewerState, 'controlledDetailViewState' | 'isManuallyPanning'> & VivViewerComputed & VivViewerActions {
 
     const { setVivViewState, setViewerSize } = useViewer2DData();
 
-    // Core state
     const [vivLoaders, setVivLoaders] = useState<ZarrPixelSource[]>([])
     const [containerDimensions, setContainerDimensions] = useState({ width: 800, height: 600 })
     const [detailViewDrag, setDetailViewDrag] = useState<VivDetailViewState>({
@@ -41,13 +40,10 @@ export default function useVivViewer(
         startPos: [0, 0],
         startTarget: [0, 0, 0]
     })
-    const [isManuallyPanning, setIsManuallyPanning] = useState(false)
 
-    // Refs
     const detailViewStateRef = useRef<VivViewState | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
 
-    // Container dimension management
     const handleResize = useCallback(({ width, height }: { width: number; height: number }) => {
         const newSize = {
             width: Math.max(width, 400),
@@ -57,10 +53,8 @@ export default function useVivViewer(
         setViewerSize(newSize)
     }, [setViewerSize])
 
-    // Use shared resize observer hook with stable callback
     useResizeObserver(containerRef as React.RefObject<HTMLElement>, handleResize)
 
-    // Load Viv loaders for all resolution levels
     useEffect(() => {
         async function loadAllResolutions() {
             if (!root || !msInfo) {
@@ -91,10 +85,8 @@ export default function useVivViewer(
         loadAllResolutions()
     }, [msInfo, root])
 
-    // Compute selections based on navigation state
     const selections = useMemo(() => {
         if (!navigationState.channelMap) {
-            console.log("No channel map available, returning empty selections")
             return []
         }
 
@@ -109,16 +101,13 @@ export default function useVivViewer(
         return [selection]
     }, [navigationState, msInfo.shape])
 
-    // Generate colors based on channel map
     const colors = useMemo(() => {
-        // Default color palette for multiple channels (grayscale)
         const defaultColors = [
-            [255, 255, 255], // Nucleus (white/grayscale)
-            [128, 128, 128], // Cytoplasm (gray)
+            [255, 255, 255],
+            [128, 128, 128],
         ]
 
         if (!navigationState.channelMap) {
-            console.log("Using default color")
             return [defaultColors[0]]
         }
 
@@ -131,11 +120,10 @@ export default function useVivViewer(
                     return defaultColors[j]
                 }
             }
-            return [0, 0, 0] // Default to black if no mapping found
+            return [0, 0, 0]
         })
     }, [navigationState.channelMap, msInfo.shape.c])
 
-    // Overview configuration
     const overview = useMemo(() => ({
         height: Math.min(120, Math.floor(containerDimensions.height * 0.2)),
         width: Math.min(120, Math.floor(containerDimensions.width * 0.2)),
@@ -143,7 +131,6 @@ export default function useVivViewer(
         backgroundColor: [0, 0, 0]
     }), [containerDimensions])
 
-    // Generate view instances
     const views = useMemo(() => {
         if (vivLoaders.length === 0) {
             return []
@@ -173,30 +160,34 @@ export default function useVivViewer(
         return [detailView, frameView, overviewView]
     }, [vivLoaders, containerDimensions])
 
-    // Generate view states
+    const initialViewState = useMemo(() => {
+        if (vivLoaders.length === 0) return undefined;
+        return getDefaultInitialViewState(vivLoaders, containerDimensions, 0) as VivViewState
+    }, [vivLoaders, containerDimensions])
+
     const viewStates = useMemo(() => {
         if (vivLoaders.length === 0 || views.length === 0) {
             return []
         }
 
         const overviewState = getDefaultInitialViewState(vivLoaders, overview, 0.5) as VivViewState
-        const detailState = controlledDetailViewState
-            || getDefaultInitialViewState(vivLoaders, containerDimensions, 0) as VivViewState
+        
+        const detailState = controlledDetailViewState 
+            || detailViewStateRef.current 
+            || initialViewState
 
         return [
-            { target: detailState.target, zoom: detailState.zoom, id: DETAIL_VIEW_ID },
-            { target: detailState.target, zoom: detailState.zoom, id: FRAME_VIEW_ID }, // Frame follows detail view state
+            { ...detailState, id: DETAIL_VIEW_ID },
+            { ...detailState, id: FRAME_VIEW_ID },
             { ...overviewState, id: OVERVIEW_VIEW_ID }
         ]
-    }, [vivLoaders, views, overview, containerDimensions, controlledDetailViewState])
+    }, [vivLoaders, views, overview, controlledDetailViewState, initialViewState])
 
-    // Generate layer props
     const createLayerProps = useCallback((frameOverlayLayers: Layer[] = []) => {
         if (vivLoaders.length === 0 || views.length === 0 || !msInfo.shape.c) {
             return []
         }
 
-        // Get max value for dtype to use for full-range contrast limits
         const getMaxValueForDtype = (dtype: string): number => {
             switch (dtype) {
                 case 'uint8': return 255;
@@ -217,7 +208,7 @@ export default function useVivViewer(
                     return [0, navigationState.contrastLimits[i]]
                 }
             }
-            return [0, maxValue] // For debugging purposes, use full range
+            return [0, maxValue]
         }) as [number, number][]
 
         const channelsVisible = Array.from({ length: msInfo.shape.c }, (_, index) => {
@@ -232,59 +223,49 @@ export default function useVivViewer(
             channelsVisible
         }
 
-        // Return layer props for each view in the same order as views array
         return views.map((view) => {
             if (view.id === FRAME_VIEW_ID) {
-                // Frame view gets the overlay layers
                 return { ...baseProps, frameOverlayLayers }
             }
             return baseProps
         })
     }, [vivLoaders, views, selections, colors, navigationState.channelMap, navigationState.contrastLimits, msInfo.shape.c, msInfo.dtype])
 
-    // Generate default layer props (for initial render)
     const layerProps = useMemo(() => createLayerProps([]), [createLayerProps])
 
-    // Handle view state changes
     const handleViewStateChange = useCallback(({ viewId, viewState }: {
         viewId: string
         viewState: VivViewState
         oldViewState: VivViewState
     }) => {
         if (viewId === DETAIL_VIEW_ID) {
-            // Always update the ref to track current state
             detailViewStateRef.current = viewState
             setVivViewState(viewState);
 
-            // Only update controlled state if we're not manually panning to avoid feedback loop
-            if (!isManuallyPanning) {
-                setControlledDetailViewState(viewState)
+            if (controlledDetailViewState) {
+                setControlledDetailViewState(null)
             }
         }
-    }, [isManuallyPanning, setVivViewState, setControlledDetailViewState])
+    }, [setVivViewState, controlledDetailViewState, setControlledDetailViewState])
 
     return {
-        // State
         vivLoaders,
         containerDimensions,
         detailViewDrag,
-        isManuallyPanning,
         detailViewStateRef,
         containerRef,
 
-        // Computed values
         selections,
         colors,
         overview,
         views,
         viewStates,
+        initialViewState,
         layerProps,
 
-        // Actions
         setContainerDimensions,
         setDetailViewDrag,
         setControlledDetailViewState,
-        setIsManuallyPanning,
         handleViewStateChange,
         createLayerProps
     }
