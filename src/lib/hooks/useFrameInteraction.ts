@@ -10,6 +10,7 @@ import {
 import { useViewer2DData } from '../contexts/Viewer2DDataContext'
 import { useNucleusSelection } from '../contexts/NucleusSelectionContext'
 import { useZarrStore } from '../contexts/ZarrStoreContext'
+import { useROI } from '../contexts/ROIContext'
 
 
 import type { PickingInfo } from 'deck.gl'
@@ -42,6 +43,7 @@ export function useFrameInteraction(
     } = useViewer2DData();
 
     const { msInfo } = useZarrStore();
+    const { selectedROI } = useROI();
 
     const {
         selectedNucleiIndices,
@@ -223,9 +225,10 @@ export function useFrameInteraction(
             stroked: true,
             showHandles: true,
             handleSize: 8,
-            hoveredHandle
+            hoveredHandle,
+            polygonPoints: selectedROI?.points
         });
-    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle]);
+    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle, selectedROI]);
 
     // Handle selection box area selection
     const handleSelectionBoxAreaSelection = useCallback((startCoord: [number, number], endCoord: [number, number]) => {

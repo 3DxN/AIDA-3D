@@ -7,6 +7,7 @@ import { ZarrStoreProvider } from '../lib/contexts/ZarrStoreContext'
 import { Viewer2DDataProvider } from '../lib/contexts/Viewer2DDataContext'
 import { NucleusSelectionProvider } from '../lib/contexts/NucleusSelectionContext'
 import { NucleusColorProvider } from '../lib/contexts/NucleusColorContext'
+import { ROIProvider } from '../lib/contexts/ROIContext'
 
 
 function MyApp({ Component, pageProps }) {
@@ -19,7 +20,9 @@ function MyApp({ Component, pageProps }) {
 				<Viewer2DDataProvider>
 					<NucleusSelectionProvider>
 						<NucleusColorProvider>
-							<Component {...pageProps} />
+							<ROIProvider>
+								<Component {...pageProps} />
+							</ROIProvider>
 						</NucleusColorProvider>
 					</NucleusSelectionProvider>
 				</Viewer2DDataProvider>

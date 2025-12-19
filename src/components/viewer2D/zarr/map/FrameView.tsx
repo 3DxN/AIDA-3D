@@ -24,6 +24,7 @@ export function createFrameOverlayLayers(
     showHandles?: boolean,
     handleSize?: number,
     hoveredHandle?: string | null,
+    polygonPoints?: [number, number][],
   } = {}
 ): PolygonLayer[] {
   const {
@@ -32,6 +33,7 @@ export function createFrameOverlayLayers(
     showHandles = true,
     handleSize = 8,
     hoveredHandle = null,
+    polygonPoints = null,
   } = options;
 
   const [centerX, centerY] = frameCenter;
@@ -42,7 +44,8 @@ export function createFrameOverlayLayers(
   const layers: PolygonLayer[] = [];
 
   // Create the main frame polygon (frame outline)
-  const framePolygon = [
+  // Use polygonPoints if provided, otherwise default to rectangular frame
+  const framePolygon = polygonPoints || [
     [centerX - halfWidth, centerY - halfHeight],
     [centerX + halfWidth, centerY - halfHeight],
     [centerX + halfWidth, centerY + halfHeight],
@@ -105,8 +108,8 @@ export function createFrameOverlayLayers(
 
   layers.push(moveAreaLayer);
 
-  // Add corner and edge handles if enabled
-  if (showHandles) {
+  // Add corner and edge handles if enabled - only for rectangular frames (no polygonPoints)
+  if (showHandles && !polygonPoints) {
     const handleColor = [255, 255, 255, 255] as [number, number, number, number];
     const handleFillColor = [100, 150, 255, 200] as [number, number, number, number];
     

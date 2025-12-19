@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext';
 import { useNucleusSelection } from '../../../../lib/contexts/NucleusSelectionContext';
 import { useNucleusColor } from '../../../../lib/contexts/NucleusColorContext';
+import { useROI } from '../../../../lib/contexts/ROIContext';
 import { VivViewState } from '../../../../types/viewer2D/vivViewer';
 
 interface CellposeOverlayProps {
@@ -22,6 +23,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
     } = useViewer2DData();
     const { selectedNucleiIndices } = useNucleusSelection();
     const { getNucleusColor } = useNucleusColor();
+    const { selectedROI } = useROI();
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -42,25 +44,27 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
             const { target, zoom } = viewState;
             const scale = Math.pow(2, zoom);
 
+            const toScreen = (worldX: number, worldY: number): [number, number] => {
+                const sx = (worldX - target[0]) * scale + containerSize.width / 2;
+                const sy = (worldY - target[1]) * scale + containerSize.height / 2;
+                return [sx, sy];
+            };
+
             // Top-left corner of the frame in world coordinates
             const frameWorldX = frameCenter[0] - frameSize[0] / 2;
             const frameWorldY = frameCenter[1] - frameSize[1] / 2;
 
-            // Convert to screen coordinates
-            const screenX = (frameWorldX - target[0]) * scale + containerSize.width / 2;
-            const screenY = (frameWorldY - target[1]) * scale + containerSize.height / 2;
+            const [screenX, screenY] = toScreen(frameWorldX, frameWorldY);
             const screenWidth = frameSize[0] * scale;
             const screenHeight = frameSize[1] * scale;
 
-            // --- 2. Extract the 2D slice data (now a single Z layer from high-res overlay) ---
+            // --- 2. Extract the 2D slice data ---
             const { data, shape } = frameBoundCellposeData;
             if (!shape || shape.length < 2) return;
 
-            // Data is now 2D: [height, width] instead of 3D: [z, height, width]
             const height = shape[0];
             const width = shape[1];
 
-            // Since we already fetched a single Z slice, use the data directly
             const sliceData = data;
             const imageData = new Uint8ClampedArray(width * height * 4);
 
@@ -70,45 +74,52 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 const isSelected = selectedNucleiIndices.includes(nucleusIndex);
 
                 if (isNucleus) {
-                    // Get color from 3D viewer, fallback to default colors
                     const threeDColor = getNucleusColor(nucleusIndex);
-
                     if (threeDColor) {
-                        // Use 3D viewer color
                         const r = Math.floor(threeDColor.r * 255);
                         const g = Math.floor(threeDColor.g * 255);
                         const b = Math.floor(threeDColor.b * 255);
-
-                        imageData[i * 4] = r;       // R
-                        imageData[i * 4 + 1] = g;   // G
-                        imageData[i * 4 + 2] = b;   // B
-                        imageData[i * 4 + 3] = isSelected ? 255 : 178; // A (100% if selected, 70% if not)
+                        imageData[i * 4] = r;
+                        imageData[i * 4 + 1] = g;
+                        imageData[i * 4 + 2] = b;
+                        imageData[i * 4 + 3] = isSelected ? 255 : 178;
                     } else {
-                        // Fallback to original colors if no 3D color available
                         if (isSelected) {
-                            imageData[i * 4] = 255;     // R (Yellow)
-                            imageData[i * 4 + 1] = 255; // G
-                            imageData[i * 4 + 2] = 0;   // B
-                            imageData[i * 4 + 3] = 255; // A (100% opacity)
+                            imageData[i * 4] = 255;
+                            imageData[i * 4 + 1] = 255;
+                            imageData[i * 4 + 2] = 0;
+                            imageData[i * 4 + 3] = 255;
                         } else {
-                            imageData[i * 4] = 0;       // R (Black)
-                            imageData[i * 4 + 1] = 0;   // G
-                            imageData[i * 4 + 2] = 0;   // B
-                            imageData[i * 4 + 3] = 178; // A (70% opacity)
+                            imageData[i * 4] = 0;
+                            imageData[i * 4 + 1] = 0;
+                            imageData[i * 4 + 2] = 0;
+                            imageData[i * 4 + 3] = 178;
                         }
                     }
                 } else {
-                    imageData[i * 4 + 3] = 0; // Transparent
+                    imageData[i * 4 + 3] = 0;
                 }
             }
 
             // --- 3. Draw the slice onto the canvas ---
             const imageBitmap = new ImageData(imageData, width, height);
             createImageBitmap(imageBitmap).then(bitmap => {
+                ctx.save();
+                if (selectedROI && selectedROI.points.length >= 3) {
+                    const screenPoints = selectedROI.points.map(p => toScreen(p[0], p[1]));
+                    ctx.beginPath();
+                    ctx.moveTo(screenPoints[0][0], screenPoints[0][1]);
+                    for (let i = 1; i < screenPoints.length; i++) {
+                        ctx.lineTo(screenPoints[i][0], screenPoints[i][1]);
+                    }
+                    ctx.closePath();
+                    ctx.clip();
+                }
                 ctx.drawImage(bitmap, screenX, screenY, screenWidth, screenHeight);
+                ctx.restore();
             });
         }
-    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor, isDataLoading]);
+    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor, isDataLoading, selectedROI]);
 
     return (
         <canvas
