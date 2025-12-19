@@ -26,10 +26,12 @@ import type { IMultiscaleInfo } from '../../types/metadata/loader'
 export default function useVivViewer(
     msInfo: IMultiscaleInfo,
     navigationState: NavigationState,
-    root: zarrita.Location<zarrita.FetchStore> | null
-): VivViewerState & VivViewerComputed & VivViewerActions {
+    root: zarrita.Location<zarrita.FetchStore> | null,
+    controlledDetailViewState: VivViewState | null,
+    setControlledDetailViewState: (state: VivViewState | null) => void
+): Omit<VivViewerState, 'controlledDetailViewState'> & VivViewerComputed & VivViewerActions {
 
-    const { setVivViewState } = useViewer2DData();
+    const { setVivViewState, setViewerSize } = useViewer2DData();
 
     // Core state
     const [vivLoaders, setVivLoaders] = useState<ZarrPixelSource[]>([])
@@ -39,7 +41,6 @@ export default function useVivViewer(
         startPos: [0, 0],
         startTarget: [0, 0, 0]
     })
-    const [controlledDetailViewState, setControlledDetailViewState] = useState<VivViewState | null>(null)
     const [isManuallyPanning, setIsManuallyPanning] = useState(false)
 
     // Refs
@@ -48,11 +49,13 @@ export default function useVivViewer(
 
     // Container dimension management
     const handleResize = useCallback(({ width, height }: { width: number; height: number }) => {
-        setContainerDimensions({
+        const newSize = {
             width: Math.max(width, 400),
             height: Math.max(height, 400)
-        })
-    }, [])
+        }
+        setContainerDimensions(newSize)
+        setViewerSize(newSize)
+    }, [setViewerSize])
 
     // Use shared resize observer hook with stable callback
     useResizeObserver(containerRef as React.RefObject<HTMLElement>, handleResize)
@@ -181,8 +184,8 @@ export default function useVivViewer(
             || getDefaultInitialViewState(vivLoaders, containerDimensions, 0) as VivViewState
 
         return [
-            { ...detailState, id: DETAIL_VIEW_ID },
-            { ...detailState, id: FRAME_VIEW_ID }, // Frame follows detail view state
+            { target: detailState.target, zoom: detailState.zoom, id: DETAIL_VIEW_ID },
+            { target: detailState.target, zoom: detailState.zoom, id: FRAME_VIEW_ID }, // Frame follows detail view state
             { ...overviewState, id: OVERVIEW_VIEW_ID }
         ]
     }, [vivLoaders, views, overview, containerDimensions, controlledDetailViewState])
@@ -258,14 +261,13 @@ export default function useVivViewer(
                 setControlledDetailViewState(viewState)
             }
         }
-    }, [isManuallyPanning, setVivViewState])
+    }, [isManuallyPanning, setVivViewState, setControlledDetailViewState])
 
     return {
         // State
         vivLoaders,
         containerDimensions,
         detailViewDrag,
-        controlledDetailViewState,
         isManuallyPanning,
         detailViewStateRef,
         containerRef,

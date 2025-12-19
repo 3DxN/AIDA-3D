@@ -16,7 +16,10 @@ import { ROIDrawingOverlay } from '../../overlay/ROIDrawingOverlay'
 
 const VivViewerWrapper: React.FC = () => {
     const { root, msInfo } = useZarrStore()
-    const { navigationState, setFrameCenter, setFrameSize } = useViewer2DData()
+    const { 
+        navigationState, setFrameCenter, setFrameSize,
+        controlledDetailViewState, setControlledDetailViewState 
+    } = useViewer2DData()
     const { rois, selectedROI, isDrawing, drawingPoints, cursorPosition, addPoint, finishDrawing, setCursorPosition } = useROI()
 
     // Early return if required data not available
@@ -29,17 +32,15 @@ const VivViewerWrapper: React.FC = () => {
         vivLoaders,
         containerDimensions,
         detailViewDrag,
-        controlledDetailViewState,
         detailViewStateRef,
         containerRef,
         views,
         viewStates,
         setDetailViewDrag,
-        setControlledDetailViewState,
         setIsManuallyPanning,
         handleViewStateChange,
         createLayerProps
-    } = useVivViewer(msInfo, navigationState, root)
+    } = useVivViewer(msInfo, navigationState, root, controlledDetailViewState, setControlledDetailViewState)
 
     // Frame interaction hook no longer needs to create the overlay
     const {

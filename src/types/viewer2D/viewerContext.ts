@@ -39,6 +39,8 @@ export interface Viewer2DDataContextType {
   // Viv viewer state integration  
   vivViewState: VivViewState | null
   setVivViewState: (state: VivViewState) => void
+  controlledDetailViewState: VivViewState | null
+  setControlledDetailViewState: (state: VivViewState | null) => void
 
   // Viewer container dimensions
   viewerSize: ViewerSize

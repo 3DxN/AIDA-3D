@@ -37,7 +37,8 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
     navigationState, setNavigationState, 
     frameZLayersAbove, frameZLayersBelow, 
     setFrameCenter, setFrameSize,
-    setFrameZLayersAbove, setFrameZLayersBelow 
+    setFrameZLayersAbove, setFrameZLayersBelow,
+    setControlledDetailViewState, viewerSize
   } = useViewer2DData()
 
   const [rois, setROIs] = useState<ROI[]>([])
@@ -113,16 +114,36 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
     if (!roi || !navigationState) return
     const { center, size } = getPolygonBounds(roi.points)
     const zCenter = Math.floor((roi.zRange[0] + roi.zRange[1]) / 2)
+    
+    // Update processing frame
     setFrameCenter(center)
     setFrameSize(size)
     setNavigationState({ ...navigationState, zSlice: zCenter })
+    
+    // Update viewer camera (zoom to fit)
+    if (viewerSize.width > 0 && viewerSize.height > 0) {
+      const padding = 1.2 // 20% padding
+      const zoomX = Math.log2(viewerSize.width / (size[0] * padding))
+      const zoomY = Math.log2(viewerSize.height / (size[1] * padding))
+      const zoom = Math.min(zoomX, zoomY)
+      
+      // Kick-start: clear then set to force update
+      setControlledDetailViewState(null)
+      setTimeout(() => {
+        setControlledDetailViewState({
+          target: [center[0], center[1], 0],
+          zoom: zoom
+        })
+      }, 0)
+    }
+
     // Restore z layers from ROI
     const layersBelow = zCenter - roi.zRange[0]
     const layersAbove = roi.zRange[1] - zCenter
     setFrameZLayersBelow(layersBelow)
     setFrameZLayersAbove(layersAbove)
     setSelectedROI(roi)
-  }, [rois, navigationState, setFrameCenter, setFrameSize, setNavigationState, setFrameZLayersAbove, setFrameZLayersBelow])
+  }, [rois, navigationState, setFrameCenter, setFrameSize, setNavigationState, setFrameZLayersAbove, setFrameZLayersBelow, viewerSize, setControlledDetailViewState])
 
   const deleteROI = useCallback((id: string) => {
     setROIs(prev => prev.filter(r => r.id !== id))

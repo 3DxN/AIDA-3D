@@ -46,6 +46,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   // View state
   const [navigationState, setNavigationState] = useState<NavigationState | null>(null)
   const [vivViewState, setVivViewState] = useState<VivViewState | null>(null)
+  const [controlledDetailViewState, setControlledDetailViewState] = useState<VivViewState | null>(null)
 
   // Measured viewer container size
   const [viewerSize, setViewerSize] = useState<ViewerSize>({ width: 0, height: 0 })
@@ -342,6 +343,8 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     // Viv viewer state
     vivViewState,
     setVivViewState,
+    controlledDetailViewState,
+    setControlledDetailViewState,
 
     // Viewer size
     viewerSize,

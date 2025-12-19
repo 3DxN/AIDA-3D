@@ -26,7 +26,7 @@ export interface VivViewerState {
   vivLoaders: ZarrPixelSource[]
   containerDimensions: { width: number; height: number }
   detailViewDrag: VivDetailViewState
-  controlledDetailViewState: VivViewState | null
+  controlledDetailViewState?: VivViewState | null
   isManuallyPanning: boolean
   detailViewStateRef: React.RefObject<VivViewState | null>
   containerRef: React.RefObject<HTMLDivElement | null>
@@ -58,7 +58,7 @@ export interface VivLayerProps {
 export interface VivViewerActions {
   setContainerDimensions: (dimensions: { width: number; height: number }) => void
   setDetailViewDrag: (drag: VivDetailViewState) => void
-  setControlledDetailViewState: (state: VivViewState | null) => void
+  setControlledDetailViewState?: (state: VivViewState | null) => void
   setIsManuallyPanning: (panning: boolean) => void
   handleViewStateChange: ({ viewId, viewState }: {
     viewId: string
