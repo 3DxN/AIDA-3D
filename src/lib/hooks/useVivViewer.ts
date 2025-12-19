@@ -31,7 +31,7 @@ export default function useVivViewer(
     setControlledDetailViewState: (state: VivViewState | null) => void
 ): Omit<VivViewerState, 'controlledDetailViewState' | 'isManuallyPanning'> & VivViewerComputed & VivViewerActions {
 
-    const { setVivViewState, setViewerSize } = useViewer2DData();
+    const { setVivViewState, setViewerSize, vivViewState } = useViewer2DData();
 
     const [vivLoaders, setVivLoaders] = useState<ZarrPixelSource[]>([])
     const [containerDimensions, setContainerDimensions] = useState({ width: 800, height: 600 })
@@ -40,6 +40,7 @@ export default function useVivViewer(
         startPos: [0, 0],
         startTarget: [0, 0, 0]
     })
+    const [isManuallyPanning, setIsManuallyPanning] = useState(false)
 
     const detailViewStateRef = useRef<VivViewState | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -171,9 +172,10 @@ export default function useVivViewer(
         }
 
         const overviewState = getDefaultInitialViewState(vivLoaders, overview, 0.5) as VivViewState
-        
-        const detailState = controlledDetailViewState 
-            || detailViewStateRef.current 
+
+        // Priority: controlledDetailViewState (for one-shot jumps) > vivViewState (current) > initialViewState
+        const detailState = controlledDetailViewState
+            || vivViewState
             || initialViewState
 
         return [
@@ -181,7 +183,7 @@ export default function useVivViewer(
             { ...detailState, id: FRAME_VIEW_ID },
             { ...overviewState, id: OVERVIEW_VIEW_ID }
         ]
-    }, [vivLoaders, views, overview, controlledDetailViewState, initialViewState])
+    }, [vivLoaders, views, overview, controlledDetailViewState, vivViewState, initialViewState])
 
     const createLayerProps = useCallback((frameOverlayLayers: Layer[] = []) => {
         if (vivLoaders.length === 0 || views.length === 0 || !msInfo.shape.c) {
@@ -242,16 +244,17 @@ export default function useVivViewer(
             detailViewStateRef.current = viewState
             setVivViewState(viewState);
 
-            if (controlledDetailViewState) {
+            if (controlledDetailViewState && !isManuallyPanning) {
                 setControlledDetailViewState(null)
             }
         }
-    }, [setVivViewState, controlledDetailViewState, setControlledDetailViewState])
+    }, [isManuallyPanning, setVivViewState, controlledDetailViewState, setControlledDetailViewState])
 
     return {
         vivLoaders,
         containerDimensions,
         detailViewDrag,
+        isManuallyPanning,
         detailViewStateRef,
         containerRef,
 
@@ -266,6 +269,7 @@ export default function useVivViewer(
         setContainerDimensions,
         setDetailViewDrag,
         setControlledDetailViewState,
+        setIsManuallyPanning,
         handleViewStateChange,
         createLayerProps
     }

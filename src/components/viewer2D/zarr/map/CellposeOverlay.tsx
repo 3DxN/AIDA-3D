@@ -105,7 +105,9 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
             const imageBitmap = new ImageData(imageData, width, height);
             createImageBitmap(imageBitmap).then(bitmap => {
                 ctx.save();
-                if (selectedROI && selectedROI.points.length >= 3) {
+                if (selectedROI && selectedROI.points.length >= 3 && 
+                    zSlice >= selectedROI.zRange[0] && 
+                    zSlice <= selectedROI.zRange[1]) {
                     const screenPoints = selectedROI.points.map(p => toScreen(p[0], p[1]));
                     ctx.beginPath();
                     ctx.moveTo(screenPoints[0][0], screenPoints[0][1]);

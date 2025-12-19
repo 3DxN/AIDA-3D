@@ -27,7 +27,8 @@
       "Bash(reg query:*)",
       "Bash(nslookup:*)",
       "Read(//c/Windows/System32/drivers/etc/**)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(timeout 20 npm run dev:*)"
     ],
     "deny": [],
     "ask": []

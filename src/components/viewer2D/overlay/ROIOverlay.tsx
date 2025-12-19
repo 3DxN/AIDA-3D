@@ -32,14 +32,20 @@ export const ROIOverlay: React.FC<ROIOverlayProps> = ({
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
-    if (!ctx || !canvas || !viewState) return
+    if (!ctx || !canvas) return
 
-    // Clear canvas
+    // Always clear canvas first
     ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Need viewState for coordinate transformation
+    if (!viewState) return
 
     // Filter ROIs visible at current Z slice AND selected
     const visibleROIs = rois.filter(r =>
-      r.id === selectedId && r.zRange && zSlice >= r.zRange[0] && zSlice <= r.zRange[1]
+      r.id === selectedId &&
+      r.zRange &&
+      zSlice >= r.zRange[0] &&
+      zSlice <= r.zRange[1]
     )
 
     if (visibleROIs.length === 0) return

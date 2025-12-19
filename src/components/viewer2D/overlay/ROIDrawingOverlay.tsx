@@ -23,10 +23,13 @@ export const ROIDrawingOverlay: React.FC<ROIDrawingOverlayProps> = ({
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
-    if (!ctx || !canvas || !viewState) return
+    if (!ctx || !canvas) return
 
-    // Clear canvas
+    // Always clear canvas first
     ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Need viewState for coordinate transformation
+    if (!viewState) return
 
     // Don't draw if not in drawing mode or no points
     if (!isDrawing || drawingPoints.length === 0) return

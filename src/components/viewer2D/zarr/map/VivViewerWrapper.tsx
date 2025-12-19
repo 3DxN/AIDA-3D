@@ -38,6 +38,7 @@ const VivViewerWrapper: React.FC = () => {
         viewStates,
         initialViewState,
         setDetailViewDrag,
+        setIsManuallyPanning,
         handleViewStateChange,
         createLayerProps
     } = useVivViewer(msInfo, navigationState, root, controlledDetailViewState, setControlledDetailViewState)
@@ -53,6 +54,9 @@ const VivViewerWrapper: React.FC = () => {
         onClick
     } = useFrameInteraction(
         detailViewStateRef,
+        setIsManuallyPanning,
+        setDetailViewDrag,
+        detailViewDrag,
         setControlledDetailViewState,
     )
 
@@ -99,7 +103,7 @@ const VivViewerWrapper: React.FC = () => {
         detailViewStateRef
     )
 
-    if (!msInfo || vivLoaders.length === 0 || views.length === 0) {
+    if (!msInfo || vivLoaders.length === 0 || views.length === 0 || !viewStates || viewStates.length === 0) {
         return (
             <div
                 ref={containerRef}

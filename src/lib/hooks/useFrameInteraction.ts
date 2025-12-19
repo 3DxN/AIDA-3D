@@ -26,6 +26,9 @@ import { NavigationState } from '../../types/viewer2D/navState'
  */
 export function useFrameInteraction(
     detailViewStateRef: React.RefObject<VivViewState | null>,
+    setIsManuallyPanning: (panning: boolean) => void,
+    setDetailViewDrag: (drag: VivDetailViewState) => void,
+    detailViewDrag: VivDetailViewState,
     setControlledDetailViewState: (state: VivViewState | null) => void,
 ) {
     const {
@@ -195,6 +198,12 @@ export function useFrameInteraction(
         const currentFrameCenter = tempFrameCenter ?? frameCenter;
         const currentFrameSize = tempFrameSize ?? frameSize;
 
+        // Only show ROI polygon if it's visible at current Z slice
+        const zSlice = navigationState?.zSlice ?? 0;
+        const roiVisibleAtZ = selectedROI?.zRange &&
+            zSlice >= selectedROI.zRange[0] &&
+            zSlice <= selectedROI.zRange[1];
+
         return createFrameOverlayLayers(currentFrameCenter, currentFrameSize, FRAME_VIEW_ID, {
             fillColor: [0, 0, 0, 0] as [number, number, number, number],
             lineColor: [255, 255, 255, 255] as [number, number, number, number],
@@ -204,9 +213,9 @@ export function useFrameInteraction(
             showHandles: true,
             handleSize: 8,
             hoveredHandle,
-            polygonPoints: selectedROI?.points
+            polygonPoints: roiVisibleAtZ ? selectedROI?.points : undefined
         });
-    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle, selectedROI]);
+    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle, selectedROI, navigationState?.zSlice]);
 
     const handleSelectionBoxAreaSelection = useCallback((startCoord: [number, number], endCoord: [number, number]) => {
         if (!frameBoundCellposeData || !navigationState) return;
@@ -268,8 +277,22 @@ export function useFrameInteraction(
             }
         }
 
+        if (info.coordinate && detailViewStateRef.current) {
+            setIsManuallyPanning(true);
+            setDetailViewDrag({
+                isDragging: true,
+                startPos: [info.coordinate[0], info.coordinate[1]],
+                startTarget: [
+                    detailViewStateRef.current.target[0],
+                    detailViewStateRef.current.target[1],
+                    detailViewStateRef.current.target[2]
+                ]
+            });
+            return true;
+        }
+
         return false;
-    }, [handleFrameInteraction]);
+    }, [handleFrameInteraction, detailViewStateRef, setIsManuallyPanning, setDetailViewDrag]);
 
     const onDrag = useCallback((info: PickingInfo) => {
         const frameHandled = handleDrag(info);
@@ -285,8 +308,32 @@ export function useFrameInteraction(
             return true;
         }
 
+        if (detailViewDrag.isDragging && info.coordinate) {
+            const [currentX, currentY] = info.coordinate;
+            const [startX, startY] = detailViewDrag.startPos;
+
+            const deltaX = currentX - startX;
+            const deltaY = currentY - startY;
+
+            const newTarget = [
+                detailViewDrag.startTarget[0] - deltaX,
+                detailViewDrag.startTarget[1] - deltaY,
+                detailViewDrag.startTarget[2]
+            ];
+
+            const newViewState = {
+                ...detailViewStateRef.current,
+                target: newTarget
+            } as VivViewState;
+
+            detailViewStateRef.current = newViewState;
+            setControlledDetailViewState(newViewState);
+
+            return true;
+        }
+
         return false;
-    }, [handleDrag, selectionBox.isDragging]);
+    }, [handleDrag, detailViewDrag, detailViewStateRef, setControlledDetailViewState, selectionBox.isDragging]);
 
     const onDragEnd = useCallback(() => {
         const frameHandled = handleDragEnd();
@@ -305,8 +352,18 @@ export function useFrameInteraction(
             return true;
         }
 
+        if (detailViewDrag.isDragging) {
+            setIsManuallyPanning(false);
+            setDetailViewDrag({
+                isDragging: false,
+                startPos: [0, 0],
+                startTarget: [0, 0, 0]
+            });
+            return true;
+        }
+
         return false;
-    }, [handleDragEnd, selectionBox, handleSelectionBoxAreaSelection]);
+    }, [handleDragEnd, detailViewDrag, setIsManuallyPanning, setDetailViewDrag, selectionBox, handleSelectionBoxAreaSelection]);
 
     const onClick = useCallback((info: PickingInfo) => {
         const frameHandled = handleClick(info);
