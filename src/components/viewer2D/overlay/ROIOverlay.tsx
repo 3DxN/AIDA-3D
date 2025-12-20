@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import type { VivViewState } from '../../../types/viewer2D/vivViewer'
 import type { ROI } from '../../../types/roi'
+import { useROI } from '../../../lib/contexts/ROIContext'
 
 interface ROIOverlayProps {
   viewState: VivViewState | null
@@ -28,19 +29,42 @@ export const ROIOverlay: React.FC<ROIOverlayProps> = ({
   zSlice
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { isReshaping, updateROIPoints, cancelReshaping } = useROI()
+  const [draggingPointIndex, setDraggingPointIndex] = useState<number | null>(null)
+
+  // Coordinate transformation helpers
+  const getTransforms = useCallback(() => {
+    if (!viewState) return null
+    const { target, zoom } = viewState
+    const scale = Math.pow(2, zoom)
+    
+    const toScreen = (worldX: number, worldY: number): [number, number] => {
+      const screenX = (worldX - target[0]) * scale + containerSize.width / 2
+      const screenY = (worldY - target[1]) * scale + containerSize.height / 2
+      return [screenX, screenY]
+    }
+
+    const toWorld = (screenX: number, screenY: number): [number, number] => {
+      const worldX = (screenX - containerSize.width / 2) / scale + target[0]
+      const worldY = (screenY - containerSize.height / 2) / scale + target[1]
+      return [worldX, worldY]
+    }
+
+    return { toScreen, toWorld, scale }
+  }, [viewState, containerSize])
 
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!ctx || !canvas) return
 
-    // Always clear canvas first
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    // Need viewState for coordinate transformation
     if (!viewState) return
 
-    // Filter ROIs visible at current Z slice AND selected
+    const transforms = getTransforms()
+    if (!transforms) return
+    const { toScreen } = transforms
+
     const visibleROIs = rois.filter(r =>
       r.id === selectedId &&
       r.zRange &&
@@ -48,26 +72,12 @@ export const ROIOverlay: React.FC<ROIOverlayProps> = ({
       zSlice <= r.zRange[1]
     )
 
-    if (visibleROIs.length === 0) return
-
-    // Transform world coordinates to screen coordinates
-    const { target, zoom } = viewState
-    const scale = Math.pow(2, zoom)
-
-    const toScreen = (worldX: number, worldY: number): [number, number] => {
-      const screenX = (worldX - target[0]) * scale + containerSize.width / 2
-      const screenY = (worldY - target[1]) * scale + containerSize.height / 2
-      return [screenX, screenY]
-    }
-
-    // Draw each ROI
     visibleROIs.forEach(roi => {
       if (!roi.points || roi.points.length < 3) return
 
       const isSelected = roi.id === selectedId
       const screenPoints = roi.points.map(p => toScreen(p[0], p[1]))
 
-      // Draw filled polygon
       ctx.beginPath()
       ctx.moveTo(screenPoints[0][0], screenPoints[0][1])
       for (let i = 1; i < screenPoints.length; i++) {
@@ -77,13 +87,73 @@ export const ROIOverlay: React.FC<ROIOverlayProps> = ({
       ctx.fillStyle = hexToRgba(roi.color, isSelected ? 0.15 : 0.08)
       ctx.fill()
 
-      // Draw outline
       ctx.strokeStyle = hexToRgba(roi.color, isSelected ? 1 : 0.6)
       ctx.lineWidth = isSelected ? 3 : 2
       ctx.stroke()
+
+      // Draw interactive handles if in reshaping mode
+      if (isReshaping && isSelected) {
+        screenPoints.forEach((p, idx) => {
+          ctx.beginPath()
+          ctx.arc(p[0], p[1], 6, 0, Math.PI * 2)
+          ctx.fillStyle = draggingPointIndex === idx ? '#fff' : roi.color
+          ctx.fill()
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = 2
+          ctx.stroke()
+        })
+      }
     })
 
-  }, [viewState, containerSize, rois, selectedId, zSlice])
+  }, [viewState, containerSize, rois, selectedId, zSlice, isReshaping, draggingPointIndex, getTransforms])
+
+  // Mouse handlers for reshaping
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isReshaping || !selectedId) return
+    const roi = rois.find(r => r.id === selectedId)
+    if (!roi) return
+
+    const transforms = getTransforms()
+    if (!transforms) return
+    
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+
+    // Find if we clicked near a handle (within 10 pixels)
+    const pointIdx = roi.points.findIndex(p => {
+      const sp = transforms.toScreen(p[0], p[1])
+      const dist = Math.sqrt((sp[0] - mouseX) ** 2 + (sp[1] - mouseY) ** 2)
+      return dist < 10
+    })
+
+    if (pointIdx !== -1) {
+      setDraggingPointIndex(pointIdx)
+      e.stopPropagation()
+    }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (draggingPointIndex === null || !selectedId) return
+    const roi = rois.find(r => r.id === selectedId)
+    if (!roi) return
+
+    const transforms = getTransforms()
+    if (!transforms) return
+
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const worldPos = transforms.toWorld(e.clientX - rect.left, e.clientY - rect.top)
+
+    const newPoints = [...roi.points]
+    newPoints[draggingPointIndex] = worldPos
+    updateROIPoints(selectedId, newPoints)
+  }
+
+  const handleMouseUp = () => {
+    setDraggingPointIndex(null)
+  }
 
   if (rois.length === 0) return null
 
@@ -92,12 +162,17 @@ export const ROIOverlay: React.FC<ROIOverlayProps> = ({
       ref={canvasRef}
       width={containerSize.width}
       height={containerSize.height}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
       style={{
         position: 'absolute',
         top: 0,
         left: 0,
-        pointerEvents: 'none',
-        zIndex: 9
+        pointerEvents: isReshaping ? 'auto' : 'none',
+        zIndex: 9,
+        cursor: isReshaping ? 'crosshair' : 'default'
       }}
     />
   )

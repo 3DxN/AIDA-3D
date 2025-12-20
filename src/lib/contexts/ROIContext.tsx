@@ -12,12 +12,16 @@ interface ROIContextType {
   rois: ROI[]
   selectedROI: ROI | null
   isDrawing: boolean
+  isReshaping: boolean
   drawingPoints: [number, number][]
   cursorPosition: [number, number] | null
   startDrawing: () => void
-  addPoint: (point: [number, number]) => boolean // returns true if polygon closed
+  addPoint: (point: [number, number]) => boolean
   cancelDrawing: () => void
   finishDrawing: (name: string) => ROI | null
+  startReshaping: (id: string) => void
+  cancelReshaping: () => void
+  updateROIPoints: (id: string, points: [number, number][]) => void
   selectROI: (id: string | null) => void
   navigateToROI: (id: string) => void
   deleteROI: (id: string) => void
@@ -47,6 +51,7 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
   const [rois, setROIs] = useState<ROI[]>([])
   const [selectedROI, setSelectedROI] = useState<ROI | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
+  const [isReshaping, setIsReshaping] = useState(false)
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([])
   const [cursorPosition, setCursorPosition] = useState<[number, number] | null>(null)
 
@@ -70,6 +75,7 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
 
   const startDrawing = useCallback(() => {
     setIsDrawing(true)
+    setIsReshaping(false)
     setDrawingPoints([])
   }, [])
 
@@ -108,9 +114,28 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
     return roi
   }, [drawingPoints, navigationState, frameZLayersAbove, frameZLayersBelow, rois.length])
 
+  const startReshaping = useCallback((id: string) => {
+    const roi = rois.find(r => r.id === id)
+    if (!roi) return
+    setIsReshaping(true)
+    setIsDrawing(false)
+    setSelectedROI(roi)
+  }, [rois])
+
+  const cancelReshaping = useCallback(() => {
+    setIsReshaping(false)
+  }, [])
+
+  const updateROIPoints = useCallback((id: string, points: [number, number][]) => {
+    setROIs(prev => prev.map(r => r.id === id ? { ...r, points } : r))
+    // Also update selectedROI if it's the one being modified
+    setSelectedROI(prev => prev?.id === id ? { ...prev, points } : prev)
+  }, [])
+
   const selectROI = useCallback((id: string | null) => {
     if (!id) {
       setSelectedROI(null)
+      setIsReshaping(false)
       // Reset frame to default size but keep it centered at current view
       const targetX = vivViewState?.target[0] ?? 500
       const targetY = vivViewState?.target[1] ?? 500
@@ -167,8 +192,9 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ROIContext.Provider value={{
-      rois, selectedROI, isDrawing, drawingPoints, cursorPosition,
+      rois, selectedROI, isDrawing, isReshaping, drawingPoints, cursorPosition,
       startDrawing, addPoint, cancelDrawing, finishDrawing,
+      startReshaping, cancelReshaping, updateROIPoints,
       selectROI, navigateToROI, deleteROI, updateROI, setCursorPosition
     }}>
       {children}
