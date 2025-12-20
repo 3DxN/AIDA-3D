@@ -70,7 +70,7 @@ const Viewer3D = (props: {
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
 	const { frameBoundCellposeMeshData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow, cellposeScale } = useViewer2DData();
-	const { selectedROI } = useROI();
+	const { selectedROI, currentlyVisibleROI, isReshaping } = useROI();
 	const { setPropertiesCallback } = useZarrStore();
 
 	// Function to handle automatic properties loading from Cellpose zarr.json
@@ -352,20 +352,24 @@ const Viewer3D = (props: {
 			};
 			setFeatureData(newFeatureData);
 
-			// Add cross-section plane centered at global origin facing z direction
+			// Add cross-section plane
 			if (frameCenter && frameSize && frameSize[0] > 0 && frameSize[1] > 0) {
-				let width, height;
-				if (selectedROI) {
-					const bounds = getPolygonBounds(selectedROI.points);
+				let width, height, centerX, centerY;
+				
+				if (currentlyVisibleROI) {
+					const bounds = getPolygonBounds(currentlyVisibleROI.points);
 					width = bounds.size[0];
 					height = bounds.size[1];
+					centerX = bounds.center[0];
+					centerY = bounds.center[1];
 				} else {
 					const bounds = getFrameBounds();
 					width = bounds.right - bounds.left;
 					height = bounds.bottom - bounds.top;
+					centerX = frameCenter[0];
+					centerY = frameCenter[1];
 				}
 
-				// Create plane with dimensions
 				const planeGeometry = new THREE.PlaneGeometry(width, height);
 				const planeMaterial = new THREE.MeshBasicMaterial({
 					color: 0xffffff,
@@ -376,9 +380,12 @@ const Viewer3D = (props: {
 
 				const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
 
-				// Position plane at global origin (0,0,0) facing z direction
-				planeMesh.position.set(0, 0, 0);
-				// Plane is already facing z direction by default (no rotation needed)
+				// Calculate offset relative to the global frame center
+				// The 3D content group is centered at (0,0,0) which corresponds to frameCenter
+				const offsetX = centerX - frameCenter[0];
+				const offsetY = centerY - frameCenter[1];
+
+				planeMesh.position.set(offsetX, offsetY, 0);
 
 				newContentGroup.add(planeMesh);
 				crossSectionPlane.current = planeMesh;
@@ -546,7 +553,7 @@ const Viewer3D = (props: {
 		if (renderer && scene && camera) {
 			renderer.render(scene, camera);
 		}
-	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeMeshData]);
+	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeMeshData, isReshaping]);
 
 	// Update colors based on labels (only as fallback when no ColorMaps are active)
 	useEffect(() => {

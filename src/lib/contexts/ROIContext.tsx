@@ -124,7 +124,12 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
 
   const cancelReshaping = useCallback(() => {
     setIsReshaping(false)
-  }, [])
+    if (selectedROI) {
+      const { center, size } = getPolygonBounds(selectedROI.points)
+      setFrameCenter(center)
+      setFrameSize(size)
+    }
+  }, [selectedROI, setFrameCenter, setFrameSize])
 
   const updateROIPoints = useCallback((id: string, points: [number, number][]) => {
     setROIs(prev => prev.map(r => r.id === id ? { ...r, points } : r))
