@@ -23,7 +23,6 @@ interface ROIContextType {
   deleteROI: (id: string) => void
   updateROI: (id: string, updates: Partial<Pick<ROI, 'name'>>) => void
   setCursorPosition: (pos: [number, number] | null) => void
-  resetView: () => void
 }
 
 const ROIContext = createContext<ROIContextType | null>(null)
@@ -35,12 +34,13 @@ export function useROI(): ROIContextType {
 }
 
 export function ROIProvider({ children }: { children: React.ReactNode }) {
-  const {
-    navigationState, setNavigationState,
-    frameZLayersAbove, frameZLayersBelow,
+  const { 
+    navigationState, setNavigationState, 
+    frameZLayersAbove, frameZLayersBelow, 
     setFrameCenter, setFrameSize,
     setFrameZLayersAbove, setFrameZLayersBelow,
-    setControlledDetailViewState, setVivViewState, viewerSize
+    setControlledDetailViewState, setVivViewState, viewerSize,
+    vivViewState
   } = useViewer2DData()
   const { msInfo } = useZarrStore()
 
@@ -109,8 +109,20 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
   }, [drawingPoints, navigationState, frameZLayersAbove, frameZLayersBelow, rois.length])
 
   const selectROI = useCallback((id: string | null) => {
-    setSelectedROI(id ? rois.find(r => r.id === id) || null : null)
-  }, [rois])
+    if (!id) {
+      setSelectedROI(null)
+      // Reset frame to default size but keep it centered at current view
+      const targetX = vivViewState?.target[0] ?? 500
+      const targetY = vivViewState?.target[1] ?? 500
+      setFrameCenter([targetX, targetY])
+      setFrameSize([100, 100])
+      return
+    }
+    const roi = rois.find(r => r.id === id)
+    if (roi) {
+      setSelectedROI(roi)
+    }
+  }, [rois, setFrameCenter, setFrameSize, vivViewState])
 
   const navigateToROI = useCallback((id: string) => {
     const roi = rois.find(r => r.id === id)
@@ -153,34 +165,11 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
     setROIs(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r))
   }, [])
 
-  const resetView = useCallback(() => {
-    if (!msInfo || viewerSize.width <= 0 || viewerSize.height <= 0) return
-
-    // Get image dimensions
-    const imageWidth = msInfo.shape.x || 1000
-    const imageHeight = msInfo.shape.y || 1000
-
-    // Calculate zoom to fit image in viewer with some padding
-    const padding = 1.1
-    const zoomX = Math.log2(viewerSize.width / (imageWidth * padding))
-    const zoomY = Math.log2(viewerSize.height / (imageHeight * padding))
-    const zoom = Math.min(zoomX, zoomY, 0) // Cap at 0 (1:1 scale)
-
-    // Center on image
-    const targetState = {
-      target: [imageWidth / 2, imageHeight / 2, 0] as [number, number, number],
-      zoom: zoom
-    }
-
-    setVivViewState(targetState)
-    setControlledDetailViewState(targetState)
-  }, [msInfo, viewerSize, setVivViewState, setControlledDetailViewState])
-
   return (
     <ROIContext.Provider value={{
       rois, selectedROI, isDrawing, drawingPoints, cursorPosition,
       startDrawing, addPoint, cancelDrawing, finishDrawing,
-      selectROI, navigateToROI, deleteROI, updateROI, setCursorPosition, resetView
+      selectROI, navigateToROI, deleteROI, updateROI, setCursorPosition
     }}>
       {children}
     </ROIContext.Provider>

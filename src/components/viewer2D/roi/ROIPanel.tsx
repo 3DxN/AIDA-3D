@@ -5,7 +5,7 @@ import { TrashIcon, PencilIcon } from '@heroicons/react/solid'
 import { useROI } from '../../../lib/contexts/ROIContext'
 
 export default function ROIPanel() {
-  const { rois, selectedROI, isDrawing, startDrawing, cancelDrawing, navigateToROI, selectROI, deleteROI, updateROI, resetView } = useROI()
+  const { rois, selectedROI, isDrawing, startDrawing, cancelDrawing, navigateToROI, selectROI, deleteROI, updateROI } = useROI()
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -26,8 +26,8 @@ export default function ROIPanel() {
           <button onClick={startDrawing} className="flex-1 px-2 py-1.5 text-xs bg-teal-600 text-white rounded hover:bg-teal-700">
             Draw ROI
           </button>
-          <button onClick={resetView} className="px-2 py-1.5 text-xs text-gray-600 border rounded hover:bg-gray-50" title="Reset to full view">
-            Reset
+          <button onClick={() => selectROI(null)} className="px-2 py-1.5 text-xs text-gray-600 border rounded hover:bg-gray-50" title="Deselect ROI and return to default view">
+            Default View
           </button>
         </div>
       )}
