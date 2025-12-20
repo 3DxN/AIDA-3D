@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { useViewer2DData } from './Viewer2DDataContext'
+import { useZarrStore } from './ZarrStoreContext'
 import type { ROI } from '../../types/roi'
 import { generateROIId, generateROIColor, getPolygonCentroid, getPolygonBounds } from '../../types/roi'
 
@@ -22,6 +23,7 @@ interface ROIContextType {
   deleteROI: (id: string) => void
   updateROI: (id: string, updates: Partial<Pick<ROI, 'name'>>) => void
   setCursorPosition: (pos: [number, number] | null) => void
+  resetView: () => void
 }
 
 const ROIContext = createContext<ROIContextType | null>(null)
@@ -33,13 +35,14 @@ export function useROI(): ROIContextType {
 }
 
 export function ROIProvider({ children }: { children: React.ReactNode }) {
-  const { 
-    navigationState, setNavigationState, 
-    frameZLayersAbove, frameZLayersBelow, 
+  const {
+    navigationState, setNavigationState,
+    frameZLayersAbove, frameZLayersBelow,
     setFrameCenter, setFrameSize,
     setFrameZLayersAbove, setFrameZLayersBelow,
     setControlledDetailViewState, setVivViewState, viewerSize
   } = useViewer2DData()
+  const { msInfo } = useZarrStore()
 
   const [rois, setROIs] = useState<ROI[]>([])
   const [selectedROI, setSelectedROI] = useState<ROI | null>(null)
@@ -150,11 +153,34 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
     setROIs(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r))
   }, [])
 
+  const resetView = useCallback(() => {
+    if (!msInfo || viewerSize.width <= 0 || viewerSize.height <= 0) return
+
+    // Get image dimensions
+    const imageWidth = msInfo.shape.x || 1000
+    const imageHeight = msInfo.shape.y || 1000
+
+    // Calculate zoom to fit image in viewer with some padding
+    const padding = 1.1
+    const zoomX = Math.log2(viewerSize.width / (imageWidth * padding))
+    const zoomY = Math.log2(viewerSize.height / (imageHeight * padding))
+    const zoom = Math.min(zoomX, zoomY, 0) // Cap at 0 (1:1 scale)
+
+    // Center on image
+    const targetState = {
+      target: [imageWidth / 2, imageHeight / 2, 0] as [number, number, number],
+      zoom: zoom
+    }
+
+    setVivViewState(targetState)
+    setControlledDetailViewState(targetState)
+  }, [msInfo, viewerSize, setVivViewState, setControlledDetailViewState])
+
   return (
     <ROIContext.Provider value={{
       rois, selectedROI, isDrawing, drawingPoints, cursorPosition,
       startDrawing, addPoint, cancelDrawing, finishDrawing,
-      selectROI, navigateToROI, deleteROI, updateROI, setCursorPosition
+      selectROI, navigateToROI, deleteROI, updateROI, setCursorPosition, resetView
     }}>
       {children}
     </ROIContext.Provider>

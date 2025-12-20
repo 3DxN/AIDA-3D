@@ -270,20 +270,17 @@ const Viewer3D = (props: {
 				frameBoundCellposeMeshData,
 				relativeCurrentZSlice,
 				filterIncompleteNuclei,
-												cellposeScale
-										);
-				
-										if (selectedROI && selectedROI.points.length >= 3) {				const roiPolygon = selectedROI.points;
+				cellposeScale
+			);
+
+			if (selectedROI && selectedROI.points.length >= 3) {
+				const roiPolygon = selectedROI.points;
 				meshDataArray = meshDataArray.filter(({ vertices }) => {
-					// Calculate centroid of the mesh in world coordinates
-					// Note: generateMeshesFromVoxelData returns vertices already offset by frameCenter
-					// We need to convert them back to image world coordinates to check against ROI points
 					const sumX = vertices.reduce((acc, v) => acc + v.x, 0);
 					const sumY = vertices.reduce((acc, v) => acc + v.y, 0);
 					const worldX = (sumX / vertices.length) + frameCenter[0];
 					const worldY = (sumY / vertices.length) + frameCenter[1];
 
-					// checkPointInPolygon returns < 0 for inside, > 0 for outside, 0 for on edge
 					return checkPointInPolygon(roiPolygon, [worldX, worldY]) <= 0;
 				});
 			}
@@ -398,7 +395,7 @@ const Viewer3D = (props: {
 
 			// Don't center the content group - keep plane at global origin
 
-			// Only set camera position on first initialization or when ROI changes
+			// Only set camera position on first initialization or when ROI changes (including deselection)
 			if (!isCameraInitialized || selectedROI?.id !== lastROIId.current) {
 				// Calculate camera distance to ensure everything is comfortably visible
 				let planeSize;
@@ -412,10 +409,8 @@ const Viewer3D = (props: {
 					planeSize = Math.max(frameWidth, frameHeight);
 				}
 
-				// Zoomed in for better detail view
 				const distanceScale = Math.max(2.0, planeSize / 40);
 
-				// Position camera 180 degrees around (viewing from the back)
 				camera.position.set(0, 0, -size * distanceScale);
 				camera.lookAt(0, 0, 0);
 				setIsCameraInitialized(true);
@@ -435,7 +430,7 @@ const Viewer3D = (props: {
 			renderer.render(scene, camera);
 			setIsLoading(false);
 		}
-	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei]);
+	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei, selectedROI]);
 
 	// Adjust selections
 	useEffect(() => {
