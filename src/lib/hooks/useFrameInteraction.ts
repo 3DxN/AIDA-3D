@@ -44,7 +44,7 @@ export function useFrameInteraction(
     } = useViewer2DData();
 
     const { msInfo } = useZarrStore();
-    const { currentlyVisibleROI, selectedROI, rois, selectROI, isDrawing } = useROI();
+    const { selectedROI, rois, selectROI, isDrawing } = useROI();
 
     const {
         selectedNucleiIndices,
@@ -221,7 +221,7 @@ export function useFrameInteraction(
             polygonPoints: roiVisibleAtZ ? selectedROI?.points : undefined,
             isDrawing
         });
-    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle, currentlyVisibleROI, selectedROI, isDrawing, navigationState, frameZLayersAbove, frameZLayersBelow]);
+    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle, selectedROI, isDrawing, navigationState, frameZLayersAbove, frameZLayersBelow]);
 
     const handleSelectionBoxAreaSelection = useCallback((startCoord: [number, number], endCoord: [number, number]) => {
         if (!frameBoundCellposeData || !navigationState) return;

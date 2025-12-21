@@ -138,21 +138,9 @@ export function ROIProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const selectROI = useCallback((id: string | null) => {
-    if (!id) {
-      setSelectedROI(null)
-      setIsReshaping(false)
-      // Reset frame to default size but keep it centered at current view
-      const targetX = vivViewState?.target[0] ?? 500
-      const targetY = vivViewState?.target[1] ?? 500
-      setFrameCenter([targetX, targetY])
-      setFrameSize([100, 100])
-      return
-    }
-    const roi = rois.find(r => r.id === id)
-    if (roi) {
-      setSelectedROI(roi)
-    }
-  }, [rois, setFrameCenter, setFrameSize, vivViewState])
+    setSelectedROI(id ? rois.find(r => r.id === id) || null : null)
+    setIsReshaping(false)
+  }, [rois])
 
   const navigateToROI = useCallback((id: string) => {
     const roi = rois.find(r => r.id === id)
