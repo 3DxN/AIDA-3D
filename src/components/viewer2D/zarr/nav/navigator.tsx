@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid'
+import { ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/solid'
 import { Disclosure } from '@headlessui/react'
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext'
 import { useZarrStore } from '../../../../lib/contexts/ZarrStoreContext'
+import { useROI } from '../../../../lib/contexts/ROIContext'
 
 import UnifiedSlider from '../../../interaction/UnifiedSlider'
 import Switch from '../../../interaction/Switch'
@@ -35,6 +36,11 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
     } = useViewer2DData()
 
     const [isCollapsed, setIsCollapsed] = useState(true)
+
+    // ROI state
+    const { rois, saveCurrentAsROI, navigateToROI, deleteROI } = useROI()
+    const [newROIName, setNewROIName] = useState('')
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
     // Temporary state for frame parameters during slider dragging (to avoid cellpose context updates)
     const [tempFrameZLayersAbove, setTempFrameZLayersAbove] = useState<number | null>(null)
@@ -284,6 +290,104 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                                     placeholder="H"
                                                 />
                                             </div>
+                                        </div>
+                                    </div>
+                                </Disclosure.Panel>
+                            </>
+                        )}
+                    </Disclosure>
+
+                    {/* ROI Section */}
+                    <Disclosure className="shadow-sm" as="div" defaultOpen>
+                        {({ open }) => (
+                            <>
+                                <Disclosure.Button
+                                    className={classNames(
+                                        'text-gray-700 hover:bg-gray-50 hover:text-gray-900 bg-white group w-full flex items-center pr-2 py-2 text-left text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 relative z-10 ring-inset'
+                                    )}
+                                >
+                                    <svg
+                                        className={classNames(
+                                            open ? 'text-gray-400 rotate-90' : 'text-gray-300',
+                                            'mr-2 shrink-0 h-5 w-5 group-hover:text-gray-400 transition-colors ease-in-out duration-150'
+                                        )}
+                                        viewBox="0 0 20 20"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
+                                    </svg>
+                                    ROI
+                                </Disclosure.Button>
+                                <Disclosure.Panel className="relative">
+                                    <div className="px-4 py-2 space-y-2">
+                                        {/* Save current view as ROI */}
+                                        <div className="flex gap-1">
+                                            <input
+                                                type="text"
+                                                value={newROIName}
+                                                onChange={(e) => setNewROIName(e.target.value)}
+                                                placeholder="ROI name..."
+                                                className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && newROIName.trim()) {
+                                                        saveCurrentAsROI(newROIName.trim())
+                                                        setNewROIName('')
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    saveCurrentAsROI(newROIName.trim() || `ROI ${rois.length + 1}`)
+                                                    setNewROIName('')
+                                                }}
+                                                className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700"
+                                            >
+                                                Save
+                                            </button>
+                                        </div>
+
+                                        {/* ROI list */}
+                                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                                            {rois.length === 0 && (
+                                                <div className="text-xs text-gray-400 text-center py-1">No saved ROIs</div>
+                                            )}
+                                            {rois.map(roi => (
+                                                <div
+                                                    key={roi.id}
+                                                    className="flex items-center gap-1 p-1.5 rounded hover:bg-gray-100 cursor-pointer group"
+                                                    onClick={() => navigateToROI(roi.id)}
+                                                >
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-xs font-medium truncate">{roi.name}</div>
+                                                        <div className="text-xs text-gray-400">
+                                                            Z:{roi.zSlice} ({roi.zLayersBelow}↓ {roi.zLayersAbove}↑)
+                                                        </div>
+                                                    </div>
+                                                    {confirmDeleteId === roi.id ? (
+                                                        <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                                                            <button
+                                                                onClick={() => { deleteROI(roi.id); setConfirmDeleteId(null) }}
+                                                                className="px-1.5 py-0.5 text-xs bg-red-600 text-white rounded"
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setConfirmDeleteId(null)}
+                                                                className="px-1.5 py-0.5 text-xs text-gray-600 border rounded"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(roi.id) }}
+                                                            className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"
+                                                        >
+                                                            <TrashIcon className="w-3 h-3" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 </Disclosure.Panel>
