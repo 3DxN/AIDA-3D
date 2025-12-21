@@ -25,6 +25,7 @@ export function createFrameOverlayLayers(
     handleSize?: number,
     hoveredHandle?: string | null,
     polygonPoints?: [number, number][],
+    isDrawing?: boolean,
   } = {}
 ): PolygonLayer[] {
   const {
@@ -34,6 +35,7 @@ export function createFrameOverlayLayers(
     handleSize = 8,
     hoveredHandle = null,
     polygonPoints = null,
+    isDrawing = false,
   } = options;
 
   const [centerX, centerY] = frameCenter;
@@ -43,50 +45,46 @@ export function createFrameOverlayLayers(
 
   const layers: PolygonLayer[] = [];
 
-  // Create the main frame polygon (frame outline)
-  // Use polygonPoints if provided, otherwise default to rectangular frame
   const framePolygon = polygonPoints || [
     [centerX - halfWidth, centerY - halfHeight],
     [centerX + halfWidth, centerY - halfHeight],
     [centerX + halfWidth, centerY + halfHeight],
     [centerX - halfWidth, centerY + halfHeight],
-    [centerX - halfWidth, centerY - halfHeight] // Close the polygon
+    [centerX - halfWidth, centerY - halfHeight]
   ];
 
   const frameData = [{ contour: framePolygon, type: 'frame' }];
 
-  // Main frame border layer - NOT pickable so events pass through to detail view
   const frameLayerId = `frame-outline-#${viewportId}#`;
   const frameLayer = new PolygonLayer({
     id: frameLayerId,
     data: frameData,
     getPolygon: (d: any) => d.contour,
     getLineColor: lineColor,
-    getFillColor: [0, 0, 0, 0], // Always transparent
+    getFillColor: [0, 0, 0, 0],
     getLineWidth: lineWidth,
     lineWidthUnits: 'pixels',
     lineWidthScale: 0.5,
     lineWidthMinPixels: 1,
     lineWidthMaxPixels: 100,
-    filled: false, // No fill to avoid interfering with events
+    filled: false,
     stroked: true,
-    pickable: false, // NOT pickable - events pass through to detail view
+    pickable: false,
     coordinateSystem: 0
   });
 
   layers.push(frameLayer);
 
-  // Add a very transparent fill layer for visibility - also NOT pickable
   const fillLayerId = `frame-fill-#${viewportId}#`;
   const fillLayer = new PolygonLayer({
     id: fillLayerId,
     data: frameData,
     getPolygon: (d: any) => d.contour,
-    getLineColor: [0, 0, 0, 0], // No border
-    getFillColor: [255, 255, 255, 15], // Very transparent white fill for visibility
+    getLineColor: [0, 0, 0, 0],
+    getFillColor: [255, 255, 255, 15],
     filled: true,
     stroked: false,
-    pickable: false, // NOT pickable - events pass through to detail view
+    pickable: false,
     coordinateSystem: 0
   });
 
@@ -101,13 +99,14 @@ export function createFrameOverlayLayers(
     getFillColor: [0, 0, 0, 0],
     filled: true,
     stroked: false,
-    pickable: !polygonPoints,
+    // Disable picking during drawing or when showing ROI to allow click-through
+    pickable: !polygonPoints && !isDrawing,
     coordinateSystem: 0
   });
 
   layers.push(moveAreaLayer);
 
-  if (showHandles && !polygonPoints) {
+  if (showHandles && !polygonPoints && !isDrawing) {
     const handleColor = [255, 255, 255, 255] as [number, number, number, number];
     const handleFillColor = [100, 150, 255, 200] as [number, number, number, number];
     

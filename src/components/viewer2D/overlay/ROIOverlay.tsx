@@ -29,7 +29,7 @@ export const ROIOverlay: React.FC<ROIOverlayProps> = ({
   zSlice
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { isReshaping, updateROIPoints, cancelReshaping } = useROI()
+  const { currentlyVisibleROI, isReshaping, isDrawing, updateROIPoints, cancelReshaping } = useROI()
   const [draggingPointIndex, setDraggingPointIndex] = useState<number | null>(null)
 
   // Coordinate transformation helpers
@@ -155,7 +155,7 @@ export const ROIOverlay: React.FC<ROIOverlayProps> = ({
     setDraggingPointIndex(null)
   }
 
-  if (rois.length === 0) return null
+  if (rois.length === 0 && !isReshaping) return null
 
   return (
     <canvas

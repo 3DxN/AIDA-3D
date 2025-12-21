@@ -72,20 +72,26 @@ export const ROIDrawingOverlay: React.FC<ROIDrawingOverlayProps> = ({
       ctx.stroke()
     }
 
-    // Draw vertices as circles
+    // Draw vertices as circles with high visibility
     drawingPoints.forEach((point, index) => {
       const [screenX, screenY] = toScreen(point[0], point[1])
       const isFirst = index === 0
-      const radius = isFirst ? 8 : 5
+      const radius = isFirst ? 10 : 7
+
+      // Glow effect
+      ctx.beginPath()
+      ctx.arc(screenX, screenY, radius + 2, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
+      ctx.fill()
 
       // Fill
       ctx.beginPath()
       ctx.arc(screenX, screenY, radius, 0, Math.PI * 2)
-      ctx.fillStyle = isFirst ? 'rgba(20, 184, 166, 1)' : 'rgba(255, 255, 255, 1)'
+      ctx.fillStyle = isFirst ? '#14b8a6' : '#fff'
       ctx.fill()
 
       // Stroke
-      ctx.strokeStyle = 'rgba(20, 184, 166, 1)'
+      ctx.strokeStyle = '#14b8a6'
       ctx.lineWidth = 2
       ctx.stroke()
     })

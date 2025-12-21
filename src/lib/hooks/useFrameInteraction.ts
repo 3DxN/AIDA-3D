@@ -11,6 +11,7 @@ import { useViewer2DData } from '../contexts/Viewer2DDataContext'
 import { useNucleusSelection } from '../contexts/NucleusSelectionContext'
 import { useZarrStore } from '../contexts/ZarrStoreContext'
 import { useROI } from '../contexts/ROIContext'
+import * as checkPointInPolygon from 'robust-point-in-polygon'
 
 
 import type { PickingInfo } from 'deck.gl'
@@ -43,7 +44,7 @@ export function useFrameInteraction(
     } = useViewer2DData();
 
     const { msInfo } = useZarrStore();
-    const { selectedROI } = useROI();
+    const { currentlyVisibleROI, selectedROI, rois, selectROI, isDrawing } = useROI();
 
     const {
         selectedNucleiIndices,
@@ -198,11 +199,15 @@ export function useFrameInteraction(
         const currentFrameCenter = tempFrameCenter ?? frameCenter;
         const currentFrameSize = tempFrameSize ?? frameSize;
 
-        // Only show ROI polygon if it's visible at current Z slice
+        // Only show ROI polygon if it's visible at current Z volume
         const zSlice = navigationState?.zSlice ?? 0;
+        const currentZMin = Math.max(0, zSlice - frameZLayersBelow);
+        const currentZMax = zSlice + frameZLayersAbove;
+        
+        // Show ROI polygon points if the ROI is selected AND visible in the current Z-volume
         const roiVisibleAtZ = selectedROI?.zRange &&
-            zSlice >= selectedROI.zRange[0] &&
-            zSlice <= selectedROI.zRange[1];
+            selectedROI.zRange[0] <= currentZMax && 
+            selectedROI.zRange[1] >= currentZMin;
 
         return createFrameOverlayLayers(currentFrameCenter, currentFrameSize, FRAME_VIEW_ID, {
             fillColor: [0, 0, 0, 0] as [number, number, number, number],
@@ -213,9 +218,10 @@ export function useFrameInteraction(
             showHandles: true,
             handleSize: 8,
             hoveredHandle,
-            polygonPoints: roiVisibleAtZ ? selectedROI?.points : undefined
+            polygonPoints: roiVisibleAtZ ? selectedROI?.points : undefined,
+            isDrawing
         });
-    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle, selectedROI, navigationState?.zSlice]);
+    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle, currentlyVisibleROI, selectedROI, isDrawing, navigationState, frameZLayersAbove, frameZLayersBelow]);
 
     const handleSelectionBoxAreaSelection = useCallback((startCoord: [number, number], endCoord: [number, number]) => {
         if (!frameBoundCellposeData || !navigationState) return;
@@ -380,6 +386,22 @@ export function useFrameInteraction(
         if (info.viewport && info.viewport.id === DETAIL_VIEW_ID && info.coordinate && frameBoundCellposeData && navigationState) {
             const [clickX, clickY] = info.coordinate;
 
+            // --- ROI Selection Logic ---
+            // Check if we clicked inside any ROI visible at the current Z slice
+            const zSlice = navigationState.zSlice;
+            const clickedROI = rois.find(roi => {
+                const isVisibleAtZ = roi.zRange && zSlice >= roi.zRange[0] && zSlice <= roi.zRange[1];
+                if (!isVisibleAtZ) return false;
+                
+                // checkPointInPolygon returns <= 0 if point is inside or on the edge
+                return checkPointInPolygon(roi.points, [clickX, clickY]) <= 0;
+            });
+
+            if (clickedROI) {
+                selectROI(clickedROI.id);
+                return true; // Stop propagation, ROI selected
+            }
+
             const frameStartX = Math.floor(frameCenter[0] - frameSize[0] / 2);
             const frameStartY = Math.floor(frameCenter[1] - frameSize[1] / 2);
 
@@ -390,9 +412,9 @@ export function useFrameInteraction(
             if (!shape || shape.length < 3) return false;
 
             const [zCount, height, width] = shape;
-            const { zSlice } = navigationState;
-            const startZ = Math.max(0, zSlice - frameZLayersBelow);
-            const zIndexInChunk = zSlice - startZ;
+            const currentZ = navigationState.zSlice;
+            const startZ = Math.max(0, currentZ - frameZLayersBelow);
+            const zIndexInChunk = currentZ - startZ;
 
             if (
                 localX >= 0 && localX < width &&
@@ -439,7 +461,8 @@ export function useFrameInteraction(
     }, [
         handleClick, setFrameCenter, frameBoundCellposeData, frameCenter,
         frameSize, navigationState, frameZLayersAbove, frameZLayersBelow, selectedNucleiIndices,
-        addSelectedNucleus, removeSelectedNucleus, clearSelection, setSelectedNucleiIndices
+        addSelectedNucleus, removeSelectedNucleus, clearSelection, setSelectedNucleiIndices,
+        rois, selectROI
     ]);
 
 

@@ -167,14 +167,14 @@ const VivViewerWrapper: React.FC = () => {
                 containerSize={containerDimensions}
             />
             <ROIOverlay
-                viewState={currentViewState}
+                viewState={detailViewStateRef.current}
                 containerSize={containerDimensions}
                 rois={rois}
                 selectedId={selectedROI?.id ?? null}
                 zSlice={navigationState?.zSlice ?? 0}
             />
             <ROIDrawingOverlay
-                viewState={currentViewState}
+                viewState={detailViewStateRef.current}
                 containerSize={containerDimensions}
                 drawingPoints={drawingPoints}
                 cursorPosition={cursorPosition}
