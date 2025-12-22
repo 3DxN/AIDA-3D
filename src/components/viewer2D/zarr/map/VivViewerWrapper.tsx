@@ -127,6 +127,7 @@ const VivViewerWrapper: React.FC = () => {
                 containerRef={containerRef}
                 viewState={controlledDetailViewState}
                 containerSize={containerDimensions}
+                channelMap={navigationState.channelMap}
             />
             <CellposeOverlay
                 viewState={controlledDetailViewState}
