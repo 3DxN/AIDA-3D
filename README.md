@@ -116,3 +116,7 @@ vips dzsave input.tif output_folder --suffix .jpg
 ## About
 
 This application was built by [Alan Aberdeen](https://github.com/alanaberdeen) with the support of [NCI at NIH](https://www.nih.gov/about-nih/what-we-do/nih-almanac/national-cancer-institute-nci) and the [Quantitative Biological Imaging Group](http://www.ludwig.ox.ac.uk/jens-rittscher-group-page), The University of Oxford.
+
+## Known problems
+
+typererror in jwt/index.js
