@@ -7,19 +7,23 @@ from scipy import ndimage
 from skimage import segmentation, morphology, filters, feature
 
 def segment(input_nifti, target_store_path, label_group_name, mode='coarse'):
+    print(f"🔨 Generating {label_group_name}...")
     img = nib.load(input_nifti)
     data = img.get_fdata().astype(np.float32)
     denoised = ndimage.median_filter(data, size=3)
     
     # Mode-based segmentation for distinct sets
-    if mode == 'coarse':
-        # Large regions
+    if mode == 'coarse': # Anatomy
         thresh = filters.threshold_otsu(denoised[denoised > 0])
         binary = ndimage.binary_fill_holes(morphology.binary_closing(denoised > (thresh * 0.7), morphology.ball(3)))
         distance = ndimage.distance_transform_edt(binary)
         coords = feature.peak_local_max(distance, min_distance=40, labels=binary)
-    else:
-        # Fine segments
+    elif mode == 'nuclei': # Cellpose (Simulated)
+        thresh = filters.threshold_otsu(denoised[denoised > 0])
+        binary = ndimage.binary_fill_holes(morphology.binary_closing(denoised > (thresh * 0.9), morphology.ball(1)))
+        distance = ndimage.distance_transform_edt(binary)
+        coords = feature.peak_local_max(distance, min_distance=10, labels=binary)
+    else: # Fine Segments
         thresh = filters.threshold_triangle(denoised[denoised > 0])
         binary = ndimage.binary_fill_holes(morphology.binary_closing(denoised > (thresh * 1.1), morphology.ball(1)))
         distance = ndimage.distance_transform_edt(binary)
@@ -54,9 +58,10 @@ def segment(input_nifti, target_store_path, label_group_name, mode='coarse'):
         "image-label": {"version": "0.5", "colors": colors, "properties": properties}, 
         "multiscales": [{"version": "0.5", "datasets": datasets, "axes": [{"name": "z", "type": "space", "unit": "millimeter"}, {"name": "y", "type": "space", "unit": "millimeter"}, {"name": "x", "type": "space", "unit": "millimeter"}], "type": "label"}]
     })
-    print(f"✅ Created {label_group_name} at: {labels_path}")
+    print(f"✅ Created {label_group_name}")
 
 if __name__ == "__main__":
     store_path = 'newtask/FLAIR_v05.zarr'
     segment('newtask/FLAIR.nii.gz', store_path, 'Anatomy', mode='coarse')
     segment('newtask/FLAIR.nii.gz', store_path, 'Segments', mode='fine')
+    segment('newtask/FLAIR.nii.gz', store_path, 'Cellpose', mode='nuclei')

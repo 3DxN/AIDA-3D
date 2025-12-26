@@ -281,7 +281,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
 
     loadFrameBoundCellposeMeshData()
     return () => controller.abort();
-  }, [cellposeArrays, selectedCellposeMeshResolution, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, currentZSlice, msInfo, cellposeScales, getFrameBounds])
+  }, [cellposeArrays, selectedCellposeMeshResolution, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, currentZSlice, msInfo, cellposeScales, getFrameBounds, cellposeError]) // Added cellposeArrays to trigger re-load on switch
 
   // Get current cellpose scale for mesh creation (3D viewer uses this)
   const cellposeScale = cellposeScales[selectedCellposeMeshResolution] || [1.0, 1.0, 1.0]

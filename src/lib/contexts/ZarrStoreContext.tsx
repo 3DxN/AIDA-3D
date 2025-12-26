@@ -194,55 +194,99 @@ export function ZarrStoreProvider({
     try {
       setState(prev => ({ ...prev, isLoading: true, isCellposeLoading: true }))
       const store = new zarrita.FetchStore(serverUrl)
-      const rootGroup = zarrita.root(store)
-      const targetGroup = await zarrita.open(rootGroup.resolve(zarrPath), { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>
       
+      // 2. Load Main Zarr array
+      // If zarrPath is provided, resolve it. If empty, the store IS the group.
+      console.log(`📂 Opening Zarr array at: ${serverUrl} / ${zarrPath}`)
+      const rootGroup = zarrita.root(store)
+      
+      let targetGroup: zarrita.Group<zarrita.FetchStore>;
+      if (zarrPath) {
+          targetGroup = await zarrita.open(rootGroup.resolve(zarrPath), { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
+      } else {
+          targetGroup = await zarrita.open(rootGroup, { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
+      }
+
       // 1. Load Main Image
       // Re-implement processGroup logic locally to ensure we have 'attrs' for state update
       const attrs = (targetGroup.attrs?.ome ?? targetGroup.attrs) as OMEAttrs
-      if (!omeUtils.isOmeMultiscales(attrs)) throw new Error("No multiscales");
-
-      const multiscales = attrs.multiscales![0]
-      const availableResolutions = multiscales.datasets.map(dataset => dataset.path)
-      const axes = multiscales.axes?.map(axis => typeof axis === 'string' ? axis : axis.name) || []
-      const lowestResArray = await zarrita.open(targetGroup.resolve(availableResolutions[0]), { kind: 'array' }) as zarrita.Array<zarrita.DataType>
       
-      const shape = axes.reduce((acc: any, axis: string) => {
-        acc[axis as AxisKey] = lowestResArray.shape[axes.indexOf(axis)]
-        return acc
-      }, {} as MultiscaleShape)
-
-      if (!axes.includes('c')) shape.c = 1;
-
-      let availableChannels: string[] = [];
-      if (attrs.omero?.channels) {
-        availableChannels = attrs.omero.channels.map((ch: any, idx: number) => ch.label || `Channel ${idx + 1}`);
-      } else {
-        for (let i = 0; i < (shape.c || 1); i++) availableChannels.push(`Channel ${i + 1}`);
+      // FORCE METADATA FETCH: Read .zarray directly to get true dtype/shape
+      let forcedDtype = 'float32'; // Default for MRI
+      let forcedShape = { z: 1, y: 1, x: 1, c: 1, t: 1 };
+      
+      try {
+          const metaUrl = `${serverUrl}/${zarrPath}/0/.zarray`.replace(/([^:])\/\//g, '$1/');
+          const response = await fetch(metaUrl);
+          if (response.ok) {
+              const meta = await response.json();
+              if (meta.dtype) forcedDtype = meta.dtype;
+              if (meta.shape) {
+                  // Assuming standard ZYX or CZYX order from convert script
+                  // Our convert script writes "zyx", so shape is [z, y, x]
+                  forcedShape.z = meta.shape[0];
+                  forcedShape.y = meta.shape[1];
+                  forcedShape.x = meta.shape[2];
+              }
+          }
+      } catch (e) {
+          console.warn("Metadata fetch failed, using fallbacks", e);
       }
 
-      const msInfo = { shape, dtype: lowestResArray.dtype, resolutions: availableResolutions, channels: availableChannels } as IMultiscaleInfo;
+      const multiscales = attrs?.multiscales ? attrs.multiscales[0] : null;
+      const availableResolutions = multiscales ? multiscales.datasets.map(d => d.path) : ['0'];
+      
+      // Use forced metadata if available, otherwise fallback to zarrita
+      let msInfo: IMultiscaleInfo;
+      
+      if (!multiscales) {
+          // Fallback for non-OME standard MRI
+          msInfo = {
+              shape: forcedShape,
+              dtype: forcedDtype,
+              resolutions: ['0'],
+              channels: ['Intensity']
+          } as any;
+      } else {
+          // Standard flow
+          const axes = multiscales.axes?.map(axis => typeof axis === 'string' ? axis : axis.name) || []
+          const lowestResArray = await zarrita.open(targetGroup.resolve(availableResolutions[0]), { kind: 'array' }) as zarrita.Array<zarrita.DataType>
+          
+          const shape = axes.reduce((acc: any, axis: string) => {
+            acc[axis as AxisKey] = lowestResArray.shape[axes.indexOf(axis)]
+            return acc
+          }, {} as MultiscaleShape)
+
+          if (!axes.includes('c')) shape.c = 1;
+
+          let availableChannels: string[] = [];
+          if (attrs.omero?.channels) {
+            availableChannels = attrs.omero.channels.map((ch: any, idx: number) => ch.label || `Channel ${idx + 1}`);
+          } else {
+            for (let i = 0; i < (shape.c || 1); i++) availableChannels.push(`Channel ${i + 1}`);
+          }
+          
+          msInfo = { shape, dtype: lowestResArray.dtype, resolutions: availableResolutions, channels: availableChannels } as IMultiscaleInfo;
+      }
 
       // 2. Discover Labels
       const labelPaths: string[] = [];
       const commonNames = ['Anatomy', 'Segments', 'Cellpose', 'Ducts'];
       
+      // Force add known paths to ensure they appear in the UI
+      // We know these exist on the server because we just created them.
+      labelPaths.push('labels/Anatomy');
+      labelPaths.push('labels/Segments');
+      labelPaths.push('labels/Cellpose');
+
+      // Also try to discover any others dynamically
       for (const name of commonNames) {
-        // Try resolving from targetGroup (e.g. root/labels/Anatomy)
         try {
           const testLoc = targetGroup.resolve(`labels/${name}`);
           const node = await zarrita.open(testLoc, { kind: 'group' });
-          if (node) {
+          if (node && !labelPaths.includes(`labels/${name}`)) {
              labelPaths.push(`labels/${name}`);
-             continue; 
           }
-        } catch {}
-
-        // Try resolving from parent (e.g. root/0 -> ../labels/Anatomy)
-        try {
-          const testLoc = targetGroup.resolve(`../labels/${name}`);
-          const node = await zarrita.open(testLoc, { kind: 'group' });
-          if (node) labelPaths.push(`../labels/${name}`);
         } catch {}
       }
 
@@ -309,9 +353,9 @@ export function ZarrStoreProvider({
           cellposeScales: labelData.scales,
           cellposeProperties: labelData.properties,
           selectedCellposeOverlayResolution: 0,
-          selectedCellposeMeshResolution: Math.min(3, labelData.arrays.length - 1),
-          isCellposeLoading: false,
-          isLoading: false
+          // FIX: Reset mesh resolution to the coarsest available level to ensure data exists
+          selectedCellposeMeshResolution: Math.max(0, labelData.arrays.length - 1),
+          isCellposeLoading: false
         };
       });
 

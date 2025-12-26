@@ -65,16 +65,18 @@ export default function ZarrWorkspace() {
 
 		// If we have at least server and store dir, try to load
 		if (serverParam && defaultStoreDirParam) {
-			// Create a unique key for this URL combination to prevent duplicate loads
 			const urlKey = `${serverParam}|${defaultStoreDirParam}|${cellposeStoreDirParam || ''}`
-
 			if (urlKey === loadedUrlKey) return
 
 			setShowLoader(false)
 			setLoadedUrlKey(urlKey)
 
-			// Use the new single-function loader that avoids closure issues
-			loadFromUrlParams(serverParam, defaultStoreDirParam, cellposeStoreDirParam || 'labels/Cellpose')
+			// CONSTRUCT FULL URL: This fixes the ambiguity
+			// source = "http://localhost:5500/newtask/FLAIR_v05.zarr"
+			const fullStoreUrl = `${serverParam.replace(/\/$/, '')}/${defaultStoreDirParam.replace(/^\//, '')}`;
+			
+			// Pass the full URL as 'serverUrl' so the context treats it as the store root
+			loadFromUrlParams(fullStoreUrl, '', cellposeStoreDirParam || 'labels/Cellpose')
 		}
 	}, [router.isReady, query.server, query.default_store_dir, query.cellpose_store_dir, loadedUrlKey, loadFromUrlParams])
 

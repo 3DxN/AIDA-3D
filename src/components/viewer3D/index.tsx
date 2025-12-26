@@ -53,7 +53,8 @@ const Viewer3D = (props: {
 	const [selectedMeshesState, setSelectedMeshesState] = useState<THREE.Mesh[]>([]);
 	const crossSectionPlane = useRef<THREE.Mesh | null>(null);
 	const [isCameraInitialized, setIsCameraInitialized] = useState(false);
-	const [filterIncompleteNuclei, setFilterIncompleteNuclei] = useState(true);
+	// FIX: Default to FALSE so large anatomical regions aren't hidden
+	const [filterIncompleteNuclei, setFilterIncompleteNuclei] = useState(false);
 
 
 	// New label storage refs
@@ -231,6 +232,17 @@ const Viewer3D = (props: {
 
 	// Generate and render mesh from voxel data
 	useEffect(() => {
+        if (!frameBoundCellposeMeshData) {
+            console.log("📦 3D Data: Waiting for data...");
+            return;
+        }
+        
+        console.log("📦 3D Data Received:", {
+            shape: frameBoundCellposeMeshData.shape,
+            size: frameBoundCellposeMeshData.data.length,
+            dtype: frameBoundCellposeMeshData.data.constructor.name
+        });
+
 		if (scene && camera && renderer && frameBoundCellposeMeshData) {
 			setIsLoading(true);
 
@@ -401,7 +413,7 @@ const Viewer3D = (props: {
 			renderer.render(scene, camera);
 			setIsLoading(false);
 		}
-	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei]);
+	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei, cellposeScale]); // Added cellposeScale
 
 	// Adjust selections
 	useEffect(() => {

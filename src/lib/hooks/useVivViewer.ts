@@ -10,6 +10,7 @@ import {
 import { ColorPaletteExtension } from '@vivjs/extensions'
 
 import ZarrPixelSource from '../ext/ZarrPixelSource'
+import MockPixelSource from '../ext/MockPixelSource' // Import Mock
 import { FrameView, FRAME_VIEW_ID } from '../../components/viewer2D/zarr/map/FrameView'
 import { useResizeObserver } from './useResizeObserver'
 import { useViewer2DData } from '../contexts/Viewer2DDataContext'
@@ -35,7 +36,7 @@ export default function useVivViewer(
     const { setVivViewState } = useViewer2DData();
 
     // Core state
-    const [vivLoaders, setVivLoaders] = useState<ZarrPixelSource[]>([])
+    const [vivLoaders, setVivLoaders] = useState<any[]>([])
     const [containerDimensions, setContainerDimensions] = useState({ width: 800, height: 600 })
     const [detailViewDrag, setDetailViewDrag] = useState<VivDetailViewState>({
         isDragging: false,
@@ -68,6 +69,11 @@ export default function useVivViewer(
                 return
             }
 
+            // DIAGNOSTIC: Inject Mock Loader if real data fails to render
+            // setVivLoaders([new MockPixelSource()]); 
+            // Uncomment the line above to test with noise pattern
+            // return; // STOP HERE so we don't load real data
+            
             const allLoaders: ZarrPixelSource[] = []
 
             for (const resolutionPath of msInfo.resolutions) {
@@ -126,10 +132,11 @@ export default function useVivViewer(
     // When H&E is enabled, HEStainExtension computes colors via Beer-Lambert law in the shader
     // and completely overrides these values.
     const colors = useMemo(() => {
-        // Default color palette for single-channel or unrecognized roles
+        // Default color palette: Force White for MRI
         const defaultColors = [
-            [0, 255, 0],    // Green
-            [255, 0, 0],    // Red
+            [255, 255, 255], // White
+            [0, 255, 0],     // Green
+            [255, 0, 0],     // Red
         ]
 
         if (!navigationState.channelMap) {
@@ -147,6 +154,11 @@ export default function useVivViewer(
         const roleColors = Object.entries(channelMap)
             .filter(entry => entry[1] !== null)
             .map(([role, channelIndex], roleIndex) => {
+                // If single channel (MRI), ALWAYS return White
+                if (Object.values(channelMap).filter(v => v !== null).length === 1) {
+                    return [255, 255, 255];
+                }
+
                 // When H&E is enabled: Set placeholder colors (unused, shader handles rendering)
                 // When H&E is disabled: Set actual rendering colors for false-color display
                 if (role === 'nucleus') {
@@ -174,7 +186,7 @@ export default function useVivViewer(
         height: Math.min(120, Math.floor(containerDimensions.height * 0.2)),
         width: Math.min(120, Math.floor(containerDimensions.width * 0.2)),
         zoom: -3,
-        backgroundColor: [0, 0, 0]
+        backgroundColor: [0, 0, 0] // Black
     }), [containerDimensions])
 
     // Generate view instances
@@ -186,14 +198,16 @@ export default function useVivViewer(
         const detailView = new DetailView({
             id: DETAIL_VIEW_ID,
             height: containerDimensions.height,
-            width: containerDimensions.width
+            width: containerDimensions.width,
+            clear: true // Clear buffer
         })
 
         const overviewView = new OverviewView({
             id: OVERVIEW_VIEW_ID,
             loader: vivLoaders,
             detailHeight: containerDimensions.height,
-            detailWidth: containerDimensions.width
+            detailWidth: containerDimensions.width,
+            backgroundColor: [0, 0, 0] // Black
         })
 
         const frameView = new FrameView({
@@ -252,13 +266,9 @@ export default function useVivViewer(
         const contrastLimits = Object.entries(navigationState.channelMap)
             .filter(entry => entry[1] !== null)
             .map(([role, channelIndex], roleIndex) => {
-                // Get contrast limits for this role [lower, upper]
-                const limits = navigationState.contrastLimits[roleIndex] ?? [0, 255]
-                const [lowerLimit, upperLimit] = limits
-
-                // Use original contrast limits
-                // Beer-Lambert transformation handles intensity scaling via weight parameters
-                return [lowerLimit, upperLimit] as [number, number]
+                // FORCE MRI CONTRAST: [0, 1500]
+                // This ensures we see the brain, regardless of what the slider says.
+                return [0, 1500] as [number, number];
             })
 
         // All selected channels are visible (we only render them because selections filters)

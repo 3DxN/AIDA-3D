@@ -87,7 +87,7 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
     signal?: AbortSignal;
   }): Promise<viv.PixelData> {
     const { selection, signal } = options;
-    return this.#fetchData({
+    const pixelData = await this.#fetchData({
       selection: buildZarrSelection(selection, {
         labels: this.labels,
         slices: { x: zarr.slice(null), y: zarr.slice(null) },
@@ -96,6 +96,11 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
       }),
       signal,
     });
+    // FIX: Viv/DeckGL crashes on Int8Array. Cast to Uint8Array.
+    if (pixelData.data instanceof Int8Array) {
+        return { ...pixelData, data: new Uint8Array(pixelData.data.buffer) };
+    }
+    return pixelData;
   }
 
   onTileError(_err: unknown): void {
@@ -109,7 +114,7 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
     signal?: AbortSignal;
   }): Promise<viv.PixelData> {
     const { x, y, selection, signal } = options;
-    return this.#fetchData({
+    const pixelData = await this.#fetchData({
       selection: buildZarrSelection(selection, {
         labels: this.labels,
         slices: {
@@ -121,6 +126,11 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
       }),
       signal,
     });
+    // FIX: Viv/DeckGL crashes on Int8Array. Cast to Uint8Array.
+    if (pixelData.data instanceof Int8Array) {
+        return { ...pixelData, data: new Uint8Array(pixelData.data.buffer) };
+    }
+    return pixelData;
   }
 
   async #fetchData(request: { selection: Array<number | Slice>; signal?: AbortSignal }): Promise<viv.PixelData> {

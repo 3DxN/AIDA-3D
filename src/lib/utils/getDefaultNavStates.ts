@@ -38,23 +38,77 @@ export function getDefaultChannelMap(availableChannels: string[]): ChannelMappin
 }
 
 // Centralized navigation state initialization
+
 export function getInitialNavigationState(msInfo: IMultiscaleInfo): NavigationState {
+
     const dtype = msInfo.dtype;
+
     const maxIntensity = getDefaultMaxContrastLimit(dtype);
 
-    return {
-        xOffset: 0,
-        yOffset: 0,
-        zSlice: msInfo.shape.z ? Math.floor(msInfo.shape.z / 2) : 0,
-        timeSlice: 0,
-        contrastLimits: [[300, 1000], [50, 300]], // nucleus: [300, 1000], cytoplasm: [50, 300]
-        channelMap: getDefaultChannelMap(msInfo.channels),
-        cellposeOverlayOn: true,
-        histogramEqualizationOn: false,
-        heStainingOn: true,  // Enable H&E staining by default
-        // Beer-Lambert H&E staining parameters
-        heStainHematoxylinWeight: 2.56,   // Hematoxylin (nuclear) stain weight
-        heStainEosinWeight: 0.1,          // Eosin (cytoplasmic) stain weight
-        heStainMaxIntensity: maxIntensity // Defaults to dtype max (65535 for uint16)
+    const channelCount = msInfo.channels.length;
+
+    const isGrayscale = channelCount < 2;
+
+
+
+        return {
+
+
+
+            xOffset: 0,
+
+
+
+            yOffset: 0,
+
+
+
+            zSlice: msInfo.shape.z ? Math.floor(msInfo.shape.z / 2) : 0,
+
+
+
+            timeSlice: 0,
+
+
+
+            // MRI Contrast: [0, 1500] makes the brain visible. [0, 65535] makes it black.
+
+
+
+            contrastLimits: [[0, 1500], [50, 300]], 
+
+
+
+            channelMap: getDefaultChannelMap(msInfo.channels),
+
+
+
+            cellposeOverlayOn: true,
+
+
+
+    
+
+                histogramEqualizationOn: false,
+
+                
+
+                // FORCE DISABLE H&E for MRI stability
+
+                heStainingOn: false,  
+
+                
+
+                // Beer-Lambert H&E staining parameters
+
+        
+
+        heStainHematoxylinWeight: 2.56,
+
+        heStainEosinWeight: 0.1,
+
+        heStainMaxIntensity: maxIntensity
+
     }
+
 }

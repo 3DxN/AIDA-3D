@@ -15,6 +15,8 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
     const {
         navigationState,
         frameBoundCellposeData,
+        frameCenter,
+        frameSize,
         isDataLoading
     } = useViewer2DData();
     const { selectedNucleiIndices } = useNucleusSelection();
@@ -44,13 +46,21 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 return [sx, sy];
             };
 
-            // Use the data's inherent world position
-            const worldOffset = (frameBoundCellposeData as any).worldOffset || [0, 0];
-            const [screenX, screenY] = toScreen(worldOffset[0], worldOffset[1]);
+            // FORCE DRAW AT FRAME CENTER (Align with red box)
+            const frameWorldX = frameCenter[0] - frameSize[0] / 2;
+            const frameWorldY = frameCenter[1] - frameSize[1] / 2;
             
-            const labelScale = cellposeScales[selectedCellposeOverlayResolution] || [1, 1, 1];
-            const screenWidth = width * labelScale[2] * scale;
-            const screenHeight = height * labelScale[1] * scale;
+            const [screenX, screenY] = toScreen(frameWorldX, frameWorldY);
+            const screenWidth = frameSize[0] * scale;
+            const screenHeight = frameSize[1] * scale;
+
+            // SAFETY CHECK: Ensure fetch data matches dimensions
+            if (data.length !== width * height) {
+                console.warn(`🎨 [2D Overlay] Buffer mismatch! Expected ${width * height}, got ${data.length}. Skipping frame.`);
+                return;
+            }
+
+            console.log(`🎨 [2D Overlay] Drawing set: ${width}x${height} at screen [${Math.round(screenX)}, ${Math.round(screenY)}]`);
 
             const imageData = new Uint8ClampedArray(width * height * 4);
             for (let i = 0; i < data.length; i++) {
@@ -79,7 +89,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
 
     return (
         <canvas ref={canvasRef} width={containerSize.width} height={containerSize.height}
-            style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 10 }}
+            style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 100 }}
         />
     );
 };
