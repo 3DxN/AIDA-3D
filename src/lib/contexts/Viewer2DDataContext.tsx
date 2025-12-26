@@ -138,6 +138,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   // Helper function for frame-bound array slicing (DRY principle)
   const getFrameBoundData = useCallback(async (
     array: zarrita.Array<zarrita.DataType>,
+    signal?: AbortSignal
   ): Promise<zarrita.Chunk<zarrita.DataType> | null> => {
     if (!navigationState) {
       return null
@@ -146,61 +147,60 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     try {
       // Calculate frame bounds (these are in resolution 0 coordinates)
       const bounds = getFrameBounds()
+      const currentFrameCenter = [...frameCenter];
 
       // Get the scale factor for the current overlay resolution
       // cellposeScales[i] = [z_scale, y_scale, x_scale]
       const scale = cellposeScales[selectedCellposeOverlayResolution] || [1.0, 1.0, 1.0]
-      const xScale = scale[2] // x is the last dimension
-      const yScale = scale[1] // y is the second-to-last dimension
-      const zScale = scale[0] // z is the first dimension
-
-      console.log(`   Scale factors for overlay resolution ${selectedCellposeOverlayResolution}: Z=${zScale}, Y=${yScale}, X=${xScale}`)
+      const xScale = scale[2]
+      const yScale = scale[1]
+      const zScale = scale[0]
 
       // Scale the bounds to the current resolution
-      // If scale is 2.0, we divide by 2 to get lower resolution coordinates
       const scaledLeft = bounds.left / xScale
-      const scaledRight = bounds.right / xScale
       const scaledTop = bounds.top / yScale
-      const scaledBottom = bounds.bottom / yScale
 
       // Add spatial bounds (ensure they're within array bounds)
       const maxX = array.shape[array.shape.length - 1]
       const maxY = array.shape[array.shape.length - 2]
 
       const x1 = Math.max(0, Math.floor(scaledLeft))
-      const x2 = Math.min(maxX, Math.ceil(scaledRight))
+      const x2 = Math.min(maxX, Math.ceil(bounds.right / xScale))
       const y1 = Math.max(0, Math.floor(scaledTop))
-      const y2 = Math.min(maxY, Math.ceil(scaledBottom))
-
-      console.log(`   Scaled bounds: [${y1}:${y2}, ${x1}:${x2}] (array max: ${maxY} × ${maxX})`)
+      const y2 = Math.min(maxY, Math.ceil(bounds.bottom / yScale))
       
       // Create array-based selection based on array dimensions
       const selection: (number | zarrita.Slice | null)[] = []
       
-      // Build selection array based on actual array shape
       const hasZ = array.shape.length > 2 && msInfo?.shape.z && msInfo.shape.z >= 1
       if (hasZ) {
-        // For 2D overlay, get ONLY the current z slice (high-res single layer)
         const scaledZ = Math.floor(currentZSlice / zScale)
         const clampedZ = Math.max(0, Math.min(array.shape[0] - 1, scaledZ))
-        console.log(`   Getting single Z layer at index ${clampedZ} (original: ${currentZSlice}, scaled: ${scaledZ})`)
         selection.push(clampedZ)
       }
       selection.push(zarrita.slice(y1, y2))
       selection.push(zarrita.slice(x1, x2))
       
-      const result = await zarrita.get(array, selection)
+      const result = await zarrita.get(array, selection, { opts: { signal } })
+      
+      if (result) {
+        // ATTACH METADATA FOR SYNC & POSITIONING
+        (result as any).requestedCenter = currentFrameCenter;
+        (result as any).worldOffset = [x1 * xScale, y1 * yScale];
+      }
+
       return result
 
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-      console.error(`❌ Error getting frame-bound main data:`, errorMsg)
+      if (error instanceof Error && error.name === 'AbortError') return null;
       throw error
     }
-  }, [navigationState, getFrameBounds, currentZSlice, currentTimeSlice, frameZLayersAbove, frameZLayersBelow, msInfo, cellposeScales, selectedCellposeOverlayResolution])
+  }, [navigationState, frameCenter, getFrameBounds, currentZSlice, msInfo, cellposeScales, selectedCellposeOverlayResolution])
   
   // Auto-update frame-bound Cellpose data when dependencies change
   useEffect(() => {
+    const controller = new AbortController();
+    
     const loadFrameBoundCellposeData = async () => {
       const cellposeArray = cellposeArrays[selectedCellposeOverlayResolution]
 
@@ -209,31 +209,29 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
         return
       }
 
-      console.log(`🔄 Loading frame-bound Cellpose data at overlay resolution ${selectedCellposeOverlayResolution}, array shape: ${cellposeArray.shape.join(' × ')}`)
-
       setIsDataLoading(true)
       setDataError(null)
 
       try {
-        // Use shared helper function
-        const result = await getFrameBoundData(cellposeArray)
-        console.log(`✅ Frame-bound Cellpose data loaded, chunk shape: ${result?.shape.join(' × ') || 'null'}`)
-        setFrameBoundCellposeData(result)
+        const result = await getFrameBoundData(cellposeArray, controller.signal)
+        if (result) setFrameBoundCellposeData(result)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error'
         console.error('❌ Error getting frame-bound Cellpose data:', errorMsg)
         setDataError(errorMsg)
-        setFrameBoundCellposeData(null)
       } finally {
         setIsDataLoading(false)
       }
     }
 
     loadFrameBoundCellposeData()
-  }, [cellposeArrays, selectedCellposeOverlayResolution, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, currentZSlice, currentTimeSlice, getFrameBoundData])
+    return () => controller.abort();
+  }, [cellposeArrays, selectedCellposeOverlayResolution, navigationState, frameCenter, frameSize, currentZSlice, getFrameBoundData])
 
   // Auto-update frame-bound Cellpose MESH data when dependencies change (low-res all Z layers)
   useEffect(() => {
+    const controller = new AbortController();
+
     const loadFrameBoundCellposeMeshData = async () => {
       const cellposeMeshArray = cellposeArrays[selectedCellposeMeshResolution]
 
@@ -242,74 +240,47 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
         return
       }
 
-      console.log(`🔄 Loading frame-bound Cellpose MESH data at mesh resolution ${selectedCellposeMeshResolution}, array shape: ${cellposeMeshArray.shape.join(' × ')}`)
-
       setIsDataLoading(true)
       setDataError(null)
 
       try {
-        // Get scale factor for mesh resolution
         const meshScale = cellposeScales[selectedCellposeMeshResolution] || [1.0, 1.0, 1.0]
-        const xScale = meshScale[2]
-        const yScale = meshScale[1]
-        const zScale = meshScale[0]
-
-        // Calculate frame bounds (in resolution 0 coordinates)
+        const xScale = meshScale[2]; const yScale = meshScale[1]; const zScale = meshScale[0]
         const bounds = getFrameBounds()
+        const currentFrameCenter = [...frameCenter];
 
-        // Scale the bounds to the mesh resolution
-        const scaledLeft = bounds.left / xScale
-        const scaledRight = bounds.right / xScale
-        const scaledTop = bounds.top / yScale
-        const scaledBottom = bounds.bottom / yScale
+        const x1 = Math.max(0, Math.floor(bounds.left / xScale))
+        const x2 = Math.min(cellposeMeshArray.shape[cellposeMeshArray.shape.length - 1], Math.ceil(bounds.right / xScale))
+        const y1 = Math.max(0, Math.floor(bounds.top / yScale))
+        const y2 = Math.min(cellposeMeshArray.shape[cellposeMeshArray.shape.length - 2], Math.ceil(bounds.bottom / yScale))
 
-        // Add spatial bounds (ensure they're within array bounds)
-        const maxX = cellposeMeshArray.shape[cellposeMeshArray.shape.length - 1]
-        const maxY = cellposeMeshArray.shape[cellposeMeshArray.shape.length - 2]
-
-        const x1 = Math.max(0, Math.floor(scaledLeft))
-        const x2 = Math.min(maxX, Math.ceil(scaledRight))
-        const y1 = Math.max(0, Math.floor(scaledTop))
-        const y2 = Math.min(maxY, Math.ceil(scaledBottom))
-
-        console.log(`   Mesh resolution scale factors: Z=${zScale}, Y=${yScale}, X=${xScale}`)
-        console.log(`   Mesh scaled bounds: [${y1}:${y2}, ${x1}:${x2}] (array max: ${maxY} × ${maxX})`)
-
-        // Create selection for ALL Z layers (for mesh creation)
         const selection: (number | zarrita.Slice | null)[] = []
-
         const hasZ = cellposeMeshArray.shape.length > 2 && msInfo?.shape.z && msInfo.shape.z >= 1
         if (hasZ) {
-          // For mesh creation, get ALL Z layers within the frame bounds
           const startZ = Math.max(0, currentZSlice - frameZLayersBelow)
           const endZ = Math.min(msInfo.shape.z || 0, currentZSlice + frameZLayersAbove + 1)
-
-          // Scale to mesh resolution
-          const scaledStartZ = Math.floor(startZ / zScale)
-          const scaledEndZ = Math.ceil(endZ / zScale)
-          const clampedStartZ = Math.max(0, scaledStartZ)
-          const clampedEndZ = Math.min(cellposeMeshArray.shape[0], Math.max(scaledEndZ, clampedStartZ + 1))
-
-          console.log(`   Getting Z layers ${clampedStartZ}:${clampedEndZ} (original: ${startZ}:${endZ})`)
+          const clampedStartZ = Math.max(0, Math.floor(startZ / zScale))
+          const clampedEndZ = Math.min(cellposeMeshArray.shape[0], Math.max(Math.ceil(endZ / zScale), clampedStartZ + 1))
           selection.push(zarrita.slice(clampedStartZ, clampedEndZ))
         }
         selection.push(zarrita.slice(y1, y2))
         selection.push(zarrita.slice(x1, x2))
 
-        const result = await zarrita.get(cellposeMeshArray, selection)
-        console.log(`✅ Frame-bound Cellpose MESH data loaded, chunk shape: ${result?.shape.join(' × ') || 'null'}`)
-        setFrameBoundCellposeMeshData(result)
+        const result = await zarrita.get(cellposeMeshArray, selection, { opts: { signal: controller.signal } })
+        if (result) {
+          (result as any).requestedCenter = currentFrameCenter;
+          setFrameBoundCellposeMeshData(result)
+        }
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-        console.error('❌ Error getting frame-bound Cellpose MESH data:', errorMsg)
-        setDataError(errorMsg)
-        setFrameBoundCellposeMeshData(null)
+        if (error instanceof Error && error.name === 'AbortError') return;
+        setDataError(error instanceof Error ? error.message : 'Unknown error')
       } finally {
         setIsDataLoading(false)
       }
     }
 
     loadFrameBoundCellposeMeshData()
+    return () => controller.abort();
   }, [cellposeArrays, selectedCellposeMeshResolution, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, currentZSlice, msInfo, cellposeScales, getFrameBounds])
 
   // Get current cellpose scale for mesh creation (3D viewer uses this)

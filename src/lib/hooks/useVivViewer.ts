@@ -241,7 +241,7 @@ export default function useVivViewer(
                 case 'uint16': return 65535;
                 case 'uint32': return 4294967295;
                 case 'float32':
-                case 'float64': return 1.0;
+                case 'float64': return 1000.0;
                 default: return 65535;
             }
         };

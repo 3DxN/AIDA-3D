@@ -91,6 +91,8 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
       selection: buildZarrSelection(selection, {
         labels: this.labels,
         slices: { x: zarr.slice(null), y: zarr.slice(null) },
+        arrayRank: this.#arr.shape.length,
+        shape: this.#arr.shape,
       }),
       signal,
     });
@@ -114,6 +116,8 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
           x: zarr.slice(x * this.tileSize, Math.min((x + 1) * this.tileSize, this.#width)),
           y: zarr.slice(y * this.tileSize, Math.min((y + 1) * this.tileSize, this.#height)),
         },
+        arrayRank: this.#arr.shape.length,
+        shape: this.#arr.shape,
       }),
       signal,
     });
@@ -207,27 +211,44 @@ function buildZarrSelection(
   options: {
     labels: string[];
     slices: { x: zarr.Slice; y: zarr.Slice };
+    arrayRank: number; // For pruning
+    shape: number[];   // For clamping
   },
 ): Array<Slice | number> {
-  const { labels, slices } = options;
+  const { labels, slices, arrayRank, shape } = options;
   let selection: Array<Slice | number>;
+  
+  selection = Array.from({ length: labels.length }, () => 0);
+
   if (Array.isArray(baseSelection)) {
-    // shallow copy
-    selection = [...baseSelection];
+    for (let i = 0; i < Math.min(baseSelection.length, selection.length); i++) {
+      selection[i] = typeof baseSelection[i] === 'number' 
+        ? Math.max(0, Math.min(baseSelection[i] as number, shape[i] - 1))
+        : baseSelection[i];
+    }
   } else {
-    // initialize with zeros
-    selection = Array.from({ length: labels.length }, () => 0);
-    // fill in the selection
     for (const [key, idx] of Object.entries(baseSelection)) {
-      selection[labels.indexOf(key)] = idx;
+      const labelIndex = labels.indexOf(key);
+      if (labelIndex !== -1 && labelIndex < selection.length) {
+        selection[labelIndex] = typeof idx === 'number' 
+          ? Math.max(0, Math.min(idx, shape[labelIndex] - 1)) 
+          : idx;
+      }
     }
   }
-  selection[labels.indexOf(X_AXIS_NAME)] = slices.x;
-  selection[labels.indexOf(Y_AXIS_NAME)] = slices.y;
-  if (RGBA_CHANNEL_AXIS_NAME in labels) {
-    selection[labels.indexOf(RGBA_CHANNEL_AXIS_NAME)] = zarr.slice(null);
+
+  const xIdx = labels.indexOf(X_AXIS_NAME);
+  const yIdx = labels.indexOf(Y_AXIS_NAME);
+  
+  if (xIdx !== -1 && xIdx < selection.length) selection[xIdx] = slices.x;
+  if (yIdx !== -1 && yIdx < selection.length) selection[yIdx] = slices.y;
+  
+  const cIdx = labels.indexOf(RGBA_CHANNEL_AXIS_NAME);
+  if (cIdx !== -1 && cIdx < selection.length) {
+    selection[cIdx] = zarr.slice(null);
   }
-  return selection;
+
+  return selection.slice(0, arrayRank);
 }
 
 function capitalize<T extends string>(s: T): Capitalize<T> {

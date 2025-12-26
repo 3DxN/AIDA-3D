@@ -13,8 +13,11 @@ import ChannelSelector from './ChannelSelector'
 import ContrastLimitsSelector from './ContrastLimitsSelector'
 import CellposeOverlayResolutionSelector from './CellposeOverlayResolutionSelector'
 import CellposeMeshResolutionSelector from './CellposeMeshResolutionSelector'
+import LabelPathSelector from './LabelPathSelector'
+
 
 function classNames(...classes: (string | boolean | undefined)[]) {
+
     return classes.filter(Boolean).join(' ')
 }
 
@@ -142,6 +145,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                     Segmentation
                                 </Disclosure.Button>
                                 <Disclosure.Panel className="relative">
+                                    <LabelPathSelector />
                                     <div className="mx-4 flex my-2 justify-between">
                                         <div className="text-sm">Cellpose Nuclei</div>
                                         <Switch

@@ -63,10 +63,10 @@ export default function ZarrWorkspace() {
 		const defaultStoreDirParam = typeof query.default_store_dir === 'string' ? query.default_store_dir : null
 		const cellposeStoreDirParam = typeof query.cellpose_store_dir === 'string' ? query.cellpose_store_dir : null
 
-		// If we have all URL params, hide loader and load data
-		if (serverParam && defaultStoreDirParam && cellposeStoreDirParam) {
+		// If we have at least server and store dir, try to load
+		if (serverParam && defaultStoreDirParam) {
 			// Create a unique key for this URL combination to prevent duplicate loads
-			const urlKey = `${serverParam}|${defaultStoreDirParam}|${cellposeStoreDirParam}`
+			const urlKey = `${serverParam}|${defaultStoreDirParam}|${cellposeStoreDirParam || ''}`
 
 			if (urlKey === loadedUrlKey) return
 
@@ -74,7 +74,7 @@ export default function ZarrWorkspace() {
 			setLoadedUrlKey(urlKey)
 
 			// Use the new single-function loader that avoids closure issues
-			loadFromUrlParams(serverParam, defaultStoreDirParam, cellposeStoreDirParam)
+			loadFromUrlParams(serverParam, defaultStoreDirParam, cellposeStoreDirParam || 'labels/Cellpose')
 		}
 	}, [router.isReady, query.server, query.default_store_dir, query.cellpose_store_dir, loadedUrlKey, loadFromUrlParams])
 

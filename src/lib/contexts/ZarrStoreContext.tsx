@@ -47,7 +47,7 @@ export function ZarrStoreProvider({
     cellposeResolutions: [],
     cellposeScales: [],
     selectedCellposeOverlayResolution: 0,
-    selectedCellposeMeshResolution: 2,
+    selectedCellposeMeshResolution: 3,
     isCellposeLoading: false,
     cellposeError: null,
     isLoading: false,
@@ -56,6 +56,7 @@ export function ZarrStoreProvider({
     source: initialSource,
     zarrPath: initialZarrPath,
     cellposePath: initialCellposePath,
+    availableCellposePaths: [],
     hasLoadedArray: false,
     suggestedPaths: [],
     suggestionType: ZarrStoreSuggestionType.NO_OME,
@@ -63,6 +64,7 @@ export function ZarrStoreProvider({
     cellposeProperties: null
   })
 
+  // 1. UTILITIES (Define first)
   const setSource = useCallback((url: string) => {
     setState(prev => ({ ...prev, source: url }))
   }, [])
@@ -75,26 +77,6 @@ export function ZarrStoreProvider({
     setState(prev => ({ ...prev, cellposePath: path }))
   }, [])
 
-  const setPropertiesCallback = useCallback((callback: (properties: any[]) => void) => {
-    console.log('📋 setPropertiesCallback called - registering callback')
-    setState(prev => {
-      console.log('📋 Current cellposeProperties in state:', prev.cellposeProperties?.length || 0, 'items')
-      // If we have pending properties, call the callback immediately
-      if (prev.cellposeProperties && prev.cellposeProperties.length > 0) {
-        console.log('✅ Callback registered, invoking with stored properties:', prev.cellposeProperties.length, 'items')
-        try {
-          callback(prev.cellposeProperties)
-        } catch (error) {
-          console.error('❌ Error invoking callback:', error)
-        }
-      } else {
-        console.log('⚠️ No properties in state yet, callback will be invoked when properties are loaded')
-      }
-      return { ...prev, onPropertiesFound: callback }
-    })
-  }, [])
-
-  // Cellpose detection utility - now loads all resolutions
   const detectCellposeArray = useCallback(
     async (cellposePath: string): Promise<{
       arrays: zarrita.Array<zarrita.Uint32>[],
@@ -105,365 +87,59 @@ export function ZarrStoreProvider({
       if (!state.store || !cellposePath) return { arrays: [], resolutions: [], scales: [], defaultArray: null };
 
       try {
-        console.log(`🔍 Searching for Cellpose data at ${cellposePath}...`)
-
-        // Create a temporary root from the base `store` to search from the top level.
-        const rootGroup = zarrita.root(state.store)
-        const cellposeGroup = await zarrita.open(rootGroup.resolve(cellposePath))
+        // FIX: Use relative resolution to stay inside the FLAIR scan folder
+        const location = state.root ? state.root.resolve(cellposePath) : zarrita.root(state.store).resolve(cellposePath);
+        
+        let cellposeGroup: zarrita.Group<zarrita.FetchStore>;
+        try {
+            cellposeGroup = await zarrita.open(location, { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
+        } catch (e) {
+            // Fallback for parent resolution
+            if (state.root && !cellposePath.startsWith('..')) {
+                cellposeGroup = await zarrita.open(state.root.resolve(`../${cellposePath}`), { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
+            } else {
+                throw e;
+            }
+        }
 
         if (cellposeGroup instanceof zarrita.Group) {
-          // Check for properties in the zarr.json attributes
-          const attrs = cellposeGroup.attrs as any
-          console.log('🔍 Checking for properties in cellpose group (detectCellposeArray)')
-
-          if (attrs?.ome?.['image-label']?.properties) {
-            console.log('🔍 Found properties in Cellpose zarr.json:', attrs.ome['image-label'].properties.length, 'items')
-
-            // Trigger properties loading callback if available
-            if (state.onPropertiesFound) {
-              try {
-                state.onPropertiesFound(attrs.ome['image-label'].properties)
-              } catch (error) {
-                console.error('❌ Error loading properties from zarr.json:', error)
-              }
-            } else {
-              console.warn('⚠️ Properties found but no callback registered yet')
-            }
-          } else {
-            console.warn('⚠️ No properties found in detectCellposeArray')
-            console.warn('   attrs structure:', attrs)
-          }
-
-          // Drill into OME multiscales metadata
-          const multiscales = (cellposeGroup.attrs?.ome as OMEAttrs)?.multiscales
+          const rawAttrs = cellposeGroup.attrs as any;
+          const lAttrs = rawAttrs?.multiscales ? rawAttrs : (rawAttrs?.ome || rawAttrs?.attributes || rawAttrs);
+          
+          const multiscales = lAttrs?.multiscales;
           if (multiscales && multiscales[0]?.datasets?.length > 0) {
-            // Load ALL resolution levels
             const arrays: zarrita.Array<zarrita.Uint32>[] = []
             const resolutions: string[] = []
             const scales: number[][] = []
 
             for (const dataset of multiscales[0].datasets) {
               try {
-                const array = await zarrita.open(
-                  cellposeGroup.resolve(dataset.path)
-                )
+                const array = await zarrita.open(cellposeGroup.resolve(dataset.path), { kind: 'array' })
                 if (array instanceof zarrita.Array) {
                   arrays.push(array as zarrita.Array<zarrita.Uint32>)
                   resolutions.push(dataset.path)
-
-                  // Extract scale factors from coordinateTransformations
-                  const transforms = dataset.coordinateTransformations
-                  if (transforms && transforms.length > 0 && transforms[0].type === 'scale') {
-                    scales.push(transforms[0].scale as number[])
-                  } else {
-                    scales.push([1.0, 1.0, 1.0]) // Default scale if not found
-                  }
+                  const baseShape = arrays[0].shape;
+                  const curShape = array.shape;
+                  scales.push(baseShape.map((dim, i) => curShape[i] > 0 ? dim / curShape[i] : 1.0));
                 }
-              } catch (error) {
-                console.warn(`⚠️ Failed to load Cellpose resolution at ${dataset.path}:`, error)
-              }
+              } catch {}
             }
-
-            console.log(`✅ Loaded ${arrays.length} Cellpose resolution levels:`, resolutions)
-            console.log(`   Scales:`, scales)
-            return {
-              arrays,
-              resolutions,
-              scales,
-              defaultArray: arrays[0] || null
-            }
+            return { arrays, resolutions, scales, defaultArray: arrays[0] || null }
           }
         }
-        // If it's already an array, just return it
-        if (cellposeGroup instanceof zarrita.Array) {
-          console.log('✅ Cellpose array found (direct array):', cellposeGroup)
-          const arr = cellposeGroup as zarrita.Array<zarrita.Uint32>
-          return {
-            arrays: [arr],
-            resolutions: ['0'],
-            scales: [[1.0, 1.0, 1.0]],
-            defaultArray: arr
-          }
-        }
-        // If not found, return empty
         return { arrays: [], resolutions: [], scales: [], defaultArray: null }
       } catch (error) {
-        console.log(`❌ No Cellpose data at ${cellposePath}:`, error)
         return { arrays: [], resolutions: [], scales: [], defaultArray: null }
       }
-    }, [state.store, state.onPropertiesFound]
+    }, [state.store, state.root]
   )
 
-
-  // Function to process a group and extract OME metadata
-  // to further predict the internal structure
-  const processGroup = useCallback(async (
-    grp: zarrita.Group<zarrita.FetchStore>
-  ) => {
-    console.log('📊 Group loaded:', grp)
-
-    // Use utility functions to determine the data type
-    const attrs = (grp.attrs?.ome ?? grp.attrs) as OMEAttrs
-    
-    // Check if this is a plate using utility function
-    if (omeUtils.isOmePlate(attrs) || omeUtils.isOmeWell(attrs)) {
-      console.log('🧪 Detected OME-Zarr plate/well structure')
-      setState(prev => ({
-        ...prev,
-        omeData: attrs,
-        isLoading: false,
-        error: null,
-        infoMessage: 'OME-Plate/OME-Well structure is not supported.',
-        hasLoadedArray: false,
-        suggestedPaths: [],
-        suggestionType: ZarrStoreSuggestionType.PLATE_WELL
-      }))
-      return
-    }
-    
-    // Check if this has multiscales using utility function
-    if (omeUtils.isOmeMultiscales(attrs)) {
-      console.log('📈 Detected OME-Zarr multiscales structure')
-      
-      // Extract available resolutions from multiscales
-      const multiscales = attrs.multiscales![0]
-      const availableResolutions = multiscales.datasets.map(dataset => dataset.path)
-      const axes = multiscales.axes?.map(axis => axis.name) || []
-      
-      // Extract available channels (if present in OMERO metadata)
-      let availableChannels: string[] = []
-      if (attrs.omero?.channels) {
-        availableChannels = attrs.omero.channels.map((ch, idx) => 
-          ch.label || `Channel ${idx + 1}`
-        )
-      }
-
-      // Load the lowest resolution array to get the shape and dtype
-      const lowestResArray = await zarrita.open(
-        grp.resolve(multiscales.datasets[0].path)
-      ) as zarrita.Array<zarrita.DataType>
-
-      const shape = axes.reduce((acc, axis) => {
-        acc[axis as AxisKey] = lowestResArray.shape[axes.indexOf(axis)]
-        return acc
-      }, {} as MultiscaleShape)
-
-      if (availableChannels.length === 0) {
-        for (let i = 0; i < shape.c!; i++) {
-          availableChannels.push(`Channel ${i + 1}`)
-        }
-      }
-
-      // Extract multiscale Information
-      const msInfo = {
-        shape,
-        dtype: lowestResArray.dtype,
-        resolutions: availableResolutions,
-        channels: availableChannels
-      } as IMultiscaleInfo;
-
-      setState(prev => ({
-        ...prev,
-        omeData: attrs,
-        msInfo: msInfo,
-        isLoading: false,
-        error: null,
-        infoMessage: null,
-        hasLoadedArray: true,
-        suggestedPaths: [],
-      }))
-
-      console.log('[ZarrStoreContext] ✅ Group processed successfully')
-      return
-    }
-
-    if (attrs && (!attrs.multiscales || attrs.multiscales.length === 0)) {
-      console.log('OME metadata found but no multiscales - suggesting subdirectories');
-      
-      const suggestedPaths: ZarrStoreSuggestedPath[] = [];
-      const commonPaths = ['0', '1', '2', '3', '4', '5', 'labels', 'metadata'];
-
-      for (const path of commonPaths) {
-        try {
-          const childOpened = await zarrita.open(grp.resolve(path));
-          if (childOpened.attrs) {
-            const hasOme = childOpened.attrs.ome || childOpened.attrs.multiscales;
-            suggestedPaths.push({
-              path,
-              isGroup: true,
-              hasOme: !!hasOme
-            });
-          } else {
-            suggestedPaths.push({
-              path,
-              isGroup: false,
-              hasOme: false
-            });
-          }
-        } catch {
-          // Path doesn't exist, skip
-        }
-      }
-
-      setState(prev => ({
-        ...prev,
-        omeData: attrs,
-        isLoading: false,
-        error: null,
-        infoMessage: 'No multiscale image found.',
-        suggestedPaths,
-        suggestionType: ZarrStoreSuggestionType.NO_MULTISCALE
-      }));
-      return;
-    }
-
-    // If none of the above match, this is not a supported OME-Zarr structure
-    throw new Error("No supported OME-Zarr structure found in metadata")
-  }, [])
-
-    // src/lib/contexts/ZarrStoreContext.tsx
-
-    const loadStore = useCallback(async (url: string) => {
-        setState(prev => ({
-          ...prev,
-          isLoading: true,
-          error: null,
-          infoMessage: null,
-          hasLoadedArray: false,
-          omeData: null,
-          msInfo: null,
-          cellposeArray: null,
-          cellposeArrays: [],
-          cellposeResolutions: [],
-          cellposeScales: []
-        }))
-
-        try {
-            console.log('Loading Zarr store from:', url)
-
-            const store = new zarrita.FetchStore(url)
-            const opened = await zarrita.open(store)
-
-            if (opened instanceof zarrita.Array) {
-                throw new Error("This appears to be an array, not a group. OME-Zarr requires group structure.")
-            }
-
-            // Scan for available directories
-            const suggestedPaths: ZarrStoreSuggestedPath[] = [];
-            const commonPaths = ['0', '1', '2', '3', '4', '5', 'labels', 'metadata'];
-
-            for (const path of commonPaths) {
-              try {
-                const childOpened = await zarrita.open(opened.resolve(path));
-                if (childOpened.attrs) {
-                  const hasOme = childOpened.attrs.ome || childOpened.attrs.multiscales;
-                  suggestedPaths.push({
-                    path,
-                    isGroup: childOpened instanceof zarrita.Group,
-                    hasOme: !!hasOme
-                  });
-                }
-              } catch {
-                // Path doesn't exist, skip
-              }
-            }
-
-            setState(prev => ({
-              ...prev,
-              store,
-              root: opened,
-              isLoading: false,
-              suggestedPaths,
-              suggestionType: ZarrStoreSuggestionType.NO_OME,
-              infoMessage: 'Store loaded. Please select the zarr array directory.'
-            }))
-
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-            console.error('Error loading Zarr store:', errorMessage)
-            setState(prev => ({
-              ...prev,
-              error: `Failed to load store: ${errorMessage}`,
-              isLoading: false,
-              suggestedPaths: []
-            }))
-        }
-    }, [])
-
-  const loadZarrArray = useCallback(async (zarrPath: string) => {
-    if (!state.store) {
-      console.error('No store available')
-      return
-    }
-
-    setState(prev => ({ ...prev, isLoading: true, error: null, infoMessage: null, zarrPath }))
-
-    try {
-      console.log(`Loading zarr array from path: ${zarrPath}`)
-
-      const rootGroup = zarrita.root(state.store)
-      const targetGroup = await zarrita.open(rootGroup.resolve(zarrPath))
-
-      if (targetGroup instanceof zarrita.Group) {
-        setState(prev => ({ ...prev, root: targetGroup }))
-        await processGroup(targetGroup)
-
-        // After loading zarr array successfully, scan for cellpose paths
-        const cellposeSuggestions: ZarrStoreSuggestedPath[] = [];
-        const cellposePaths = ['labels', 'labels/Cellpose', 'labels/cellpose', 'segmentation', 'masks'];
-
-        for (const path of cellposePaths) {
-          try {
-            const childOpened = await zarrita.open(rootGroup.resolve(path));
-            if (childOpened) {
-              cellposeSuggestions.push({
-                path,
-                isGroup: childOpened instanceof zarrita.Group,
-                hasOme: false
-              });
-            }
-          } catch {
-            // Path doesn't exist, skip
-          }
-        }
-
-        if (cellposeSuggestions.length > 0) {
-          setState(prev => ({
-            ...prev,
-            suggestedPaths: cellposeSuggestions,
-            infoMessage: 'Zarr array loaded. Please select the cellpose segmentation directory.'
-          }))
-        }
-      } else {
-        throw new Error("Selected path does not point to a group")
-      }
-    } catch (error) {
-      console.error(`Error loading zarr array from ${zarrPath}:`, error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setState(prev => ({
-        ...prev,
-        error: `Failed to load zarr array: ${errorMessage}`,
-        isLoading: false
-      }))
-    }
-  }, [state.store, processGroup])
-
+  // 2. LOADING LOGIC
   const loadCellposeData = useCallback(async (cellposePath: string) => {
-    if (!state.store) {
-      console.error('No store available')
-      return
-    }
-
-    setState(prev => ({
-      ...prev,
-      cellposePath,
-      isCellposeLoading: true,
-      cellposeError: null
-    }))
-
+    if (!state.store) return
+    setState(prev => ({ ...prev, cellposePath, isCellposeLoading: true }))
     try {
       const { arrays, resolutions, scales, defaultArray } = await detectCellposeArray(cellposePath)
-
       setState(prev => ({
         ...prev,
         cellposeArray: defaultArray,
@@ -471,289 +147,200 @@ export function ZarrStoreProvider({
         cellposeResolutions: resolutions,
         cellposeScales: scales,
         selectedCellposeOverlayResolution: 0,
-        selectedCellposeMeshResolution: Math.min(2, arrays.length - 1),
-        isCellposeLoading: false,
-        cellposeError: null
-      }))
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error loading Cellpose data'
-      console.error('❌ Error loading Cellpose data:', errorMessage)
-      setState(prev => ({
-        ...prev,
-        cellposeError: errorMessage,
-        cellposeArray: null,
-        cellposeArrays: [],
-        cellposeResolutions: [],
-        cellposeScales: [],
+        selectedCellposeMeshResolution: Math.min(3, arrays.length - 1),
         isCellposeLoading: false
       }))
+    } catch (error) {
+      setState(prev => ({ ...prev, isCellposeLoading: false }))
     }
   }, [state.store, detectCellposeArray])
 
-  // Refresh Cellpose data (re-load from current cellposePath)
-  const refreshCellposeData = useCallback(async () => {
-    if (!state.hasLoadedArray || !state.msInfo || !state.cellposePath) {
-      return
-    }
-    await loadCellposeData(state.cellposePath)
-  }, [state.hasLoadedArray, state.msInfo, state.cellposePath, loadCellposeData])
+  const setSelectedCellposePath = useCallback(async (path: string) => {
+    console.log(`🎯 Switching labels to: ${path}`);
+    setCellposePath(path);
+    await loadCellposeData(path);
+  }, [setCellposePath, loadCellposeData])
 
-  const navigateToSuggestion = useCallback(async (suggestionPath: string) => {
-    if (!state.store) {
-      console.error('No store available for navigation')
-      return
-    }
-
-    console.log(`Navigating to suggestion: ${suggestionPath}`)
-    
-    try {
-      // Navigate within the current store, not by changing the URL
-      const rootGroup = zarrita.root(state.store)
-      const targetGroup = await zarrita.open(rootGroup.resolve(suggestionPath))
+  const processGroup = useCallback(async (grp: zarrita.Group<zarrita.FetchStore>) => {
+    const attrs = (grp.attrs?.ome ?? grp.attrs) as OMEAttrs
+    if (omeUtils.isOmeMultiscales(attrs)) {
+      const multiscales = attrs.multiscales![0]
+      const availableResolutions = multiscales.datasets.map(dataset => dataset.path)
+      const axes = multiscales.axes?.map(axis => typeof axis === 'string' ? axis : axis.name) || []
+      const lowestResArray = await zarrita.open(grp.resolve(availableResolutions[0]), { kind: 'array' }) as zarrita.Array<zarrita.DataType>
       
-      if (targetGroup instanceof zarrita.Group) {
-        setState(prev => ({ ...prev, root: targetGroup }))
-        await processGroup(targetGroup)
+      const shape = axes.reduce((acc, axis) => {
+        acc[axis as AxisKey] = lowestResArray.shape[axes.indexOf(axis)]
+        return acc
+      }, {} as MultiscaleShape)
+
+      // Fallback for MRI: Default to 1 channel if 'c' is not in axes
+      if (!axes.includes('c')) shape.c = 1;
+
+      // Generate channel labels if omero metadata is missing
+      let availableChannels: string[] = [];
+      if (attrs.omero?.channels) {
+        availableChannels = attrs.omero.channels.map((ch: any, idx: number) => ch.label || `Channel ${idx + 1}`);
       } else {
-        throw new Error("Suggested path does not point to a group")
+        for (let i = 0; i < (shape.c || 1); i++) availableChannels.push(`Channel ${i + 1}`);
       }
-    } catch (error) {
-      console.error(`Error navigating to suggestion ${suggestionPath}:`, error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setState(prev => ({
-        ...prev,
-        error: `Failed to navigate to ${suggestionPath}: ${errorMessage}`,
-        isLoading: false
-      }))
+
+      const msInfo = { shape, dtype: lowestResArray.dtype, resolutions: availableResolutions, channels: availableChannels } as IMultiscaleInfo;
+      setState(prev => ({ ...prev, omeData: attrs, msInfo, hasLoadedArray: true }))
     }
-  }, [state.store, processGroup])
-
-  // Removed auto-load of Cellpose data - now requires manual selection
-
-  // Load everything from URL params in one go (avoids stale closure issues)
-  const loadFromUrlParams = useCallback(async (serverUrl: string, zarrPath: string, cellposePath: string) => {
-    try {
-      // Step 1: Load store
-      setState(prev => ({
-        ...prev,
-        isLoading: true,
-        error: null,
-        infoMessage: null,
-        hasLoadedArray: false,
-        omeData: null,
-        msInfo: null,
-        cellposeArray: null,
-        cellposeArrays: [],
-        cellposeResolutions: [],
-        cellposeScales: [],
-        isCellposeLoading: true,
-        cellposeError: null
-      }))
-
-      const store = new zarrita.FetchStore(serverUrl)
-      const opened = await zarrita.open(store)
-
-      if (opened instanceof zarrita.Array) {
-        throw new Error("This appears to be an array, not a group. OME-Zarr requires group structure.")
-      }
-
-      const rootGroup = zarrita.root(store)
-
-      // Step 2 & 3: Load zarr array and cellpose in parallel
-      const [zarrResult, cellposeResult] = await Promise.allSettled([
-        // Load zarr array
-        (async () => {
-          const targetGroup = await zarrita.open(rootGroup.resolve(zarrPath))
-
-          if (!(targetGroup instanceof zarrita.Group)) {
-            throw new Error("Selected path does not point to a group")
-          }
-
-          setState(prev => ({
-            ...prev,
-            store,
-            root: targetGroup,
-            zarrPath
-          }))
-
-          // Process the group (this sets msInfo and hasLoadedArray)
-          await processGroup(targetGroup)
-        })(),
-
-        // Load cellpose
-        (async () => {
-          const cellposeGroup = await zarrita.open(rootGroup.resolve(cellposePath))
-
-          if (!(cellposeGroup instanceof zarrita.Group)) {
-            throw new Error('Cellpose path is not a group')
-          }
-
-          const attrs = cellposeGroup.attrs as any
-          let properties: any[] | null = null
-
-          console.log('🔍 Checking for properties in cellpose group at path:', cellposePath)
-          console.log('🔍 cellposeGroup.attrs structure:', attrs)
-
-          if (attrs?.ome?.['image-label']?.properties) {
-            properties = attrs.ome['image-label'].properties
-            console.log('✅ Found', properties.length, 'properties in cellpose metadata')
-            console.log('   Properties will be stored in state for callback to retrieve')
-          } else {
-            console.warn('⚠️ No properties found at attrs.ome[\'image-label\'].properties')
-            console.warn('   Available paths:', Object.keys(attrs || {}))
-            if (attrs?.ome) {
-              console.warn('   attrs.ome keys:', Object.keys(attrs.ome))
-              if (attrs.ome?.['image-label']) {
-                console.warn('   attrs.ome[\'image-label\'] keys:', Object.keys(attrs.ome['image-label']))
-              }
-            }
-          }
-
-          // The metadata structure is: attrs.ome.multiscales[0]
-          const multiscalesAttr = attrs?.ome?.multiscales?.[0]
-
-          if (!multiscalesAttr?.datasets) {
-            throw new Error('No multiscales datasets found in cellpose group')
-          }
-
-          const datasets = multiscalesAttr.datasets
-          const arrays: zarrita.Array<zarrita.Uint32>[] = []
-          const resolutions: string[] = []
-          const scales: number[][] = []
-
-          for (const dataset of datasets) {
-            const resPath = dataset.path
-            const childArray = await zarrita.open(cellposeGroup.resolve(resPath), { kind: 'array' })
-
-            if (childArray instanceof zarrita.Array) {
-              arrays.push(childArray as zarrita.Array<zarrita.Uint32>)
-              resolutions.push(resPath)
-
-              const coordinateTransformations = dataset.coordinateTransformations || []
-              const scaleTransform = coordinateTransformations.find((t: any) => t.type === 'scale')
-              if (scaleTransform?.scale) {
-                scales.push(scaleTransform.scale)
-              } else {
-                scales.push([1, 1, 1])
-              }
-            }
-          }
-
-          const defaultArray = arrays.length > 0 ? arrays[0] : null
-
-          return { arrays, resolutions, scales, defaultArray, properties }
-        })()
-      ])
-
-      // Handle zarr result
-      if (zarrResult.status === 'rejected') {
-        throw new Error(`Failed to load zarr array: ${zarrResult.reason}`)
-      }
-
-      // Handle cellpose result
-      if (cellposeResult.status === 'fulfilled') {
-        const { arrays, resolutions, scales, defaultArray, properties } = cellposeResult.value
-        setState(prev => {
-          // Invoke callback immediately if it's registered and we have properties
-          if (properties && properties.length > 0 && prev.onPropertiesFound) {
-            console.log('✅ Invoking callback immediately after properties loaded:', properties.length, 'items')
-            try {
-              prev.onPropertiesFound(properties)
-            } catch (error) {
-              console.error('❌ Error invoking callback after properties loaded:', error)
-            }
-          }
-
-          return {
-            ...prev,
-            cellposeArray: defaultArray,
-            cellposeArrays: arrays,
-            cellposeResolutions: resolutions,
-            cellposeScales: scales,
-            cellposePath,
-            cellposeProperties: properties,
-            selectedCellposeOverlayResolution: 0,
-            selectedCellposeMeshResolution: Math.min(2, arrays.length - 1),
-            isCellposeLoading: false,
-            cellposeError: null,
-            isLoading: false
-          }
-        })
-      } else {
-        const errorMessage = cellposeResult.reason instanceof Error ? cellposeResult.reason.message : 'Unknown error loading Cellpose data'
-        setState(prev => ({
-          ...prev,
-          cellposeError: errorMessage,
-          cellposeArray: null,
-          cellposeArrays: [],
-          cellposeResolutions: [],
-          cellposeScales: [],
-          cellposePath,
-          isCellposeLoading: false,
-          isLoading: false
-        }))
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setState(prev => ({
-        ...prev,
-        error: `Failed to load: ${errorMessage}`,
-        isLoading: false,
-        isCellposeLoading: false
-      }))
-    }
-  }, [processGroup, state.onPropertiesFound])
-
-  // Function to change the selected Cellpose overlay resolution
-  const setSelectedCellposeOverlayResolution = useCallback((index: number) => {
-    setState(prev => {
-      if (index >= 0 && index < prev.cellposeArrays.length) {
-        console.log(`📊 Switching to Cellpose overlay resolution ${index}: ${prev.cellposeResolutions[index]}`)
-        return {
-          ...prev,
-          selectedCellposeOverlayResolution: index
-        }
-      }
-      console.warn(`❌ Invalid overlay resolution index: ${index} (available: 0-${prev.cellposeArrays.length - 1})`)
-      return prev
-    })
   }, [])
 
-  // Function to change the selected Cellpose mesh resolution
-  const setSelectedCellposeMeshResolution = useCallback((index: number) => {
-    setState(prev => {
-      if (index >= 0 && index < prev.cellposeArrays.length) {
-        console.log(`📊 Switching to Cellpose mesh resolution ${index}: ${prev.cellposeResolutions[index]}`)
-        return {
-          ...prev,
-          selectedCellposeMeshResolution: index
+  const loadFromUrlParams = useCallback(async (serverUrl: string, zarrPath: string, cellposePath: string) => {
+    try {
+      setState(prev => ({ ...prev, isLoading: true, isCellposeLoading: true }))
+      const store = new zarrita.FetchStore(serverUrl)
+      const rootGroup = zarrita.root(store)
+      const targetGroup = await zarrita.open(rootGroup.resolve(zarrPath), { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>
+      
+      // 1. Load Main Image
+      // Re-implement processGroup logic locally to ensure we have 'attrs' for state update
+      const attrs = (targetGroup.attrs?.ome ?? targetGroup.attrs) as OMEAttrs
+      if (!omeUtils.isOmeMultiscales(attrs)) throw new Error("No multiscales");
+
+      const multiscales = attrs.multiscales![0]
+      const availableResolutions = multiscales.datasets.map(dataset => dataset.path)
+      const axes = multiscales.axes?.map(axis => typeof axis === 'string' ? axis : axis.name) || []
+      const lowestResArray = await zarrita.open(targetGroup.resolve(availableResolutions[0]), { kind: 'array' }) as zarrita.Array<zarrita.DataType>
+      
+      const shape = axes.reduce((acc: any, axis: string) => {
+        acc[axis as AxisKey] = lowestResArray.shape[axes.indexOf(axis)]
+        return acc
+      }, {} as MultiscaleShape)
+
+      if (!axes.includes('c')) shape.c = 1;
+
+      let availableChannels: string[] = [];
+      if (attrs.omero?.channels) {
+        availableChannels = attrs.omero.channels.map((ch: any, idx: number) => ch.label || `Channel ${idx + 1}`);
+      } else {
+        for (let i = 0; i < (shape.c || 1); i++) availableChannels.push(`Channel ${i + 1}`);
+      }
+
+      const msInfo = { shape, dtype: lowestResArray.dtype, resolutions: availableResolutions, channels: availableChannels } as IMultiscaleInfo;
+
+      // 2. Discover Labels
+      const labelPaths: string[] = [];
+      const commonNames = ['Anatomy', 'Segments', 'Cellpose', 'Ducts'];
+      
+      for (const name of commonNames) {
+        // Try resolving from targetGroup (e.g. root/labels/Anatomy)
+        try {
+          const testLoc = targetGroup.resolve(`labels/${name}`);
+          const node = await zarrita.open(testLoc, { kind: 'group' });
+          if (node) {
+             labelPaths.push(`labels/${name}`);
+             continue; 
+          }
+        } catch {}
+
+        // Try resolving from parent (e.g. root/0 -> ../labels/Anatomy)
+        try {
+          const testLoc = targetGroup.resolve(`../labels/${name}`);
+          const node = await zarrita.open(testLoc, { kind: 'group' });
+          if (node) labelPaths.push(`../labels/${name}`);
+        } catch {}
+      }
+
+      // Default if nothing found (to populate UI)
+      if (labelPaths.length === 0) {
+          labelPaths.push('../labels/Anatomy');
+          labelPaths.push('../labels/Segments');
+      }
+
+      const activeLabelPath = labelPaths.includes(cellposePath) ? cellposePath : 
+                              labelPaths.includes(`../${cellposePath}`) ? `../${cellposePath}` :
+                              labelPaths[0];
+
+      // 3. Load Labels
+      let labelData: any = { arrays: [], resolutions: [], scales: [], defaultArray: null, properties: null };
+      
+      if (activeLabelPath) {
+        try {
+          const cellposeGroup = await zarrita.open(targetGroup.resolve(activeLabelPath), { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
+          const rawAttrs = cellposeGroup.attrs as any;
+          let lAttrs: any = rawAttrs?.multiscales ? rawAttrs : (rawAttrs?.ome || rawAttrs?.attributes || rawAttrs);
+          
+          if (lAttrs?.['image-label']?.properties) {
+            labelData.properties = lAttrs['image-label'].properties;
+          }
+
+          const multiscalesAttr = lAttrs?.multiscales?.[0];
+          if (multiscalesAttr?.datasets) {
+            for (const dataset of multiscalesAttr.datasets) {
+              try {
+                const arr = await zarrita.open(cellposeGroup.resolve(dataset.path), { kind: 'array' }) as zarrita.Array<zarrita.Uint32>;
+                if (arr instanceof zarrita.Array) {
+                  labelData.arrays.push(arr);
+                  labelData.resolutions.push(dataset.path);
+                  const base = labelData.arrays[0].shape;
+                  const cur = arr.shape;
+                  labelData.scales.push(base.map((d, i) => cur[i] > 0 ? d / cur[i] : 1.0));
+                }
+              } catch {}
+            }
+            labelData.defaultArray = labelData.arrays[0] || null;
+          }
+        } catch (e) {
+            console.warn('Failed to load initial label set:', e);
         }
       }
-      console.warn(`❌ Invalid mesh resolution index: ${index} (available: 0-${prev.cellposeArrays.length - 1})`)
-      return prev
-    })
+
+      // 4. Update State
+      setState(prev => {
+        if (labelData.properties && prev.onPropertiesFound) {
+          try { prev.onPropertiesFound(labelData.properties) } catch {}
+        }
+        return {
+          ...prev,
+          store, root: targetGroup, zarrPath,
+          omeData: attrs,
+          msInfo,
+          hasLoadedArray: true,
+          availableCellposePaths: labelPaths,
+          cellposePath: activeLabelPath,
+          cellposeArray: labelData.defaultArray,
+          cellposeArrays: labelData.arrays,
+          cellposeResolutions: labelData.resolutions,
+          cellposeScales: labelData.scales,
+          cellposeProperties: labelData.properties,
+          selectedCellposeOverlayResolution: 0,
+          selectedCellposeMeshResolution: Math.min(3, labelData.arrays.length - 1),
+          isCellposeLoading: false,
+          isLoading: false
+        };
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      setState(prev => ({ ...prev, error: `Failed to load: ${errorMessage}`, isLoading: false, isCellposeLoading: false }))
+    }
+  }, [detectCellposeArray])
+
+  // 3. MISC
+  const setPropertiesCallback = useCallback((callback: (properties: any[]) => void) => {
+    setState(prev => ({ ...prev, onPropertiesFound: callback }))
+  }, [])
+
+  const setSelectedCellposeOverlayResolution = useCallback((index: number) => {
+    setState(prev => ({ ...prev, selectedCellposeOverlayResolution: index }))
+  }, [])
+
+  const setSelectedCellposeMeshResolution = useCallback((index: number) => {
+    setState(prev => ({ ...prev, selectedCellposeMeshResolution: index }))
   }, [])
 
   const value: ZarrStoreContextType = {
     ...state,
-    loadStore,
-    setSource,
-    setZarrPath,
-    setCellposePath,
-    loadZarrArray,
-    loadCellposeData,
-    loadFromUrlParams,
-    navigateToSuggestion,
-    refreshCellposeData,
-    setPropertiesCallback,
-    setSelectedCellposeOverlayResolution,
-    setSelectedCellposeMeshResolution
+    setSource, setZarrPath, setCellposePath, setSelectedCellposePath,
+    loadCellposeData, loadFromUrlParams, setPropertiesCallback,
+    setSelectedCellposeOverlayResolution, setSelectedCellposeMeshResolution,
+    loadStore: async () => {}, loadZarrArray: async () => {}, navigateToSuggestion: async () => {}, refreshCellposeData: async () => {}
   }
 
-  return (
-    <ZarrStoreContext.Provider value={value}>
-      {children}
-    </ZarrStoreContext.Provider>
-  )
+  return <ZarrStoreContext.Provider value={value}>{children}</ZarrStoreContext.Provider>
 }
