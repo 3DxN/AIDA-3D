@@ -40,75 +40,26 @@ export function getDefaultChannelMap(availableChannels: string[]): ChannelMappin
 // Centralized navigation state initialization
 
 export function getInitialNavigationState(msInfo: IMultiscaleInfo): NavigationState {
-
     const dtype = msInfo.dtype;
-
     const maxIntensity = getDefaultMaxContrastLimit(dtype);
-
     const channelCount = msInfo.channels.length;
-
     const isGrayscale = channelCount < 2;
 
-
-
-        return {
-
-
-
-            xOffset: 0,
-
-
-
-            yOffset: 0,
-
-
-
-            zSlice: msInfo.shape.z ? Math.floor(msInfo.shape.z / 2) : 0,
-
-
-
-            timeSlice: 0,
-
-
-
-            // MRI Contrast: [0, 1500] makes the brain visible. [0, 65535] makes it black.
-
-
-
-            contrastLimits: [[0, 1500], [50, 300]], 
-
-
-
-            channelMap: getDefaultChannelMap(msInfo.channels),
-
-
-
-            cellposeOverlayOn: true,
-
-
-
-    
-
-                histogramEqualizationOn: false,
-
-                
-
-                // FORCE DISABLE H&E for MRI stability
-
-                heStainingOn: false,  
-
-                
-
-                // Beer-Lambert H&E staining parameters
-
-        
-
+    return {
+        xOffset: 0,
+        yOffset: 0,
+        zSlice: msInfo.shape.z ? Math.floor(msInfo.shape.z / 2) : 0,
+        timeSlice: 0,
+        // MRI Contrast: [0, 1500] makes the brain visible. [0, 65535] makes it black.
+        contrastLimits: isGrayscale ? [[0, 1500], [50, 300]] : [[300, 1000], [50, 300]], 
+        channelMap: getDefaultChannelMap(msInfo.channels),
+        cellposeOverlayOn: true,
+        histogramEqualizationOn: false,
+        // FORCE DISABLE H&E for MRI stability
+        heStainingOn: !isGrayscale,  
+        // Beer-Lambert H&E staining parameters
         heStainHematoxylinWeight: 2.56,
-
         heStainEosinWeight: 0.1,
-
         heStainMaxIntensity: maxIntensity
-
     }
-
 }

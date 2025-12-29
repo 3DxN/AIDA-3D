@@ -10,7 +10,6 @@ import {
 import { ColorPaletteExtension } from '@vivjs/extensions'
 
 import ZarrPixelSource from '../ext/ZarrPixelSource'
-import MockPixelSource from '../ext/MockPixelSource' // Import Mock
 import { FrameView, FRAME_VIEW_ID } from '../../components/viewer2D/zarr/map/FrameView'
 import { useResizeObserver } from './useResizeObserver'
 import { useViewer2DData } from '../contexts/Viewer2DDataContext'
@@ -36,7 +35,7 @@ export default function useVivViewer(
     const { setVivViewState } = useViewer2DData();
 
     // Core state
-    const [vivLoaders, setVivLoaders] = useState<any[]>([])
+    const [vivLoaders, setVivLoaders] = useState<ZarrPixelSource[]>([])
     const [containerDimensions, setContainerDimensions] = useState({ width: 800, height: 600 })
     const [detailViewDrag, setDetailViewDrag] = useState<VivDetailViewState>({
         isDragging: false,
@@ -69,17 +68,15 @@ export default function useVivViewer(
                 return
             }
 
-            // DIAGNOSTIC: Inject Mock Loader if real data fails to render
-            // setVivLoaders([new MockPixelSource()]); 
-            // Uncomment the line above to test with noise pattern
-            // return; // STOP HERE so we don't load real data
-            
             const allLoaders: ZarrPixelSource[] = []
 
             for (const resolutionPath of msInfo.resolutions) {
                 try {
-                    const resolutionArray =
-                        await zarrita.open(root.resolve(resolutionPath)) as zarrita.Array<typeof msInfo.dtype>
+                    const location = root.resolve(resolutionPath);
+                    console.log(`📦 Loading resolution [${resolutionPath}]...`);
+                    
+                    const resolutionArray = await zarrita.open(location) as zarrita.Array<typeof msInfo.dtype>;
+
                     const loader = new ZarrPixelSource(resolutionArray, {
                         labels: ['t', 'c', 'z', 'y', 'x'].filter(
                             key => Object.keys(msInfo.shape).includes(key)
@@ -88,7 +85,7 @@ export default function useVivViewer(
                     })
                     allLoaders.push(loader)
                 } catch (error) {
-                    console.error(`Failed to load resolution at ${resolutionPath}:`, error)
+                    console.warn(`⚠️ Skipping resolution [${resolutionPath}]:`, error);
                 }
             }
             setVivLoaders(allLoaders)
@@ -128,9 +125,6 @@ export default function useVivViewer(
     }, [navigationState, msInfo.shape])
 
     // Generate colors based on channel map
-    // IMPORTANT: These colors are ONLY used by ColorPaletteExtension when H&E staining is disabled.
-    // When H&E is enabled, HEStainExtension computes colors via Beer-Lambert law in the shader
-    // and completely overrides these values.
     const colors = useMemo(() => {
         // Default color palette: Force White for MRI
         const defaultColors = [
@@ -159,25 +153,20 @@ export default function useVivViewer(
                     return [255, 255, 255];
                 }
 
-                // When H&E is enabled: Set placeholder colors (unused, shader handles rendering)
-                // When H&E is disabled: Set actual rendering colors for false-color display
                 if (role === 'nucleus') {
-                    // Nucleus: blue (false-color) or hematoxylin blue-purple (H&E placeholder)
                     return heStainingEnabled
-                        ? toRGB(HE_STAIN_COLORS.hematoxylin)  // Placeholder, not actually used
-                        : [0, 0, 255]  // Blue for false-color rendering
+                        ? toRGB(HE_STAIN_COLORS.hematoxylin)
+                        : [0, 0, 255]
                 } else if (role === 'cytoplasm') {
-                    // Cytoplasm: green (false-color) or eosin pink-red (H&E placeholder)
                     return heStainingEnabled
-                        ? toRGB(HE_STAIN_COLORS.eosin)  // Placeholder, not actually used
-                        : [0, 255, 0]  // Green for false-color rendering
+                        ? toRGB(HE_STAIN_COLORS.eosin)
+                        : [0, 255, 0]
                 }
 
-                // Fallback for unrecognized roles
                 return defaultColors[roleIndex % defaultColors.length]
             })
 
-        console.log(`🎨 Colors (${heStainingEnabled ? 'H&E shader mode - unused placeholders' : 'false-color mode'}):`, roleColors)
+        console.log(`🎨 Colors (${heStainingEnabled ? 'H&E shader mode' : 'false-color mode'}):`, roleColors)
         return roleColors.length > 0 ? roleColors : [defaultColors[0]]
     }, [navigationState.channelMap, navigationState.heStainingOn])
 
@@ -198,16 +187,14 @@ export default function useVivViewer(
         const detailView = new DetailView({
             id: DETAIL_VIEW_ID,
             height: containerDimensions.height,
-            width: containerDimensions.width,
-            clear: true // Clear buffer
+            width: containerDimensions.width
         })
 
         const overviewView = new OverviewView({
             id: OVERVIEW_VIEW_ID,
             loader: vivLoaders,
             detailHeight: containerDimensions.height,
-            detailWidth: containerDimensions.width,
-            backgroundColor: [0, 0, 0] // Black
+            detailWidth: containerDimensions.width
         })
 
         const frameView = new FrameView({
@@ -248,36 +235,19 @@ export default function useVivViewer(
         const useFalseColor = shouldUseHEStaining(navigationState.channelMap)
         const renderingMode = getRenderingMode(navigationState.channelMap)
 
-        // Get max value for dtype to use for full-range contrast limits
-        const getMaxValueForDtype = (dtype: string): number => {
-            switch (dtype) {
-                case 'uint8': return 255;
-                case 'uint16': return 65535;
-                case 'uint32': return 4294967295;
-                case 'float32':
-                case 'float64': return 1000.0;
-                default: return 65535;
-            }
-        };
-
-        const maxValue = getMaxValueForDtype(msInfo.dtype);
-
-        // Create contrast limits array with one entry per selected channel, in role order
+        // Create contrast limits array
         const contrastLimits = Object.entries(navigationState.channelMap)
             .filter(entry => entry[1] !== null)
             .map(([role, channelIndex], roleIndex) => {
-                // FORCE MRI CONTRAST: [0, 1500]
-                // This ensures we see the brain, regardless of what the slider says.
-                return [0, 1500] as [number, number];
+                const limits = navigationState.contrastLimits[roleIndex] ?? [0, 255]
+                return [limits[0], limits[1]] as [number, number]
             })
 
-        // All selected channels are visible (we only render them because selections filters)
         const channelsVisible = Array.from(
             { length: Object.values(navigationState.channelMap).filter(c => c !== null).length },
             () => true
         )
 
-        // Setup extensions: always include ColorPaletteExtension, optionally add H&E extension
         const extensions = [new ColorPaletteExtension()]
         if (navigationState.heStainingOn && useFalseColor) {
             extensions.push(new HEStainExtension())
@@ -290,14 +260,12 @@ export default function useVivViewer(
             contrastLimits,
             channelsVisible,
             extensions,
-            // Add H&E props as layer props when enabled
             ...(navigationState.heStainingOn && useFalseColor ? {
                 heStainHematoxylinWeight: navigationState.heStainHematoxylinWeight,
                 heStainEosinWeight: navigationState.heStainEosinWeight,
                 heStainMaxIntensity: navigationState.heStainMaxIntensity,
                 heStainEnabled: true
             } : {}),
-            // False-color rendering metadata for use by overlay components
             falseColorMode: {
                 enabled: useFalseColor,
                 renderingMode: renderingMode,
@@ -306,32 +274,13 @@ export default function useVivViewer(
             }
         }
 
-        // Debug: Log what's actually being sent to Viv
-        console.log('📊 VIV LAYER PROPS:', {
-            numLoaders: vivLoaders.length,
-            numSelections: selections.length,
-            colors: colors,
-            selections: selections,
-            contrastLimits: contrastLimits,
-            channelsVisible: channelsVisible,
-            numExtensions: extensions.length,
-            heStainEnabled: navigationState.heStainingOn && useFalseColor,
-            heStainParams: (navigationState.heStainingOn && useFalseColor) ? {
-                hematoxylinWeight: navigationState.heStainHematoxylinWeight,
-                eosinWeight: navigationState.heStainEosinWeight,
-                maxIntensity: navigationState.heStainMaxIntensity
-            } : null
-        })
-
-        // Return layer props for each view in the same order as views array
         return views.map((view) => {
             if (view.id === FRAME_VIEW_ID) {
-                // Frame view gets the overlay layers
                 return { ...baseProps, frameOverlayLayers }
             }
             return baseProps
         })
-    }, [vivLoaders, views, selections, colors, navigationState.channelMap, navigationState.contrastLimits, msInfo.shape.c, msInfo.dtype])
+    }, [vivLoaders, views, selections, colors, navigationState.channelMap, navigationState.contrastLimits, msInfo.shape.c, navigationState.heStainingOn, navigationState.heStainHematoxylinWeight, navigationState.heStainEosinWeight, navigationState.heStainMaxIntensity])
 
     // Generate default layer props (for initial render)
     const layerProps = useMemo(() => createLayerProps([]), [createLayerProps])
@@ -343,11 +292,8 @@ export default function useVivViewer(
         oldViewState: VivViewState
     }) => {
         if (viewId === DETAIL_VIEW_ID) {
-            // Always update the ref to track current state
             detailViewStateRef.current = viewState
             setVivViewState(viewState);
-
-            // Only update controlled state if we're not manually panning to avoid feedback loop
             if (!isManuallyPanning) {
                 setControlledDetailViewState(viewState)
             }

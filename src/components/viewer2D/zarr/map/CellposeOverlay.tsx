@@ -33,9 +33,17 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
 
         if (navigationState.cellposeOverlayOn && frameBoundCellposeData && !isDataLoading) {
             const { data, shape } = frameBoundCellposeData;
+            if (!shape || shape.length < 2) return;
+
             const height = shape[0];
             const width = shape[1];
             if (width <= 0 || height <= 0) return;
+
+            // SAFETY CHECK: Ensure fetch data matches dimensions
+            if (data.length !== width * height) {
+                console.error(`🎨 [2D Overlay] Buffer mismatch! Expected ${width * height}, got ${data.length}`);
+                return;
+            }
 
             // Simple Screen Projection
             const { target, zoom } = viewState;
@@ -53,14 +61,6 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
             const [screenX, screenY] = toScreen(frameWorldX, frameWorldY);
             const screenWidth = frameSize[0] * scale;
             const screenHeight = frameSize[1] * scale;
-
-            // SAFETY CHECK: Ensure fetch data matches dimensions
-            if (data.length !== width * height) {
-                console.warn(`🎨 [2D Overlay] Buffer mismatch! Expected ${width * height}, got ${data.length}. Skipping frame.`);
-                return;
-            }
-
-            console.log(`🎨 [2D Overlay] Drawing set: ${width}x${height} at screen [${Math.round(screenX)}, ${Math.round(screenY)}]`);
 
             const imageData = new Uint8ClampedArray(width * height * 4);
             for (let i = 0; i < data.length; i++) {
@@ -85,7 +85,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 ctx.drawImage(bitmap, screenX, screenY, screenWidth, screenHeight);
             });
         }
-    }, [navigationState.cellposeOverlayOn, frameBoundCellposeData, viewState, containerSize, selectedNucleiIndices, getNucleusColor, isDataLoading, cellposeScales, selectedCellposeOverlayResolution]);
+    }, [navigationState.cellposeOverlayOn, frameBoundCellposeData, viewState, containerSize, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor, isDataLoading, cellposeScales, selectedCellposeOverlayResolution]);
 
     return (
         <canvas ref={canvasRef} width={containerSize.width} height={containerSize.height}

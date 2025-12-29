@@ -14,6 +14,8 @@ import ContrastLimitsSelector from './ContrastLimitsSelector'
 import CellposeOverlayResolutionSelector from './CellposeOverlayResolutionSelector'
 import CellposeMeshResolutionSelector from './CellposeMeshResolutionSelector'
 import LabelPathSelector from './LabelPathSelector'
+import FileExplorer from './FileExplorer'
+import ServerConnection from './ServerConnection'
 
 
 function classNames(...classes: (string | boolean | undefined)[]) {
@@ -21,24 +23,12 @@ function classNames(...classes: (string | boolean | undefined)[]) {
     return classes.filter(Boolean).join(' ')
 }
 
-export default function NavigationControls({ onToggle }: { onToggle?: (open: boolean) => void }) {
-    // Get all data from contexts instead of props
-    const { msInfo } = useZarrStore()
-    const {
-        navigationState,
-        setNavigationState,
-        frameCenter,
-        frameSize,
-        frameZLayersAbove,
-        frameZLayersBelow,
-        setFrameCenter,
-        setFrameSize,
-        setFrameZLayersAbove,
-        setFrameZLayersBelow,
-        getFrameBounds
-    } = useViewer2DData()
+export default function NavigationControls({ onToggle }: NavigationControlsProps) {
+    const { msInfo, hasLoadedArray } = useZarrStore()
+    const { navigationState, setNavigationState, frameCenter, setFrameCenter, frameSize, setFrameSize, frameZLayersAbove, setFrameZLayersAbove, frameZLayersBelow, setFrameZLayersBelow } = useViewer2DData()
 
-    const [isCollapsed, setIsCollapsed] = useState(true)
+    // Start OPEN if no array is loaded yet (so user sees the explorer)
+    const [isCollapsed, setIsCollapsed] = useState(hasLoadedArray)
 
     // Temporary state for frame parameters during slider dragging (to avoid cellpose context updates)
     const [tempFrameZLayersAbove, setTempFrameZLayersAbove] = useState<number | null>(null)
@@ -51,42 +41,44 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         onToggle?.(newState)
     }
 
-    if (!msInfo || !navigationState) {
+    if (!navigationState && msInfo) {
+        // Only return null if we expect a state but don't have it
         return null
     }
 
-    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn, histogramEqualizationOn, heStainingOn, heStainHematoxylinWeight, heStainEosinWeight, heStainMaxIntensity } = navigationState
+    const { zSlice, timeSlice, channelMap, contrastLimits, cellposeOverlayOn, histogramEqualizationOn, heStainingOn, heStainHematoxylinWeight, heStainEosinWeight, heStainMaxIntensity } = navigationState || {}
 
     // Calculate navigation limits from msInfo
-    const maxZSlice = msInfo.shape.z ? msInfo.shape.z - 1 : 0
-    const maxTimeSlice = msInfo.shape.t ? msInfo.shape.t - 1 : 0
-    const maxContrastLimit = msInfo.dtype === 'uint8' ? 255 : msInfo.dtype === 'uint16' ? 65535 : 1024
+    const maxZSlice = msInfo?.shape.z ? msInfo.shape.z - 1 : 0
+    const maxTimeSlice = msInfo?.shape.t ? msInfo.shape.t - 1 : 0
+    const maxContrastLimit = msInfo?.dtype === 'uint8' ? 255 : msInfo?.dtype === 'uint16' ? 65535 : 1024
 
     // Create navigation handlers that update context state
     const navigationHandlers = {
-        onZSliceChange: (value: number) => setNavigationState({ ...navigationState, zSlice: value }),
-        onTimeSliceChange: (value: number) => setNavigationState({ ...navigationState, timeSlice: value }),
-        onChannelChange: (role: keyof typeof channelMap, value: number | null) => setNavigationState({
+        onZSliceChange: (value: number) => navigationState && setNavigationState({ ...navigationState, zSlice: value }),
+        onTimeSliceChange: (value: number) => navigationState && setNavigationState({ ...navigationState, timeSlice: value }),
+        onChannelChange: (role: keyof typeof channelMap, value: number | null) => navigationState && setNavigationState({
             ...navigationState,
             channelMap: { ...navigationState.channelMap, [role]: value }
         }),
-        onContrastLimitsChange: (limits: [number | null, number | null]) => setNavigationState({
+        onContrastLimitsChange: (limits: [number | null, number | null]) => navigationState && setNavigationState({
             ...navigationState,
             contrastLimits: limits
         }),
-        onCellposeOverlayToggle: (newState: boolean) => setNavigationState({
+        onCellposeOverlayToggle: (newState: boolean) => navigationState && setNavigationState({
             ...navigationState,
             cellposeOverlayOn: newState
         }),
-        onHistogramEqualizationToggle: (newState: boolean) => setNavigationState({
+        onHistogramEqualizationToggle: (newState: boolean) => navigationState && setNavigationState({
             ...navigationState,
             histogramEqualizationOn: newState
         }),
-        onHEStainingToggle: (newState: boolean) => setNavigationState({
+        onHEStainingToggle: (newState: boolean) => navigationState && setNavigationState({
             ...navigationState,
             heStainingOn: newState
         }),
         onHEStainParamChange: (param: 'hematoxylinWeight' | 'eosinWeight' | 'maxIntensity', value: number) => {
+            if (!navigationState) return;
             const stateKey = param === 'hematoxylinWeight' ? 'heStainHematoxylinWeight' :
                              param === 'eosinWeight' ? 'heStainEosinWeight' :
                              'heStainMaxIntensity'
@@ -123,7 +115,11 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                     </button>
 
                     {/* Navigation Content */}
+                    <ServerConnection />
+                    <FileExplorer />
+                    
                     {/* Segmentation Section */}
+                    {hasLoadedArray && (
                     <Disclosure className="shadow-sm" as="div">
                         {({ open }) => (
                             <>
@@ -160,8 +156,10 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                             </>
                         )}
                     </Disclosure>
+                    )}
 
                     {/* Channel Selection Section */}
+                    {hasLoadedArray && msInfo && (
                     <Disclosure className="shadow-sm" as="div">
                         {({ open }) => (
                             <>
@@ -194,8 +192,10 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                             </>
                         )}
                     </Disclosure>
+                    )}
 
                     {/* Contrast Limits Section */}
+                    {hasLoadedArray && (
                     <Disclosure className="shadow-sm" as="div">
                         {({ open }) => (
                             <>
@@ -298,8 +298,10 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                             </>
                         )}
                     </Disclosure>
+                    )}
 
                     {/* Frame Section */}
+                    {hasLoadedArray && (
                     <Disclosure className="shadow-sm" as="div">
                         {({ open }) => (
                             <>
@@ -368,8 +370,10 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                             </>
                         )}
                     </Disclosure>
+                    )}
 
                     {/* Navigation Section */}
+                    {hasLoadedArray && msInfo && (
                     <Disclosure className="shadow-sm" as="div">
                         {({ open }) => (
                             <>
@@ -446,6 +450,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                             </>
                         )}
                     </Disclosure>
+                    )}
                 </div>
             )}
         </>

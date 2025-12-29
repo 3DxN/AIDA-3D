@@ -27,7 +27,8 @@
       "Bash(reg query:*)",
       "Bash(nslookup:*)",
       "Read(//c/Windows/System32/drivers/etc/**)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git -C \"D:\\\\AIDA\\\\AIDA-3D\" diff HEAD~5 HEAD -- \"src/lib/ext/ZarrPixelSource.ts\")"
     ],
     "deny": [],
     "ask": []

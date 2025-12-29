@@ -107,6 +107,18 @@ export interface ZarrStoreState {
    */
   cellposePath: string
   /**
+   * HTTP server root URL for label access (e.g., 'http://141.147.64.20:5500')
+   */
+  labelServerRoot: string
+  /**
+   * Available label paths discovered on the server
+   */
+  availableCellposePaths: string[]
+  /**
+   * Custom label paths added by the user
+   */
+  userLabelPaths: string[]
+  /**
    * Whether the user has successfully loaded a multiscales image array
    * And to initialise the display of the viewer if so.
    */
@@ -140,6 +152,9 @@ export interface ZarrStoreContextType extends ZarrStoreState {
   setSource: (url: string) => void
   setZarrPath: (path: string) => void
   setCellposePath: (path: string) => void
+  addUserLabelPath: (path: string) => void
+  removeUserLabelPath: (index: number) => void
+  fetchDirectoryListing: (path: string) => Promise<string[]>
   loadZarrArray: (zarrPath: string) => Promise<void>
   loadCellposeData: (cellposePath: string) => Promise<void>
   loadFromUrlParams: (serverUrl: string, zarrPath: string, cellposePath: string) => Promise<void>

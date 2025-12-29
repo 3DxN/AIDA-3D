@@ -15,10 +15,11 @@ type VivPixelData = {
 };
 
 /*
- * Alternate ZarrPixelSource implementation for Viv
- * Fixes the "unsupported dtype" errors
- * Source: https://github.com/hms-dbmi/vizarr/blob/main/src/ZarrPixelSource.ts
+ * Standard ZarrPixelSource for AIDA-3D
+ * Version: 1.2.5 - Strict WebGL Padding
  */
+console.log("💎 Renderer v1.2.5 (Strict WebGL Alignment) Online");
+
 export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
   readonly labels: viv.Properties<Array<string>>;
   readonly tileSize: number;
@@ -47,15 +48,7 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
     this.#arr = arr;
     this.labels = options.labels;
     this.tileSize = options.tileSize;
-    /**
-     * Some `zarrita` data types are not supported by Viv and require casting.
-     *
-     * Note how the casted type in the transform function is type-cast to `zarr.TypedArray<typeof arr.dtype>`.
-     * This ensures that the function body is correct based on whatever type narrowing we do in the if/else
-     * blocks based on dtype.
-     *
-     * TODO: Maybe we should add a console warning?
-     */
+    
     if (arr.dtype === "uint64" || arr.dtype === "int64") {
       this.dtype = "Uint32";
       this.#transform = (x) => Uint32Array.from(x as zarr.TypedArray<typeof arr.dtype>, (bint) => Number(bint));
@@ -96,7 +89,6 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
       }),
       signal,
     });
-    // FIX: Viv/DeckGL crashes on Int8Array. Cast to Uint8Array.
     if (pixelData.data instanceof Int8Array) {
         return { ...pixelData, data: new Uint8Array(pixelData.data.buffer) };
     }
@@ -126,7 +118,6 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
       }),
       signal,
     });
-    // FIX: Viv/DeckGL crashes on Int8Array. Cast to Uint8Array.
     if (pixelData.data instanceof Int8Array) {
         return { ...pixelData, data: new Uint8Array(pixelData.data.buffer) };
     }
@@ -137,68 +128,73 @@ export default class ZarrPixelSource implements viv.PixelSource<Array<string>> {
     const { promise, resolve, reject } = Promise.withResolvers<VivPixelData>();
     this.#pending.push({ request, resolve, reject });
 
-    // If there's no pending animation frame scheduled, start a new batch
     if (this.#pendingId === undefined) {
-      // Cancel any previous batch that might still be running
       if (this.#pendingAbortController) {
         this.#pendingAbortController.abort();
       }
-      // Create a new AbortController for this batch
       this.#pendingAbortController = new AbortController();
       this.#pendingId = requestAnimationFrame(() => this.#fetchPending());
     }
 
-    // @ts-expect-error - The missing generic ArrayBuffer type from Viv makes VivPixelData and viv.PixelData incompatible, even though they are.
     return promise;
   }
 
-  /**
-   * Fetch a pending batch of requests together and resolve independently.
-   *
-   * TODO: There could be more optimizations (e.g., multi-get)
-   */
   async #fetchPending() {
-    // Capture the current batch's AbortController
     const batchAbortController = this.#pendingAbortController;
     const batchSignal = batchAbortController?.signal;
 
-    // Process all pending requests
-    for (const { request, resolve, reject } of this.#pending) {
-      // Merge the batch abort signal with any user-provided signal
-      const signal = request.signal
-        ? this.#mergeAbortSignals([batchSignal, request.signal])
-        : batchSignal;
-
-      zarr
-        .get(this.#arr, request.selection, { opts: { signal } })
-        .then(({ data, shape }) => {
-          const transformedData = this.#transform(data);
-
-          resolve({
-            data: transformedData,
-            width: shape[1],
-            height: shape[0],
-          });
-        })
-        .catch((error) => {
-          // Don't reject with AbortError - it's expected when requests are cancelled
-          if (error instanceof Error && error.name === 'AbortError') {
-            // Silently ignore cancelled requests
-            return;
-          }
-          reject(error);
-        });
-    }
-
-    // Clear batch state
+    const currentPending = [...this.#pending];
     this.#pendingId = undefined;
     this.#pending = [];
+
+    for (let i = 0; i < currentPending.length; i++) {
+      const item = currentPending[i];
+      const signal = item.request.signal
+        ? this.#mergeAbortSignals([batchSignal, item.request.signal])
+        : batchSignal;
+
+      zarr.get(this.#arr, item.request.selection, { opts: { signal } })
+        .then((result) => {
+          // 🛡️ ISSUE 2: Explicit variable capture to handle stale browser cache
+          const rawData = result.data;
+          const rawShape = result.shape;
+          const transformed = this.#transform(rawData);
+          
+          const actualWidth = rawShape.length > 1 ? rawShape[1] : (rawShape.length > 0 ? rawShape[0] : 0);
+          const actualHeight = rawShape.length > 0 ? rawShape[0] : 0;
+          
+          // 🛡️ ISSUE 3: Pad to tileSize x tileSize for WebGL compatibility
+          const expectedLength = this.tileSize * this.tileSize;
+          let finalBuffer: any = transformed;
+
+          if (finalBuffer.length !== expectedLength) {
+              const padded = new (finalBuffer.constructor as any)(expectedLength);
+              // Copy row by row to maintain alignment if width < tileSize
+              if (actualWidth > 0 && actualHeight > 0) {
+                  for (let row = 0; row < actualHeight; row++) {
+                      const srcOffset = row * actualWidth;
+                      const dstOffset = row * this.tileSize;
+                      padded.set(finalBuffer.slice(srcOffset, srcOffset + actualWidth), dstOffset);
+                  }
+              }
+              finalBuffer = padded;
+          }
+
+          // Deck.gl Texture Safety
+          if (finalBuffer instanceof Int8Array) {
+              finalBuffer = new Uint8Array(finalBuffer.buffer);
+          }
+
+          // Always return tileSize dimensions to Deck.gl
+          item.resolve({ data: finalBuffer, width: this.tileSize, height: this.tileSize });
+        })
+        .catch((err) => {
+          if (err instanceof Error && err.name === 'AbortError') return;
+          item.reject(err);
+        });
+    }
   }
 
-  /**
-   * Merge multiple abort signals into one.
-   * The returned signal will abort when any of the input signals abort.
-   */
   #mergeAbortSignals(signals: (AbortSignal | undefined)[]): AbortSignal {
     const controller = new AbortController();
     const actualSignals = signals.filter((s): s is AbortSignal => s !== undefined);
@@ -221,8 +217,8 @@ function buildZarrSelection(
   options: {
     labels: string[];
     slices: { x: zarr.Slice; y: zarr.Slice };
-    arrayRank: number; // For pruning
-    shape: number[];   // For clamping
+    arrayRank: number; 
+    shape: number[];   
   },
 ): Array<Slice | number> {
   const { labels, slices, arrayRank, shape } = options;

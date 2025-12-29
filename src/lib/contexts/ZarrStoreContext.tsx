@@ -1,8 +1,9 @@
+// Version: 1.3.5 - Hybrid Path Resolution
 'use client'
 
 import React, { 
     createContext, useContext,
-    useState, useCallback, useEffect
+    useState, useCallback
 } from 'react'
 import * as zarrita from 'zarrita'
 
@@ -16,9 +17,7 @@ import type OMEAttrs from '../../types/metadata/ome'
 import type { AxisKey, IMultiscaleInfo, MultiscaleShape } from '../../types/metadata/loader'
 
 
-// Expose default labels path for Cellpose or other masks so it can be customized
 export const DEFAULT_LABELS_SEGMENTATION_PATH = 'labels/Cellpose'
-
 
 const ZarrStoreContext = createContext<ZarrStoreContextType | null>(null)
 
@@ -56,7 +55,9 @@ export function ZarrStoreProvider({
     source: initialSource,
     zarrPath: initialZarrPath,
     cellposePath: initialCellposePath,
+    labelServerRoot: '', 
     availableCellposePaths: [],
+    userLabelPaths: [],
     hasLoadedArray: false,
     suggestedPaths: [],
     suggestionType: ZarrStoreSuggestionType.NO_OME,
@@ -64,10 +65,38 @@ export function ZarrStoreProvider({
     cellposeProperties: null
   })
 
-  // 1. UTILITIES (Define first)
+  // 1. UTILITIES
   const setSource = useCallback((url: string) => {
     setState(prev => ({ ...prev, source: url }))
   }, [])
+
+  const addUserLabelPath = useCallback((path: string) => {
+    setState(prev => ({
+      ...prev,
+      userLabelPaths: Array.from(new Set([...prev.userLabelPaths, path]))
+    }))
+  }, [])
+
+  const removeUserLabelPath = useCallback((index: number) => {
+    setState(prev => ({
+      ...prev,
+      userLabelPaths: prev.userLabelPaths.filter((_, i) => i !== index)
+    }))
+  }, [])
+
+  const fetchDirectoryListing = useCallback(async (path: string): Promise<any[]> => {
+    if (!state.source) return [];
+    try {
+      const baseUrl = state.source.replace(/\/$/, '');
+      const url = `${baseUrl}/api/ls?path=${encodeURIComponent(path)}`;
+      const response = await fetch(url, { mode: 'cors' });
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.folders || [];
+    } catch (e) {
+      return [];
+    }
+  }, [state.source]);
 
   const setZarrPath = useCallback((path: string) => {
     setState(prev => ({ ...prev, zarrPath: path }))
@@ -77,34 +106,45 @@ export function ZarrStoreProvider({
     setState(prev => ({ ...prev, cellposePath: path }))
   }, [])
 
+  // 2. INTERNAL HELPERS
+  const openGroupFromPath = useCallback(async (path: string, baseStore?: zarrita.FetchStore): Promise<zarrita.Group<zarrita.FetchStore> | null> => {
+    try {
+      let location;
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        const store = new zarrita.FetchStore(path);
+        location = zarrita.root(store);
+      } else {
+        if (!baseStore) return null;
+        location = zarrita.root(baseStore).resolve(path);
+      }
+      
+      try {
+          return await zarrita.open(location, { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
+      } catch {
+          // V3 Probing
+          return await zarrita.open(location.resolve('zarr.json'), { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
+      }
+    } catch (e) {
+      return null;
+    }
+  }, []);
+
   const detectCellposeArray = useCallback(
-    async (cellposePath: string): Promise<{
+    async (cellposePath: string, providedStore?: zarrita.FetchStore): Promise<{
       arrays: zarrita.Array<zarrita.Uint32>[],
       resolutions: string[],
       scales: number[][],
       defaultArray: zarrita.Array<zarrita.Uint32> | null
     }> => {
-      if (!state.store || !cellposePath) return { arrays: [], resolutions: [], scales: [], defaultArray: null };
+      if (!cellposePath) return { arrays: [], resolutions: [], scales: [], defaultArray: null };
 
       try {
-        // FIX: Use relative resolution to stay inside the FLAIR scan folder
-        const location = state.root ? state.root.resolve(cellposePath) : zarrita.root(state.store).resolve(cellposePath);
-        
-        let cellposeGroup: zarrita.Group<zarrita.FetchStore>;
-        try {
-            cellposeGroup = await zarrita.open(location, { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
-        } catch (e) {
-            // Fallback for parent resolution
-            if (state.root && !cellposePath.startsWith('..')) {
-                cellposeGroup = await zarrita.open(state.root.resolve(`../${cellposePath}`), { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
-            } else {
-                throw e;
-            }
-        }
+        const cellposeGroup = await openGroupFromPath(cellposePath, providedStore || state.store || undefined);
 
         if (cellposeGroup instanceof zarrita.Group) {
-          const rawAttrs = cellposeGroup.attrs as any;
-          const lAttrs = rawAttrs?.multiscales ? rawAttrs : (rawAttrs?.ome || rawAttrs?.attributes || rawAttrs);
+          // 🛡️ ISSUE 4: Null Guard Safety for Attrs
+          const rawAttrs = cellposeGroup?.attrs ?? {};
+          const lAttrs = rawAttrs?.multiscales ? rawAttrs : (rawAttrs?.ome || rawAttrs?.attributes || rawAttrs || {});
           
           const multiscales = lAttrs?.multiscales;
           if (multiscales && multiscales[0]?.datasets?.length > 0) {
@@ -131,15 +171,168 @@ export function ZarrStoreProvider({
       } catch (error) {
         return { arrays: [], resolutions: [], scales: [], defaultArray: null }
       }
-    }, [state.store, state.root]
+    }, [state.store, openGroupFromPath]
   )
 
-  // 2. LOADING LOGIC
+  // 3. CORE LOADING
+  const loadFromUrlParams = useCallback(async (serverUrl: string, zarrPath: string, cellposePath: string) => {
+    console.log(`📂 Opening: ${serverUrl} / ${zarrPath}`);
+    
+    // 🛡️ LIVE RELOAD: Reset state to flush ghost data
+    setState(prev => ({ 
+        ...prev, 
+        isLoading: true, isCellposeLoading: true, 
+        error: null, source: serverUrl, hasLoadedArray: false, msInfo: null 
+    }));
+
+    try {
+      const imageStore = new zarrita.FetchStore(serverUrl);
+      const rootGroup = zarrita.root(imageStore);
+      
+      if (!zarrPath || zarrPath === '/') {
+          setState(prev => ({ ...prev, isLoading: false, isCellposeLoading: false, store: imageStore, zarrPath: '' }));
+          return;
+      }
+
+      // Probing Open
+      let node;
+      try {
+          try {
+              node = await zarrita.open(rootGroup.resolve(zarrPath));
+          } catch (e) {
+              // Fallback for V3
+              node = await zarrita.open(rootGroup.resolve(`${zarrPath}/zarr.json`));
+          }
+      } catch (nodeError) {
+          throw new Error("Selected folder is not a valid Zarr dataset.");
+      }
+
+      let targetGroup: zarrita.Group<zarrita.FetchStore>;
+      let finalZarrPath = zarrPath;
+
+      if (node instanceof zarrita.Array) {
+          console.log("ℹ️ Array detected, promoting to parent group");
+          const parts = zarrPath.split('/');
+          parts.pop();
+          finalZarrPath = parts.join('/');
+          targetGroup = await openGroupFromPath(finalZarrPath, imageStore) as zarrita.Group<zarrita.FetchStore>;
+      } else {
+          targetGroup = node as zarrita.Group<zarrita.FetchStore>;
+      }
+
+      // 🛡️ ISSUE 4: Null Guard Safety for targetGroup Attrs
+      const attrs = (targetGroup?.attrs?.ome ?? targetGroup?.attrs ?? {}) as OMEAttrs;
+      
+      // Meta injection for FLAIR
+      let forcedDtype = 'float32';
+      let forcedShape = { z: 1, y: 1, x: 1, c: 1, t: 1 };
+      if (serverUrl.includes('FLAIR') || zarrPath.includes('FLAIR')) {
+          try {
+              const metaUrl = `${serverUrl}/${finalZarrPath}/0/.zarray`.replace(/([^:])\/\//g, '$1/');
+              const response = await fetch(metaUrl);
+              if (response.ok) {
+                  const meta = await response.json();
+                  forcedDtype = meta.dtype || 'float32';
+                  if (meta.shape) {
+                      forcedShape.z = meta.shape[0]; forcedShape.y = meta.shape[1]; forcedShape.x = meta.shape[2];
+                  }
+              }
+          } catch {}
+      }
+
+      const multiscales = attrs?.multiscales ? attrs.multiscales[0] : null;
+      const availableResolutions = multiscales ? multiscales.datasets.map(d => d.path) : ['0'];
+      
+      let msInfo: IMultiscaleInfo;
+      if (!multiscales) {
+          msInfo = { shape: forcedShape, dtype: forcedDtype, resolutions: ['0'], channels: ['Intensity'] } as any;
+      } else {
+          const axes = multiscales.axes?.map(axis => typeof axis === 'string' ? axis : axis.name) || []
+          const lowestResArray = await zarrita.open(targetGroup.resolve(availableResolutions[0]), { kind: 'array' }) as zarrita.Array<zarrita.DataType>
+          const shape = axes.reduce((acc: any, axis: string) => {
+            acc[axis as AxisKey] = lowestResArray.shape[axes.indexOf(axis)]; return acc;
+          }, {} as MultiscaleShape)
+          if (!axes.includes('c')) shape.c = 1;
+          let availableChannels: string[] = [];
+          if (attrs?.omero?.channels) {
+            availableChannels = attrs.omero.channels.map((ch: any, idx: number) => ch.label || `Channel ${idx + 1}`);
+          } else {
+            for (let i = 0; i < (shape.c || 1); i++) availableChannels.push(`Channel ${i + 1}`);
+          }
+          msInfo = { shape, dtype: lowestResArray.dtype, resolutions: availableResolutions, channels: availableChannels } as IMultiscaleInfo;
+      }
+
+      // 🛡️ ISSUE 0: Hybrid Path Resolution
+      const labelPaths: string[] = [];
+      const commonNames = ['Anatomy', 'Segments', 'Ducts', 'Cellpose'];
+      let labelBaseUrl = `${serverUrl}/${finalZarrPath}`; // Default: labels inside the zarr image (LOCAL)
+
+      // Strategy A: Try labels inside the Zarr image (LOCAL pattern)
+      for (const name of commonNames) {
+        try {
+          const relPath = `labels/${name}`;
+          const node = await zarrita.open(targetGroup.resolve(relPath), { kind: 'group' });
+          if (node) labelPaths.push(relPath);
+        } catch {}
+      }
+
+      // Strategy B: If nothing found inside, try at HTTP root (REMOTE pattern)
+      if (labelPaths.length === 0) {
+          console.log("ℹ️ No labels found inside Zarr, probing HTTP root...");
+          labelBaseUrl = serverUrl;
+          for (const name of commonNames) {
+            try {
+              const fullUrl = `${serverUrl}/labels/${name}`;
+              const testGroup = await openGroupFromPath(fullUrl);
+              if (testGroup) labelPaths.push(`labels/${name}`);
+            } catch {}
+          }
+      }
+
+      const activePath = labelPaths.includes(cellposePath) ? cellposePath : 
+                         labelPaths.includes('labels/Anatomy') ? 'labels/Anatomy' :
+                         labelPaths[0] || '';
+
+      // Load labels using the resolved base URL
+      let labelData = { arrays: [], resolutions: [], scales: [], defaultArray: null };
+      if (activePath) {
+          const fullLabelUrl = `${labelBaseUrl}/${activePath}`;
+          labelData = await detectCellposeArray(fullLabelUrl);
+      }
+
+      setState(prev => ({
+        ...prev,
+        store: imageStore, root: targetGroup, zarrPath: finalZarrPath,
+        labelServerRoot: labelBaseUrl, // Store resolved base for live set switching
+        omeData: attrs, msInfo, hasLoadedArray: true,
+        availableCellposePaths: labelPaths,
+        cellposePath: activePath,
+        cellposeArray: labelData.defaultArray,
+        cellposeArrays: labelData.arrays,
+        cellposeResolutions: labelData.resolutions,
+        cellposeScales: labelData.scales,
+        selectedCellposeOverlayResolution: 0,
+        selectedCellposeMeshResolution: 0,
+        isCellposeLoading: false,
+        isLoading: false
+      }));
+
+      console.log("✅ LOAD COMPLETE");
+
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      console.warn("⚠️ LOAD FAILED:", msg);
+      setState(prev => ({ ...prev, isLoading: false, isCellposeLoading: false, error: msg }));
+    }
+  }, [detectCellposeArray, openGroupFromPath]);
+
+  // 🛡️ ISSUE 0: Fix live label switching using stored labelServerRoot
   const loadCellposeData = useCallback(async (cellposePath: string) => {
-    if (!state.store) return
     setState(prev => ({ ...prev, cellposePath, isCellposeLoading: true }))
     try {
-      const { arrays, resolutions, scales, defaultArray } = await detectCellposeArray(cellposePath)
+      const labelBase = state.labelServerRoot || `${state.source}/${state.zarrPath}`;
+      const fullLabelUrl = `${labelBase}/${cellposePath}`;
+      const { arrays, resolutions, scales, defaultArray } = await detectCellposeArray(fullLabelUrl)
       setState(prev => ({
         ...prev,
         cellposeArray: defaultArray,
@@ -147,225 +340,36 @@ export function ZarrStoreProvider({
         cellposeResolutions: resolutions,
         cellposeScales: scales,
         selectedCellposeOverlayResolution: 0,
-        selectedCellposeMeshResolution: Math.min(3, arrays.length - 1),
+        selectedCellposeMeshResolution: 0,
         isCellposeLoading: false
       }))
     } catch (error) {
       setState(prev => ({ ...prev, isCellposeLoading: false }))
     }
-  }, [state.store, detectCellposeArray])
+  }, [state.labelServerRoot, state.source, state.zarrPath, detectCellposeArray])
+
+  const loadZarrArray = useCallback(async (path: string) => {
+    if (!state.source) return;
+    await loadFromUrlParams(state.source, path, 'labels/Anatomy');
+  }, [state.source, loadFromUrlParams]);
 
   const setSelectedCellposePath = useCallback(async (path: string) => {
     console.log(`🎯 Switching labels to: ${path}`);
     setCellposePath(path);
-    await loadCellposeData(path);
-  }, [setCellposePath, loadCellposeData])
-
-  const processGroup = useCallback(async (grp: zarrita.Group<zarrita.FetchStore>) => {
-    const attrs = (grp.attrs?.ome ?? grp.attrs) as OMEAttrs
-    if (omeUtils.isOmeMultiscales(attrs)) {
-      const multiscales = attrs.multiscales![0]
-      const availableResolutions = multiscales.datasets.map(dataset => dataset.path)
-      const axes = multiscales.axes?.map(axis => typeof axis === 'string' ? axis : axis.name) || []
-      const lowestResArray = await zarrita.open(grp.resolve(availableResolutions[0]), { kind: 'array' }) as zarrita.Array<zarrita.DataType>
-      
-      const shape = axes.reduce((acc, axis) => {
-        acc[axis as AxisKey] = lowestResArray.shape[axes.indexOf(axis)]
-        return acc
-      }, {} as MultiscaleShape)
-
-      // Fallback for MRI: Default to 1 channel if 'c' is not in axes
-      if (!axes.includes('c')) shape.c = 1;
-
-      // Generate channel labels if omero metadata is missing
-      let availableChannels: string[] = [];
-      if (attrs.omero?.channels) {
-        availableChannels = attrs.omero.channels.map((ch: any, idx: number) => ch.label || `Channel ${idx + 1}`);
-      } else {
-        for (let i = 0; i < (shape.c || 1); i++) availableChannels.push(`Channel ${i + 1}`);
-      }
-
-      const msInfo = { shape, dtype: lowestResArray.dtype, resolutions: availableResolutions, channels: availableChannels } as IMultiscaleInfo;
-      setState(prev => ({ ...prev, omeData: attrs, msInfo, hasLoadedArray: true }))
+    
+    // HYBRID SOURCE LOGIC: 
+    if (path.toLowerCase().includes('141.147.64.20') || (path.toLowerCase().includes('cellpose') && !path.startsWith('labels/'))) {
+        console.log("🌍 Switching to ONLINE Demo Environment...");
+        await loadFromUrlParams("http://141.147.64.20:5500", "0", "labels/Cellpose");
+    } 
+    else if (state.hasLoadedArray) {
+        await loadCellposeData(path);
     }
-  }, [])
-
-  const loadFromUrlParams = useCallback(async (serverUrl: string, zarrPath: string, cellposePath: string) => {
-    try {
-      setState(prev => ({ ...prev, isLoading: true, isCellposeLoading: true }))
-      const store = new zarrita.FetchStore(serverUrl)
-      
-      // 2. Load Main Zarr array
-      // If zarrPath is provided, resolve it. If empty, the store IS the group.
-      console.log(`📂 Opening Zarr array at: ${serverUrl} / ${zarrPath}`)
-      const rootGroup = zarrita.root(store)
-      
-      let targetGroup: zarrita.Group<zarrita.FetchStore>;
-      if (zarrPath) {
-          targetGroup = await zarrita.open(rootGroup.resolve(zarrPath), { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
-      } else {
-          targetGroup = await zarrita.open(rootGroup, { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
-      }
-
-      // 1. Load Main Image
-      // Re-implement processGroup logic locally to ensure we have 'attrs' for state update
-      const attrs = (targetGroup.attrs?.ome ?? targetGroup.attrs) as OMEAttrs
-      
-      // FORCE METADATA FETCH: Read .zarray directly to get true dtype/shape
-      let forcedDtype = 'float32'; // Default for MRI
-      let forcedShape = { z: 1, y: 1, x: 1, c: 1, t: 1 };
-      
-      try {
-          const metaUrl = `${serverUrl}/${zarrPath}/0/.zarray`.replace(/([^:])\/\//g, '$1/');
-          const response = await fetch(metaUrl);
-          if (response.ok) {
-              const meta = await response.json();
-              if (meta.dtype) forcedDtype = meta.dtype;
-              if (meta.shape) {
-                  // Assuming standard ZYX or CZYX order from convert script
-                  // Our convert script writes "zyx", so shape is [z, y, x]
-                  forcedShape.z = meta.shape[0];
-                  forcedShape.y = meta.shape[1];
-                  forcedShape.x = meta.shape[2];
-              }
-          }
-      } catch (e) {
-          console.warn("Metadata fetch failed, using fallbacks", e);
-      }
-
-      const multiscales = attrs?.multiscales ? attrs.multiscales[0] : null;
-      const availableResolutions = multiscales ? multiscales.datasets.map(d => d.path) : ['0'];
-      
-      // Use forced metadata if available, otherwise fallback to zarrita
-      let msInfo: IMultiscaleInfo;
-      
-      if (!multiscales) {
-          // Fallback for non-OME standard MRI
-          msInfo = {
-              shape: forcedShape,
-              dtype: forcedDtype,
-              resolutions: ['0'],
-              channels: ['Intensity']
-          } as any;
-      } else {
-          // Standard flow
-          const axes = multiscales.axes?.map(axis => typeof axis === 'string' ? axis : axis.name) || []
-          const lowestResArray = await zarrita.open(targetGroup.resolve(availableResolutions[0]), { kind: 'array' }) as zarrita.Array<zarrita.DataType>
-          
-          const shape = axes.reduce((acc: any, axis: string) => {
-            acc[axis as AxisKey] = lowestResArray.shape[axes.indexOf(axis)]
-            return acc
-          }, {} as MultiscaleShape)
-
-          if (!axes.includes('c')) shape.c = 1;
-
-          let availableChannels: string[] = [];
-          if (attrs.omero?.channels) {
-            availableChannels = attrs.omero.channels.map((ch: any, idx: number) => ch.label || `Channel ${idx + 1}`);
-          } else {
-            for (let i = 0; i < (shape.c || 1); i++) availableChannels.push(`Channel ${i + 1}`);
-          }
-          
-          msInfo = { shape, dtype: lowestResArray.dtype, resolutions: availableResolutions, channels: availableChannels } as IMultiscaleInfo;
-      }
-
-      // 2. Discover Labels
-      const labelPaths: string[] = [];
-      const commonNames = ['Anatomy', 'Segments', 'Cellpose', 'Ducts'];
-      
-      // Force add known paths to ensure they appear in the UI
-      // We know these exist on the server because we just created them.
-      labelPaths.push('labels/Anatomy');
-      labelPaths.push('labels/Segments');
-      labelPaths.push('labels/Cellpose');
-
-      // Also try to discover any others dynamically
-      for (const name of commonNames) {
-        try {
-          const testLoc = targetGroup.resolve(`labels/${name}`);
-          const node = await zarrita.open(testLoc, { kind: 'group' });
-          if (node && !labelPaths.includes(`labels/${name}`)) {
-             labelPaths.push(`labels/${name}`);
-          }
-        } catch {}
-      }
-
-      // Default if nothing found (to populate UI)
-      if (labelPaths.length === 0) {
-          labelPaths.push('../labels/Anatomy');
-          labelPaths.push('../labels/Segments');
-      }
-
-      const activeLabelPath = labelPaths.includes(cellposePath) ? cellposePath : 
-                              labelPaths.includes(`../${cellposePath}`) ? `../${cellposePath}` :
-                              labelPaths[0];
-
-      // 3. Load Labels
-      let labelData: any = { arrays: [], resolutions: [], scales: [], defaultArray: null, properties: null };
-      
-      if (activeLabelPath) {
-        try {
-          const cellposeGroup = await zarrita.open(targetGroup.resolve(activeLabelPath), { kind: 'group' }) as zarrita.Group<zarrita.FetchStore>;
-          const rawAttrs = cellposeGroup.attrs as any;
-          let lAttrs: any = rawAttrs?.multiscales ? rawAttrs : (rawAttrs?.ome || rawAttrs?.attributes || rawAttrs);
-          
-          if (lAttrs?.['image-label']?.properties) {
-            labelData.properties = lAttrs['image-label'].properties;
-          }
-
-          const multiscalesAttr = lAttrs?.multiscales?.[0];
-          if (multiscalesAttr?.datasets) {
-            for (const dataset of multiscalesAttr.datasets) {
-              try {
-                const arr = await zarrita.open(cellposeGroup.resolve(dataset.path), { kind: 'array' }) as zarrita.Array<zarrita.Uint32>;
-                if (arr instanceof zarrita.Array) {
-                  labelData.arrays.push(arr);
-                  labelData.resolutions.push(dataset.path);
-                  const base = labelData.arrays[0].shape;
-                  const cur = arr.shape;
-                  labelData.scales.push(base.map((d, i) => cur[i] > 0 ? d / cur[i] : 1.0));
-                }
-              } catch {}
-            }
-            labelData.defaultArray = labelData.arrays[0] || null;
-          }
-        } catch (e) {
-            console.warn('Failed to load initial label set:', e);
-        }
-      }
-
-      // 4. Update State
-      setState(prev => {
-        if (labelData.properties && prev.onPropertiesFound) {
-          try { prev.onPropertiesFound(labelData.properties) } catch {}
-        }
-        return {
-          ...prev,
-          store, root: targetGroup, zarrPath,
-          omeData: attrs,
-          msInfo,
-          hasLoadedArray: true,
-          availableCellposePaths: labelPaths,
-          cellposePath: activeLabelPath,
-          cellposeArray: labelData.defaultArray,
-          cellposeArrays: labelData.arrays,
-          cellposeResolutions: labelData.resolutions,
-          cellposeScales: labelData.scales,
-          cellposeProperties: labelData.properties,
-          selectedCellposeOverlayResolution: 0,
-          // FIX: Reset mesh resolution to the coarsest available level to ensure data exists
-          selectedCellposeMeshResolution: Math.max(0, labelData.arrays.length - 1),
-          isCellposeLoading: false
-        };
-      });
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setState(prev => ({ ...prev, error: `Failed to load: ${errorMessage}`, isLoading: false, isCellposeLoading: false }))
+    else {
+        await loadFromUrlParams("http://127.0.0.1:5500", "newtask/FLAIR_v05.zarr", path);
     }
-  }, [detectCellposeArray])
+  }, [state.hasLoadedArray, loadCellposeData, loadFromUrlParams]);
 
-  // 3. MISC
   const setPropertiesCallback = useCallback((callback: (properties: any[]) => void) => {
     setState(prev => ({ ...prev, onPropertiesFound: callback }))
   }, [])
@@ -380,10 +384,12 @@ export function ZarrStoreProvider({
 
   const value: ZarrStoreContextType = {
     ...state,
+    availableCellposePaths: Array.from(new Set([...state.availableCellposePaths, ...state.userLabelPaths])),
     setSource, setZarrPath, setCellposePath, setSelectedCellposePath,
-    loadCellposeData, loadFromUrlParams, setPropertiesCallback,
+    addUserLabelPath, removeUserLabelPath, fetchDirectoryListing,
+    loadCellposeData, loadFromUrlParams, loadZarrArray, setPropertiesCallback,
     setSelectedCellposeOverlayResolution, setSelectedCellposeMeshResolution,
-    loadStore: async () => {}, loadZarrArray: async () => {}, navigateToSuggestion: async () => {}, refreshCellposeData: async () => {}
+    loadStore: async () => {}, navigateToSuggestion: async () => {}, refreshCellposeData: async () => {}
   }
 
   return <ZarrStoreContext.Provider value={value}>{children}</ZarrStoreContext.Provider>

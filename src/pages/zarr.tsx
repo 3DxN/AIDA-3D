@@ -51,7 +51,7 @@ export default function ZarrWorkspace() {
 	const [tile, setTile] = useState<[number, number]>([0, 0])
 	const [select3D, setSelect3D] = useState(false)
 	const [polygonCoords, setPolygonCoords] = useState<number[][][]>([])
-	const [showLoader, setShowLoader] = useState(true)
+	const [showLoader, setShowLoader] = useState(false) // DEFAULT TO FALSE
 	const [loadedUrlKey, setLoadedUrlKey] = useState<string>('')
 
 	// Auto-load if navigated directly with URL parameters
@@ -63,20 +63,21 @@ export default function ZarrWorkspace() {
 		const defaultStoreDirParam = typeof query.default_store_dir === 'string' ? query.default_store_dir : null
 		const cellposeStoreDirParam = typeof query.cellpose_store_dir === 'string' ? query.cellpose_store_dir : null
 
-		// If we have at least server and store dir, try to load
-		if (serverParam && defaultStoreDirParam) {
-			const urlKey = `${serverParam}|${defaultStoreDirParam}|${cellposeStoreDirParam || ''}`
+		// If we have at least server, try to load
+		if (serverParam) {
+			const urlKey = `${serverParam}|${defaultStoreDirParam || ''}|${cellposeStoreDirParam || ''}`
 			if (urlKey === loadedUrlKey) return
 
 			setShowLoader(false)
 			setLoadedUrlKey(urlKey)
 
-			// CONSTRUCT FULL URL: This fixes the ambiguity
-			// source = "http://localhost:5500/newtask/FLAIR_v05.zarr"
-			const fullStoreUrl = `${serverParam.replace(/\/$/, '')}/${defaultStoreDirParam.replace(/^\//, '')}`;
-			
-			// Pass the full URL as 'serverUrl' so the context treats it as the store root
-			loadFromUrlParams(fullStoreUrl, '', cellposeStoreDirParam || 'labels/Cellpose')
+			if (defaultStoreDirParam) {
+				const fullStoreUrl = `${serverParam.replace(/\/$/, '')}/${defaultStoreDirParam.replace(/^\//, '')}`;
+				loadFromUrlParams(fullStoreUrl, '', cellposeStoreDirParam || 'labels/Cellpose')
+			} else {
+				// Just connect to server
+				loadFromUrlParams(serverParam, '', '')
+			}
 		}
 	}, [router.isReady, query.server, query.default_store_dir, query.cellpose_store_dir, loadedUrlKey, loadFromUrlParams])
 
@@ -91,7 +92,7 @@ export default function ZarrWorkspace() {
 				<div className="w-full portrait:w-full landscape:w-1/2 portrait:h-1/2 landscape:h-full relative border-r border-gray-200">
 					{showLoader ? (
 						<StoreLoader onClose={() => setShowLoader(false)} />
-					) : hasLoadedArray && msInfo ? (
+					) : hasLoadedArray || store ? (
 						<ZarrViewer />
 					) : (
 						<div className="flex items-center justify-center h-full text-gray-500">

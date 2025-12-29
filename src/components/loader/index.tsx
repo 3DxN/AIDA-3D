@@ -19,27 +19,18 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
     } = useZarrStore();
 
     const [activeTab, setActiveTab] = useState<'zarr' | 'aida'>('zarr');
-    const [server, setServer] = useState('');
-    const [defaultStoreDir, setDefaultStoreDir] = useState('');
-    const [cellposeStoreDir, setCellposeStoreDir] = useState('');
+    const [server, setServer] = useState('http://localhost:5500');
 
     const handleLoadStore = () => {
-        if (!server || !defaultStoreDir || !cellposeStoreDir) return;
+        if (!server) return;
 
-        // Update URL with all parameters and trigger full page reload
-        const params = new URLSearchParams();
-        params.set('server', server);
-        params.set('default_store_dir', defaultStoreDir);
-        params.set('cellpose_store_dir', cellposeStoreDir);
-
-        // Navigate to the page with URL params (full page load, not shallow)
-        router.push(`/zarr?${params.toString()}`);
+        // Navigate to zarr page with just the server param
+        // The in-app explorer will handle the rest
+        router.push(`/zarr?server=${encodeURIComponent(server)}`);
     };
 
     const handleLoadExample = () => {
-        setServer('http://141.147.64.20:5500/');
-        setDefaultStoreDir('0');
-        setCellposeStoreDir('labels/Cellpose');
+        setServer('http://141.147.64.20:5500');
     };
 
     const handleBrowseAIDA = () => {
@@ -98,37 +89,15 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                                     disabled={isLoading}
                                 />
                             </div>
-                            <div>
-                                <label className="block mb-2 font-bold text-base text-gray-700">Image Store Directory:</label>
-                                <input
-                                    type="text"
-                                    value={defaultStoreDir}
-                                    onChange={(e) => setDefaultStoreDir(e.target.value)}
-                                    className="w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none focus:border-teal-500"
-                                    placeholder="e.g., 0"
-                                    disabled={isLoading}
-                                />
-                            </div>
-                            <div>
-                                <label className="block mb-2 font-bold text-base text-gray-700">Labels Store Directory (e.g. Cellpose):</label>
-                                <input
-                                    type="text"
-                                    value={cellposeStoreDir}
-                                    onChange={(e) => setCellposeStoreDir(e.target.value)}
-                                    className="w-full p-3 border-2 border-gray-300 rounded-md text-base outline-none focus:border-teal-500"
-                                    placeholder="e.g., labels/Cellpose"
-                                    disabled={isLoading}
-                                />
-                            </div>
                         </div>
 
                         <div className="flex gap-4 mb-5">
                             <button
                                 onClick={handleLoadStore}
-                                disabled={isLoading || !server || !defaultStoreDir || !cellposeStoreDir}
-                                className={`flex-1 px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold shadow-lg flex items-center justify-center ${isLoading || !server || !defaultStoreDir || !cellposeStoreDir ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
+                                disabled={isLoading || !server}
+                                className={`flex-1 px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold shadow-lg flex items-center justify-center ${isLoading || !server ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
                             >
-                                {isLoading ? (<><RefreshIcon className="h-5 w-5 mr-2 animate-spin" /> Loading...</>) : (<><PlayIcon className="h-5 w-5 mr-2" /> Load Store</>)}
+                                {isLoading ? (<><RefreshIcon className="h-5 w-5 mr-2 animate-spin" /> Loading...</>) : (<><PlayIcon className="h-5 w-5 mr-2" /> Connect to Server</>)}
                             </button>
                         </div>
 
