@@ -21,49 +21,65 @@ export default function useFrameInitialisation(
 ) {
   // Track if we've already initialized to prevent re-initialization on view state changes
   const hasInitialized = useRef(false)
+  // Track the previous msInfo to detect when we've loaded a NEW image
+  const prevMsInfoRef = useRef<IMultiscaleInfo | null>(null)
+
+  // 🛡️ FIX: Reset initialization flag when msInfo changes (new image loaded)
+  useEffect(() => {
+    if (msInfo && prevMsInfoRef.current !== msInfo) {
+      // New image loaded - reset the initialization flag
+      if (prevMsInfoRef.current !== null) {
+        console.log('🔄 New image detected, resetting view initialization')
+        hasInitialized.current = false
+      }
+      prevMsInfoRef.current = msInfo
+    }
+  }, [msInfo])
   
   useEffect(() => {
     if (msInfo && vivLoaders.length > 0 && !hasInitialized.current) {
       const shape = msInfo.shape
-      const width = shape.x
-      const height = shape.y
+      const imageWidth = shape.x
+      const imageHeight = shape.y
 
-      if (!width || !height) {
+      if (!imageWidth || !imageHeight) {
         // Dims missing, return for now and come back later
         console.log('Missing dimensions for msInfo, cannot initialize frame center')
         return
       }
 
-      console.log('Initializing frame state and view state for the first time')
-      
-      setFrameCenter([width / 2, height / 2])
+      console.log(`🎬 Initializing frame state for ${imageWidth}x${imageHeight} image`)
+
+      // Set frame to center of image with reasonable default size
+      const frameWidth = Math.min(100, imageWidth / 4)
+      const frameHeight = Math.min(100, imageHeight / 4)
+      setFrameCenter([imageWidth / 2, imageHeight / 2])
+      setFrameSize([frameWidth, frameHeight])
 
       // Only initialize detail view state if it hasn't been set yet
       if (!controlledDetailViewState) {
-        // Initialize detail view state to show the frame selection area
-        // Calculate zoom level to fit the frame with some padding
-        const frameWidth = 100  // Default frame width
-        const frameHeight = 100 // Default frame height
-        const padding = 1.5     // Add 50% padding around frame
-
         const containerWidth = containerDimensions.width || 800
         const containerHeight = containerDimensions.height || 600
 
-        // Calculate zoom to fit frame with padding
-        const zoomX = Math.log2(containerWidth / (frameWidth * padding))
-        const zoomY = Math.log2(containerHeight / (frameHeight * padding))
-        const zoom = Math.min(zoomX, zoomY, 2) // Cap at zoom level 2
+        // 🛡️ FIX: Calculate zoom to fit ENTIRE IMAGE in view, not just the frame
+        // This prevents the "black outside frame" perception by showing full context
+        const padding = 1.1 // Small padding around the image
+        const zoomToFitX = Math.log2(containerWidth / (imageWidth * padding))
+        const zoomToFitY = Math.log2(containerHeight / (imageHeight * padding))
+
+        // Use the smaller zoom to fit the whole image, but cap at reasonable min/max
+        const zoom = Math.max(-2, Math.min(zoomToFitX, zoomToFitY, 1))
 
         const initialState = {
-          target: [width / 2, height / 2, 0],
+          target: [imageWidth / 2, imageHeight / 2, 0],
           zoom: zoom
         } satisfies VivViewState
 
-        console.log('Setting initial view state to fit frame:', initialState)
+        console.log(`📐 Initial view: target=[${imageWidth/2}, ${imageHeight/2}], zoom=${zoom.toFixed(2)} (fit ${imageWidth}x${imageHeight} in ${containerWidth}x${containerHeight})`)
         detailViewStateRef.current = initialState
         setControlledDetailViewState(initialState)
       }
-      
+
       // Mark as initialized to prevent future re-initializations
       hasInitialized.current = true
     }

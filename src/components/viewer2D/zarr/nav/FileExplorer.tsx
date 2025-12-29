@@ -90,7 +90,14 @@ const FileExplorer = () => {
                 {/* Show ADD button for anything in or identified as labels */}
                 {(folder.is_labels || currentPath.toLowerCase().includes('labels')) && (
                     <button
-                      onClick={() => addUserLabelPath(currentPath ? `${currentPath}/${folder.name}` : folder.name)}
+                      onClick={() => {
+                        // 🛡️ FIX: Only add the relative labels path, not the full path
+                        let fullPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
+                        // Extract just the labels/xxx part to prevent path doubling
+                        const labelsMatch = fullPath.match(/(labels\/.*)/i);
+                        const pathToAdd = labelsMatch ? labelsMatch[1] : fullPath;
+                        addUserLabelPath(pathToAdd);
+                      }}
                       className="flex items-center px-1.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-[9px] font-bold shadow-sm"
                     >
                       <PlusIcon className="h-2.5 w-2.5 mr-1" />

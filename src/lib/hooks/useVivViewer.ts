@@ -74,13 +74,32 @@ export default function useVivViewer(
                 try {
                     const location = root.resolve(resolutionPath);
                     console.log(`📦 Loading resolution [${resolutionPath}]...`);
-                    
+
                     const resolutionArray = await zarrita.open(location) as zarrita.Array<typeof msInfo.dtype>;
 
+                    // 🛡️ FIX: Labels must match ACTUAL array rank, not full 5D shape
+                    // Filter to only include dimensions with size > 1 OR that exist in the array
+                    const arrayRank = resolutionArray.shape.length;
+                    const fullLabels = ['t', 'c', 'z', 'y', 'x'];
+
+                    // Build labels array that matches actual array rank
+                    // Priority: always include spatial (x,y,z), then c, then t
+                    // Work backwards from 'x' to match array dimensions
+                    const effectiveLabels: string[] = [];
+                    const labelsToCheck = ['x', 'y', 'z', 'c', 't']; // Reverse priority
+
+                    for (const label of labelsToCheck) {
+                        const size = msInfo.shape[label as keyof typeof msInfo.shape];
+                        // Include if array rank allows and dimension exists
+                        if (effectiveLabels.length < arrayRank && size !== undefined) {
+                            effectiveLabels.unshift(label); // Add to front to maintain order
+                        }
+                    }
+
+                    console.log(`📐 Array rank: ${arrayRank}, labels: [${effectiveLabels.join(', ')}]`);
+
                     const loader = new ZarrPixelSource(resolutionArray, {
-                        labels: ['t', 'c', 'z', 'y', 'x'].filter(
-                            key => Object.keys(msInfo.shape).includes(key)
-                        ) as viv.Properties<string[]>,
+                        labels: effectiveLabels as viv.Properties<string[]>,
                         tileSize: resolutionArray.chunks.at(-1)!
                     })
                     allLoaders.push(loader)
@@ -227,13 +246,23 @@ export default function useVivViewer(
 
     // Generate layer props
     const createLayerProps = useCallback((frameOverlayLayers: Layer[] = []) => {
-        if (vivLoaders.length === 0 || views.length === 0 || !msInfo.shape.c) {
+        if (vivLoaders.length === 0 || views.length === 0) {
             return []
         }
 
         // Detect false-color rendering mode
         const useFalseColor = shouldUseHEStaining(navigationState.channelMap)
         const renderingMode = getRenderingMode(navigationState.channelMap)
+        const channelCount = msInfo.shape.c ?? 1;
+
+        // 🛡️ DEBUG: Log H&E extension decision
+        console.log('🎨 H&E Extension decision:', {
+            heStainingOn: navigationState.heStainingOn,
+            useFalseColor,
+            channelMap: navigationState.channelMap,
+            channelCount,
+            willUseHE: navigationState.heStainingOn && useFalseColor
+        });
 
         // Create contrast limits array
         const contrastLimits = Object.entries(navigationState.channelMap)
