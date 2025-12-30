@@ -3,7 +3,19 @@ import bodyParser from 'body-parser'
 import fs from 'fs'
 const fsp = fs.promises
 import path from 'path'
-import ip from 'ip'
+import os from 'os'
+
+function getLocalIP(): string {
+	const interfaces = os.networkInterfaces()
+	for (const name of Object.keys(interfaces)) {
+		for (const iface of interfaces[name] || []) {
+			if (iface.family === 'IPv4' && !iface.internal) {
+				return iface.address
+			}
+		}
+	}
+	return 'localhost'
+}
 
 // Read configuration file
 import config from '../aida.config'
@@ -145,7 +157,7 @@ async function startServer() {
 	app.listen(port, () => {
 		console.log('AIDA-3D running:')
 		console.log(
-			`Also available on the local network at: http://${ip.address()}:${
+			`Also available on the local network at: http://${getLocalIP()}:${
 				config.app.port
 			}`
 		)

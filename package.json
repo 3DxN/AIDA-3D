@@ -9,9 +9,9 @@
 		"lint": "next lint"
 	},
 	"dependencies": {
-		"@hms-dbmi/viv": "~0.18.0",
 		"@headlessui/react": "^2.0.0",
 		"@heroicons/react": "^1.0.3",
+		"@hms-dbmi/viv": "~0.18.0",
 		"@react-aria/button": "^3.3.3",
 		"@react-aria/focus": "^3.4.1",
 		"@react-aria/numberfield": "^3.0.1",
@@ -26,7 +26,6 @@
 		"d3": "^7.3.0",
 		"deck.gl": "~9.1.0",
 		"express": "^4.17.1",
-		"ip": "^1.1.5",
 		"next": "^15.4.6",
 		"ol": "^6.6.1",
 		"react": "^19.1.0",
@@ -36,13 +35,13 @@
 		"react-stately": "^3.12.1",
 		"robust-point-in-polygon": "^1.0.3",
 		"three": "^0.138.3",
-		"xml2js": "^0.4.23",
-		"zarrita": "~0.5.0"
+		"xml2js": "^0.6.2",
+		"zarrita": "0.5.3"
 	},
 	"devDependencies": {
-		"@next/eslint-plugin-next": "^12.1.4",
+		"@eslint/eslintrc": "^3.3.3",
+		"@next/eslint-plugin-next": "^15.0.0",
 		"@types/express": "^4.17.13",
-		"@types/ip": "^1.1.0",
 		"@types/node": "^24.0.4",
 		"@types/react": "^19.1.9",
 		"@types/react-color": "^3.0.6",
@@ -50,13 +49,13 @@
 		"@types/three": "^0.177.0",
 		"@types/xml2js": "^0.4.9",
 		"autoprefixer": "^10.4.0",
-		"eslint": "^8.13.0",
-		"eslint-config-next": "12.1.4",
-		"eslint-config-prettier": "^8.5.0",
+		"eslint": "^9.39.2",
+		"eslint-config-next": "^15.0.0",
+		"eslint-config-prettier": "^9.0.0",
 		"postcss": "^8.4.5",
-		"prettier": "2.6.2",
+		"prettier": "^3.0.0",
 		"tailwindcss": "^3.0.2",
-		"typescript": "^4.3.5"
+		"typescript": "^5.0.0"
 	},
 	"repository": {
 		"type": "git",
@@ -69,5 +68,41 @@
 	"bugs": {
 		"url": "https://github.com/3DxN/AIDA-3D/issues"
 	},
-	"homepage": "https://github.com/3DxN/AIDA-3D#readme"
+	"homepage": "https://github.com/3DxN/AIDA-3D#readme",
+	"overrides": {
+		"zarrita": "0.5.3",
+		"@zarrita/storage": "0.1.2",
+		"@deck.gl/core": "~9.1.0",
+		"@deck.gl/extensions": "~9.1.0",
+		"@deck.gl/geo-layers": "~9.1.0",
+		"@deck.gl/json": "~9.1.0",
+		"@deck.gl/layers": "~9.1.0",
+		"@deck.gl/mesh-layers": "~9.1.0",
+		"@deck.gl/carto": "~9.1.0",
+		"@deck.gl/react": "~9.1.0",
+		"@deck.gl/widgets": "~9.1.0",
+		"@luma.gl/core": "~9.1.0",
+		"@luma.gl/engine": "~9.1.0",
+		"@luma.gl/shadertools": "~9.1.0",
+		"@luma.gl/gltf": "~9.1.0",
+		"@luma.gl/webgl": "~9.1.0",
+		"@loaders.gl/3d-tiles": "~4.2.0",
+		"@loaders.gl/compression": "~4.2.0",
+		"@loaders.gl/core": "~4.2.0",
+		"@loaders.gl/crypto": "~4.2.0",
+		"@loaders.gl/draco": "~4.2.0",
+		"@loaders.gl/gis": "~4.2.0",
+		"@loaders.gl/gltf": "~4.2.0",
+		"@loaders.gl/images": "~4.2.0",
+		"@loaders.gl/loader-utils": "~4.2.0",
+		"@loaders.gl/math": "~4.2.0",
+		"@loaders.gl/mvt": "~4.2.0",
+		"@loaders.gl/schema": "~4.2.0",
+		"@loaders.gl/terrain": "~4.2.0",
+		"@loaders.gl/textures": "~4.2.0",
+		"@loaders.gl/tiles": "~4.2.0",
+		"@loaders.gl/wms": "~4.2.0",
+		"@loaders.gl/xml": "~4.2.0",
+		"@loaders.gl/zip": "~4.2.0"
+	}
 }

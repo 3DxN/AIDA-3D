@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const config = {
     // Local static server for 2D and 3D models.
     server: {
-        path: '',
+        path: '', // If not specified then application will use default /local/data
         hostname: 'localhost',
         port: 8000,
     },

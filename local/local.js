@@ -17,7 +17,18 @@ const body_parser_1 = __importDefault(require("body-parser"));
 const fs_1 = __importDefault(require("fs"));
 const fsp = fs_1.default.promises;
 const path_1 = __importDefault(require("path"));
-const ip_1 = __importDefault(require("ip"));
+const os_1 = __importDefault(require("os"));
+function getLocalIP() {
+    const interfaces = os_1.default.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name] || []) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                return iface.address;
+            }
+        }
+    }
+    return 'localhost';
+}
 // Read configuration file
 const aida_config_1 = __importDefault(require("../aida.config"));
 // directory to serve static image data from
@@ -142,7 +153,7 @@ function startServer() {
         // Listen to requests
         app.listen(port, () => {
             console.log('AIDA-3D running:');
-            console.log(`Also available on the local network at: http://${ip_1.default.address()}:${aida_config_1.default.app.port}`);
+            console.log(`Also available on the local network at: http://${getLocalIP()}:${aida_config_1.default.app.port}`);
         });
     });
 }
