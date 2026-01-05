@@ -59,6 +59,15 @@ const RecursivePropertyEditor = ({ value, dimensions, propertyName, updateLabelV
 	);
 };
 
+const getTransientDisplayName = (name: string): string => {
+	const displayNames: Record<string, string> = {
+		'elongation': 'Elongation',
+		'flatness': 'Flatness',
+		'sphericity': 'Sphericity',
+	};
+	return displayNames[name] || name;
+};
+
 const Properties = (props: {
 	featureData: any;
 	selected: Mesh[];
@@ -69,6 +78,8 @@ const Properties = (props: {
 	globalPropertyTypes: React.MutableRefObject<
 		{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]
 	>;
+	transientProperties?: React.MutableRefObject<Map<number, Record<string, any>>>;
+	transientPropertyTypes?: React.MutableRefObject<{ name: string; isTransient: boolean }[]>;
 }) => {
 	const {
 		featureData,
@@ -76,6 +87,8 @@ const Properties = (props: {
 		setFeatureData,
 		globalProperties,
 		globalPropertyTypes,
+		transientProperties,
+		transientPropertyTypes,
 	} = props;
 
 	const [propertyError, setLabelError] = useState<string | null>(null);
@@ -253,6 +266,17 @@ const Properties = (props: {
 		return 0; // Return 0 instead of NaN when no single nucleus is selected
 	};
 
+	const getTransientDisplayValue = (propertyName: string) => {
+		if (selected.length === 1 && transientProperties?.current) {
+			const selectedIndex = Number(selected[0].name.split('_')[1]);
+			const data = transientProperties.current.get(selectedIndex);
+			if (data && typeof data[propertyName] === 'number') {
+				return data[propertyName];
+			}
+		}
+		return null; // Return null to indicate no value available
+	};
+
 	return (
 		<Disclosure className="shadow-sm" as="div">
 			{({ open }) => (
@@ -287,88 +311,117 @@ const Properties = (props: {
 						<div className="mt-4">
 							{selected.length === 0 ? (
 								<div className="text-sm text-gray-500 mb-2">
-									Select a nucleus to edit properties.
+									Select a nucleus to view properties.
 								</div>
 							) : selected.length > 1 ? (
 								<div className="text-sm text-gray-500 mb-2">
 									Select exactly one nucleus to edit properties. ({selected.length} selected)
 								</div>
-							) : (
-								<div className="text-sm font-medium text-gray-700 mb-2">
-									Nucleus Properties:
-								</div>
-							)}
-							<div className="space-y-2">
-								{globalPropertyTypes.current.map((propertyType) => (
-									<div key={propertyType.id}>
-										{propertyType.dimensions ? (
-											<Menu as="div" className="relative text-left">
-												{({ open }) => (
-													<>
-														<div className="flex items-center justify-between">
-															<span className="text-sm truncate mr-2">
-																{propertyType.name}
-																{propertyType.readOnly && (
-																	<span className="ml-1 text-xs text-gray-400">(read-only)</span>
-																)}
-															</span>
-															<Menu.Button
-																className="inline-flex justify-center w-20 rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-																disabled={selected.length === 0}
-															>
-																View
-																<ChevronDownIcon
-																	className={`${!open ? 'rotate-180' : ''} -mr-1 ml-2 h-5 w-5 transform transition-transform duration-200`}
-																	aria-hidden="true"
-																/>
-															</Menu.Button>
-														</div>
-														<Transition
-															as={Fragment}
-															enter="transition ease-out duration-100"
-															enterFrom="transform opacity-0 scale-95"
-															enterTo="transform opacity-100 scale-100"
-															leave="transition ease-in duration-75"
-															leaveFrom="transform opacity-100 scale-100"
-															leaveTo="transform opacity-0 scale-95"
-														>
-															<Menu.Items static className="mt-2 w-full rounded-md shadow-lg bg-gray-50 ring-1 ring-black ring-opacity-5 focus:outline-none max-h-48 overflow-y-auto">
-																<div className="p-2">
-																	<RecursivePropertyEditor
-																		value={getDisplayValue(propertyType.name)}
-																		dimensions={propertyType.dimensions}
-																		propertyName={propertyType.name}
-																		updateLabelValue={updateLabelValue}
-																		getDisplayValue={getDisplayValue}
-																		readOnly={propertyType.readOnly}
-																		selectedLength={selected.length}
-																	/>
-																</div>
-															</Menu.Items>
-														</Transition>
-													</>
-												)}
-											</Menu>
-										) : (
-											<div className="flex items-center justify-between">
-												<span className="text-sm truncate mr-2">
-													{propertyType.name}
-													{propertyType.readOnly && (
-														<span className="ml-1 text-xs text-gray-400">(read-only)</span>
-													)}
-												</span>
-												<div className="w-20">
-													<NumberField
-														value={getDisplayValue(propertyType.name)}
-														onChange={(value) => updateLabelValue(propertyType.name, value)}
-														disabled={selected.length !== 1 || propertyType.readOnly}
-													/>
-												</div>
-											</div>
-										)}
+							) : null}
+
+							{/* Stored Properties Section */}
+							{globalPropertyTypes.current.length > 0 && (
+								<>
+									<div className="text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 px-2 py-1 -mx-2 mb-2">
+										Stored
 									</div>
-								))}
-							</div>
+									<div className="space-y-2">
+										{globalPropertyTypes.current.map((propertyType) => (
+											<div key={propertyType.id}>
+												{propertyType.dimensions ? (
+													<Menu as="div" className="relative text-left">
+														{({ open }) => (
+															<>
+																<div className="flex items-center justify-between">
+																	<span className="text-sm truncate mr-2">
+																		{propertyType.name}
+																		{propertyType.readOnly && (
+																			<span className="ml-1 text-xs text-gray-400">(read-only)</span>
+																		)}
+																	</span>
+																	<Menu.Button
+																		className="inline-flex justify-center w-20 rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+																		disabled={selected.length === 0}
+																	>
+																		View
+																		<ChevronDownIcon
+																			className={`${!open ? 'rotate-180' : ''} -mr-1 ml-2 h-5 w-5 transform transition-transform duration-200`}
+																			aria-hidden="true"
+																		/>
+																	</Menu.Button>
+																</div>
+																<Transition
+																	as={Fragment}
+																	enter="transition ease-out duration-100"
+																	enterFrom="transform opacity-0 scale-95"
+																	enterTo="transform opacity-100 scale-100"
+																	leave="transition ease-in duration-75"
+																	leaveFrom="transform opacity-100 scale-100"
+																	leaveTo="transform opacity-0 scale-95"
+																>
+																	<Menu.Items static className="mt-2 w-full rounded-md shadow-lg bg-gray-50 ring-1 ring-black ring-opacity-5 focus:outline-none max-h-48 overflow-y-auto">
+																		<div className="p-2">
+																			<RecursivePropertyEditor
+																				value={getDisplayValue(propertyType.name)}
+																				dimensions={propertyType.dimensions}
+																				propertyName={propertyType.name}
+																				updateLabelValue={updateLabelValue}
+																				getDisplayValue={getDisplayValue}
+																				readOnly={propertyType.readOnly}
+																				selectedLength={selected.length}
+																			/>
+																		</div>
+																	</Menu.Items>
+																</Transition>
+															</>
+														)}
+													</Menu>
+												) : (
+													<div className="flex items-center justify-between">
+														<span className="text-sm truncate mr-2">
+															{propertyType.name}
+															{propertyType.readOnly && (
+																<span className="ml-1 text-xs text-gray-400">(read-only)</span>
+															)}
+														</span>
+														<div className="w-20">
+															<NumberField
+																value={getDisplayValue(propertyType.name)}
+																onChange={(value) => updateLabelValue(propertyType.name, value)}
+																disabled={selected.length !== 1 || propertyType.readOnly}
+															/>
+														</div>
+													</div>
+												)}
+											</div>
+										))}
+									</div>
+								</>
+							)}
+
+							{/* Transient Properties Section */}
+							{transientPropertyTypes?.current && transientPropertyTypes.current.length > 0 && (
+								<>
+									<div className="text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 px-2 py-1 -mx-2 mb-2 mt-4 border-t border-gray-200 pt-2">
+										Transient
+									</div>
+									<div className="space-y-2">
+										{transientPropertyTypes.current.map((propertyType, index) => {
+											const value = getTransientDisplayValue(propertyType.name);
+											return (
+												<div key={`transient-${index}`} className="flex items-center justify-between">
+													<span className="text-sm truncate mr-2">
+														{getTransientDisplayName(propertyType.name)}
+													</span>
+													<div className="w-20 text-right text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded border border-gray-200">
+														{value !== null ? value.toFixed(3) : '—'}
+													</div>
+												</div>
+											);
+										})}
+									</div>
+								</>
+							)}
 						</div>
 					</Disclosure.Panel>
 					<PropertyModal

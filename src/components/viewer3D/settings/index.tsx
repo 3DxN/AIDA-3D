@@ -128,6 +128,8 @@ export default function Settings(props: {
 						setFeatureData={setFeatureData}
 						globalProperties={globalProperties}
 						globalPropertyTypes={globalPropertyTypes}
+						transientProperties={transientProperties}
+						transientPropertyTypes={transientPropertyTypes}
 					/>
 					<Export
 						renderer={renderer}
