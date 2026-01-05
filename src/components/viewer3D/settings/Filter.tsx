@@ -20,58 +20,79 @@ const Filter = (props: {
 	selected: Mesh[];
 	globalProperties: React.MutableRefObject<{ nucleus_index: number;[key: string]: any }[]>;
 	globalPropertyTypes: React.MutableRefObject<{ id: number; name: string; count: number; readOnly: boolean, dimensions?: number[] }[]>;
+	transientProperties?: React.MutableRefObject<Map<number, Record<string, any>>>;
+	transientPropertyTypes?: React.MutableRefObject<{ name: string; isTransient: boolean }[]>;
 	filterIncompleteNuclei: boolean;
 	setFilterIncompleteNuclei: (value: boolean) => void;
 }) => {
-	const { content, scene, camera, renderer, featureData, selected, globalProperties, globalPropertyTypes, filterIncompleteNuclei, setFilterIncompleteNuclei } = props;
+	const { content, scene, camera, renderer, featureData, selected, globalProperties, globalPropertyTypes, transientProperties, transientPropertyTypes, filterIncompleteNuclei, setFilterIncompleteNuclei } = props;
 
-	const [featureMap, setFeatureMap] = useState<{ name: string, value: string } | null>(null);
-	const [features, setFeatures] = useState<{ name: string, value: string }[]>([]);
+	const [featureMap, setFeatureMap] = useState<{ name: string, value: string, isTransient: boolean } | null>(null);
+	const [storedFeatures, setStoredFeatures] = useState<{ name: string, value: string, isTransient: boolean }[]>([]);
+	const [transientFeaturesArr, setTransientFeaturesArr] = useState<{ name: string, value: string, isTransient: boolean }[]>([]);
 	const [min, setMin] = useState(0);
 	const [max, setMax] = useState(1);
 	const [values, setValues] = useState([0, 0]);
 
 	// When new property types are available, update the list of features.
 	useEffect(() => {
-		if (globalPropertyTypes && globalPropertyTypes.current) {
-			const propertyFeatures = globalPropertyTypes.current
-				.filter(attr => !attr.dimensions) // Filter out multi-dimensional properties for the slider
-				.map(attr => ({ name: attr.name, value: attr.name }));
-			setFeatures(propertyFeatures);
+		let stored: { name: string, value: string, isTransient: boolean }[] = [];
+		let transient: { name: string, value: string, isTransient: boolean }[] = [];
 
-			// If there's no feature selected, or the selected one is no longer valid, select the first one.
-			if (!featureMap || !propertyFeatures.some(f => f.value === featureMap.value)) {
-				setFeatureMap(propertyFeatures.length > 0 ? propertyFeatures[0] : null);
-			}
+		if (globalPropertyTypes && globalPropertyTypes.current) {
+			stored = globalPropertyTypes.current
+				.filter(attr => !attr.dimensions) // Filter out multi-dimensional properties for the slider
+				.map(attr => ({ name: attr.name, value: attr.name, isTransient: false }));
+			setStoredFeatures(stored);
+		}
+
+		if (transientPropertyTypes && transientPropertyTypes.current) {
+			transient = transientPropertyTypes.current.map(tp => ({
+				name: tp.name,
+				value: tp.name,
+				isTransient: true
+			}));
+			setTransientFeaturesArr(transient);
+		}
+
+		const allFeatures = [...stored, ...transient];
+		// If there's no feature selected, or the selected one is no longer valid, select the first one.
+		if (!featureMap || !allFeatures.some(f => f.value === featureMap.value)) {
+			setFeatureMap(allFeatures.length > 0 ? allFeatures[0] : null);
 		}
 		// Rerun this effect when featureData changes, as this indicates properties may have changed.
-	}, [featureData, globalPropertyTypes, featureMap]);
+	}, [featureData, globalPropertyTypes, transientPropertyTypes, featureMap]);
 
 	const onValuesUpdate = useCallback(
 		(rangeValues) => {
-			if (content && featureData && featureMap && globalProperties.current) {
-				const propertyName = featureMap.value;
-				const propertyValues = globalProperties.current.reduce((acc, curr) => {
-					acc[curr.nucleus_index] = curr[propertyName];
-					return acc;
-				}, {} as { [key: number]: number });
+			if (content && featureData && featureMap) {
+				const { value: propertyName, isTransient } = featureMap;
 
 				content.children.forEach((child) => {
 					if (child.isMesh && child.name.includes('nucleus')) {
 						const nucleus = child as Mesh;
 						const nucleusIndex = parseInt(child.name.split('_')[1], 10);
-						const value = propertyValues[nucleusIndex];
-						if (value < rangeValues[0] || value > rangeValues[1])
-							nucleus.visible = false;
-						else
-							nucleus.visible = true;
+
+						let value: number | undefined;
+						if (isTransient && transientProperties) {
+							value = transientProperties.current.get(nucleusIndex)?.[propertyName];
+						} else if (globalProperties.current) {
+							const nucleusData = globalProperties.current.find(p => p.nucleus_index === nucleusIndex);
+							value = nucleusData ? nucleusData[propertyName] : undefined;
+						}
+
+						if (typeof value === 'number') {
+							nucleus.visible = value >= rangeValues[0] && value <= rangeValues[1];
+						} else {
+							nucleus.visible = true; // Show if no value
+						}
 					}
 				});
 
 				renderer.render(scene, camera);
 			}
 		},
-		[renderer, content, featureMap, camera, scene, featureData, globalProperties]
+		[renderer, content, featureMap, camera, scene, featureData, globalProperties, transientProperties]
 	);
 
 
@@ -131,20 +152,30 @@ const Filter = (props: {
 
 	// Set slider min/max based on the selected property
 	useEffect(() => {
-		if (featureData && content && featureMap && globalProperties.current) {
-			const propertyName = featureMap.value;
-			const values = globalProperties.current.map(attr => attr[propertyName]).filter(val => typeof val === 'number');
+		if (featureData && content && featureMap) {
+			const { value: propertyName, isTransient } = featureMap;
 
-			if (values && values.length > 0) {
-				const mapMax = values.reduce((a, b) => Math.max(a, b), -Infinity);
-				const mapMin = values.reduce((a, b) => Math.min(a, b), Infinity);
+			let propertyValues: number[] = [];
+			if (isTransient && transientProperties) {
+				propertyValues = Array.from(transientProperties.current.values())
+					.map(props => props[propertyName])
+					.filter((val): val is number => typeof val === 'number');
+			} else if (globalProperties.current) {
+				propertyValues = globalProperties.current
+					.map(attr => attr[propertyName])
+					.filter((val): val is number => typeof val === 'number');
+			}
+
+			if (propertyValues.length > 0) {
+				const mapMax = propertyValues.reduce((a, b) => Math.max(a, b), -Infinity);
+				const mapMin = propertyValues.reduce((a, b) => Math.min(a, b), Infinity);
 
 				setMax(mapMax);
 				setMin(mapMin);
 				setValues([mapMin, mapMax]);
 			}
 		}
-	}, [featureMap, featureData, content, globalProperties]);
+	}, [featureMap, featureData, content, globalProperties, transientProperties]);
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -212,47 +243,108 @@ const Filter = (props: {
 												<Listbox.Options
 													className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
 												>
-													{features.map((setting) => (
-														<Listbox.Option
-															key={setting.value}
-															className={({ active }) =>
-																classNames(
-																	active
-																		? 'text-white bg-teal-600'
-																		: 'text-gray-900',
-																	'cursor-default select-none relative py-2 pl-3 pr-9'
-																)
-															}
-															value={setting}
-														>
-															{({ selected, active }) => (
-																<>
-																	<span
-																		className={classNames(
-																			selected ? 'font-semibold' : 'font-normal',
-																			'block truncate'
-																		)}
-																	>
-																		{setting.name}
-																	</span>
+													{/* Stored properties section */}
+													{storedFeatures.length > 0 && (
+														<>
+															<div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">
+																Stored
+															</div>
+															{storedFeatures.map((setting) => (
+																<Listbox.Option
+																	key={`stored-${setting.value}`}
+																	className={({ active }) =>
+																		classNames(
+																			active
+																				? 'text-white bg-teal-600'
+																				: 'text-gray-900',
+																			'cursor-default select-none relative py-2 pl-3 pr-9'
+																		)
+																	}
+																	value={setting}
+																>
+																	{({ selected, active }) => (
+																		<>
+																			<span
+																				className={classNames(
+																					selected ? 'font-semibold' : 'font-normal',
+																					'block truncate'
+																				)}
+																			>
+																				{setting.name}
+																			</span>
 
-																	{selected ? (
-																		<span
-																			className={classNames(
-																				active ? 'text-white' : 'text-teal-600',
-																				'absolute inset-y-0 right-0 flex items-center pr-4'
-																			)}
-																		>
-																			<CheckIcon
-																				className="h-5 w-5"
-																				aria-hidden="true"
-																			/>
-																		</span>
-																	) : null}
-																</>
-															)}
-														</Listbox.Option>
-													))}
+																			{selected ? (
+																				<span
+																					className={classNames(
+																						active ? 'text-white' : 'text-teal-600',
+																						'absolute inset-y-0 right-0 flex items-center pr-4'
+																					)}
+																				>
+																					<CheckIcon
+																						className="h-5 w-5"
+																						aria-hidden="true"
+																					/>
+																				</span>
+																			) : null}
+																		</>
+																	)}
+																</Listbox.Option>
+															))}
+														</>
+													)}
+
+													{/* Transient properties section */}
+													{transientFeaturesArr.length > 0 && (
+														<>
+															<div className={classNames(
+																storedFeatures.length > 0 ? 'border-t border-gray-200' : '',
+																'px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50'
+															)}>
+																Transient
+															</div>
+															{transientFeaturesArr.map((setting) => (
+																<Listbox.Option
+																	key={`transient-${setting.value}`}
+																	className={({ active }) =>
+																		classNames(
+																			active
+																				? 'text-white bg-teal-600'
+																				: 'text-gray-900',
+																			'cursor-default select-none relative py-2 pl-3 pr-9'
+																		)
+																	}
+																	value={setting}
+																>
+																	{({ selected, active }) => (
+																		<>
+																			<span
+																				className={classNames(
+																					selected ? 'font-semibold' : 'font-normal',
+																					'block truncate'
+																				)}
+																			>
+																				{setting.name}
+																			</span>
+
+																			{selected ? (
+																				<span
+																					className={classNames(
+																						active ? 'text-white' : 'text-teal-600',
+																						'absolute inset-y-0 right-0 flex items-center pr-4'
+																					)}
+																				>
+																					<CheckIcon
+																						className="h-5 w-5"
+																						aria-hidden="true"
+																					/>
+																				</span>
+																			) : null}
+																		</>
+																	)}
+																</Listbox.Option>
+															))}
+														</>
+													)}
 												</Listbox.Options>
 											</Transition>
 										</div>

@@ -21,7 +21,10 @@ const ColorMap = (props: {
 				className={`w-24 m-1 truncate text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-teal-500`}
 				onClick={() => setActive(index)}
 			>
-				{colorMap.featureMap.name}
+				{colorMap.featureMap?.name || 'None'}
+				{colorMap.featureMap?.isTransient && (
+					<span className="ml-1 text-xs text-teal-600">(T)</span>
+				)}
 			</button>
 
 			{/* Visualise current color map */}

@@ -109,6 +109,8 @@ export default function Settings(props: {
 						selected={selected}
 						globalProperties={globalProperties}
 						globalPropertyTypes={globalPropertyTypes}
+						transientProperties={transientProperties}
+						transientPropertyTypes={transientPropertyTypes}
 						filterIncompleteNuclei={filterIncompleteNuclei}
 						setFilterIncompleteNuclei={setFilterIncompleteNuclei}
 					/>
