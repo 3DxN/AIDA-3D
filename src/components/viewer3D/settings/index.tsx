@@ -25,6 +25,8 @@ export default function Settings(props: {
 	setFeatureData: (data: any) => void;
 	globalProperties: any;
 	globalPropertyTypes: any;
+	transientProperties?: any;
+	transientPropertyTypes?: any;
 	filterIncompleteNuclei: boolean;
 	setFilterIncompleteNuclei: (value: boolean) => void;
 }) {
@@ -38,6 +40,8 @@ export default function Settings(props: {
 		setFeatureData,
 		globalProperties,
 		globalPropertyTypes,
+		transientProperties,
+		transientPropertyTypes,
 		filterIncompleteNuclei,
 		setFilterIncompleteNuclei,
 	} = props;
@@ -93,6 +97,8 @@ export default function Settings(props: {
 						featureData={featureData}
 						globalProperties={globalProperties}
 						globalPropertyTypes={globalPropertyTypes}
+						transientProperties={transientProperties}
+						transientPropertyTypes={transientPropertyTypes}
 					/>
 					<Filter
 						renderer={renderer}
