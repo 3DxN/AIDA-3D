@@ -64,8 +64,8 @@ export interface BeerLambertConfig {
  * Default configuration for H&E staining
  */
 export const DEFAULT_BEER_LAMBERT_CONFIG: BeerLambertConfig = {
-  hematoxylinWeight: 10.0,  // Hematoxylin (nuclear) stain weight
-  eosinWeight: 1.0,         // Eosin (cytoplasmic) stain weight
+  hematoxylinWeight: 2.56,  // Hematoxylin (nuclear) stain weight
+  eosinWeight: 0.1,         // Eosin (cytoplasmic) stain weight
   maxIntensity: 65535,      // uint16 max (will be adjusted based on actual data range)
   enabled: true
 }

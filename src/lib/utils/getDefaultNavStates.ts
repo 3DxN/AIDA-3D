@@ -53,8 +53,8 @@ export function getInitialNavigationState(msInfo: IMultiscaleInfo): NavigationSt
         histogramEqualizationOn: false,
         heStainingOn: true,  // Enable H&E staining by default
         // Beer-Lambert H&E staining parameters
-        heStainHematoxylinWeight: 10.0,   // Hematoxylin (nuclear) stain weight
-        heStainEosinWeight: 1.0,          // Eosin (cytoplasmic) stain weight
+        heStainHematoxylinWeight: 2.56,   // Hematoxylin (nuclear) stain weight
+        heStainEosinWeight: 0.1,          // Eosin (cytoplasmic) stain weight
         heStainMaxIntensity: maxIntensity // Defaults to dtype max (65535 for uint16)
     }
 }
