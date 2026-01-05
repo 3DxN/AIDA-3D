@@ -118,6 +118,7 @@ export default function Settings(props: {
 						camera={camera}
 						content={content}
 						featureData={featureData}
+						transientProperties={transientProperties}
 					/>
 					<Properties
 						featureData={featureData}

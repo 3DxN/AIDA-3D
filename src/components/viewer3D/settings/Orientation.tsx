@@ -23,8 +23,9 @@ const Orientation = (props: {
 	scene: Scene
 	camera: Camera
 	featureData: any
+	transientProperties?: React.MutableRefObject<Map<number, Record<string, any>>>
 }) => {
-	const { content, scene, camera, renderer, featureData } = props
+	const { content, scene, camera, renderer, featureData, transientProperties } = props
 
 	const [orientationsActive, setOrientationsActive] = useState(false)
 	const [showOrientationInfo, setShowOrientationInfo] = useState(false)
@@ -108,7 +109,12 @@ const Orientation = (props: {
 					(d: any) => d.nucleus_index === nucleusIndex
 				)
 
-				if (nucleusData && nucleusData.axes && nucleusData.orientation) {
+				// Use transient (live) data if available, fallback to permanent data
+				const liveData = transientProperties?.current?.get(nucleusIndex);
+				const a = liveData?.orientation || nucleusData?.orientation;
+				const r = liveData?.axes || nucleusData?.axes;
+
+				if (a && r) {
 					hasOrientationData = true
 
 					// Get the world transformation matrix of the parent 'content' group
@@ -116,7 +122,7 @@ const Orientation = (props: {
 
 					// Calculate the nucleus center in WORLD coordinates
 					let c: Vector3
-					if (nucleusData.center) {
+					if (nucleusData?.center) {
 						// If center is in properties, transform it from voxel-space to world-space
 						c = new Vector3(...nucleusData.center).applyMatrix4(
 							contentMatrixWorld
@@ -131,10 +137,7 @@ const Orientation = (props: {
 							.applyMatrix4(contentMatrixWorld)
 					}
 
-					const a = nucleusData.orientation
-					const r = nucleusData.axes
-
-					if (c && a && r) {
+					if (c) {
 						const addLine = (
 							axisIndex: number,
 							material: THREE.LineBasicMaterial,
@@ -150,7 +153,11 @@ const Orientation = (props: {
 							// We only apply rotation part of the matrix to the direction vector
 							axisVector.transformDirection(contentMatrixWorld)
 
-							const scaledAxis = axisVector.multiplyScalar(r[axisIndex])
+							// SCALE: The 'r' values are radii (standard deviations).
+							// The line goes from c+scaled to c-scaled, so total length is 2*r.
+							// To ensure it fits the 'full length' of the nucleus (which might be ~4*std_dev for an ellipsoid),
+							// we multiply by 2.0.
+							const scaledAxis = axisVector.multiplyScalar(r[axisIndex] * 2.0)
 
 							// Calculate endpoints in WORLD space
 							points.push(c.clone().add(scaledAxis))
@@ -182,6 +189,7 @@ const Orientation = (props: {
 		camera,
 		featureData,
 		orientationsActive,
+		transientProperties
 	])
 
 	return (
