@@ -114,47 +114,56 @@ const Orientation = (props: {
 					// Get the world transformation matrix of the parent 'content' group
 					const contentMatrixWorld = content.matrixWorld
 
-					// Calculate the nucleus center in WORLD coordinates
-					let c: Vector3
-					if (nucleusData.center) {
-						// If center is in properties, transform it from voxel-space to world-space
-						c = new Vector3(...nucleusData.center).applyMatrix4(
-							contentMatrixWorld
-						)
-					} else {
-						// Fallback: get the geometric center (in voxel-space) and transform it to world-space
-						if (nucleus.geometry.boundingSphere === null) {
-							nucleus.geometry.computeBoundingSphere()
-						}
-						c = nucleus.geometry.boundingSphere!.center
-							.clone()
-							.applyMatrix4(contentMatrixWorld)
-					}
-
 					const a = nucleusData.orientation
 					const r = nucleusData.axes
 
-					if (c && a && r) {
+					// Debug: log the data structure for first nucleus
+					if (nucleusIndex === 1) {
+						console.log('Orientation data structure:', {
+							orientation: a,
+							axes: r,
+							orientationType: typeof a,
+							axesType: typeof r,
+							axesIsArray: Array.isArray(r),
+							axesLength: Array.isArray(r) ? r.length : 'N/A',
+							axesFirstElement: Array.isArray(r) ? r[0] : 'N/A',
+						})
+					}
+
+					// Get local center (in voxel space) for axis endpoint calculation
+					let localCenter: Vector3
+					if (nucleusData.center) {
+						localCenter = new Vector3(...nucleusData.center)
+					} else {
+						// Fallback: get the geometric center (in voxel-space)
+						if (nucleus.geometry.boundingSphere === null) {
+							nucleus.geometry.computeBoundingSphere()
+						}
+						localCenter = nucleus.geometry.boundingSphere!.center.clone()
+					}
+
+					if (localCenter && a && r) {
 						const addLine = (
 							axisIndex: number,
 							material: THREE.LineBasicMaterial,
 							axisLabel: string
 						) => {
-							const points = []
-							// Orientation vectors are directions; they don't need translation but should be rotated if the group is.
+							// Create axis vector with magnitude in LOCAL/voxel space
 							const axisVector = new Vector3(
-								a[0][axisIndex],
-								a[1][axisIndex],
-								a[2][axisIndex]
+								a[0][axisIndex] * r[axisIndex],
+								a[1][axisIndex] * r[axisIndex],
+								a[2][axisIndex] * r[axisIndex]
 							)
-							// We only apply rotation part of the matrix to the direction vector
-							axisVector.transformDirection(contentMatrixWorld)
 
-							const scaledAxis = axisVector.multiplyScalar(r[axisIndex])
+							// Calculate endpoints in LOCAL space, then transform to WORLD space
+							// This ensures the magnitude is correctly scaled by the world matrix
+							const localEndPoint1 = localCenter.clone().add(axisVector)
+							const localEndPoint2 = localCenter.clone().sub(axisVector)
 
-							// Calculate endpoints in WORLD space
-							points.push(c.clone().add(scaledAxis))
-							points.push(c.clone().sub(scaledAxis))
+							const worldEndPoint1 = localEndPoint1.applyMatrix4(contentMatrixWorld)
+							const worldEndPoint2 = localEndPoint2.applyMatrix4(contentMatrixWorld)
+
+							const points = [worldEndPoint1, worldEndPoint2]
 
 							const geom = new BufferGeometry().setFromPoints(points)
 							const line = new Line(geom, material)
