@@ -6,8 +6,7 @@ import { WebGLRenderer, Scene, Camera, Group } from 'three';
 
 import Clipping from './Clipping';
 import Explode from './Explode';
-import ColorMap from './colorMaps';
-import Filter from './Filter';
+import ColorsAndFilter from './ColorsAndFilter';
 import Orientation from './Orientation';
 import Properties from './Properties';
 import Export from './Export';
@@ -89,18 +88,7 @@ export default function Settings(props: {
 						camera={camera}
 						content={content}
 					/>
-					<ColorMap
-						renderer={renderer}
-						scene={scene}
-						camera={camera}
-						content={content}
-						featureData={featureData}
-						globalProperties={globalProperties}
-						globalPropertyTypes={globalPropertyTypes}
-						transientProperties={transientProperties}
-						transientPropertyTypes={transientPropertyTypes}
-					/>
-					<Filter
+					<ColorsAndFilter
 						renderer={renderer}
 						scene={scene}
 						camera={camera}
