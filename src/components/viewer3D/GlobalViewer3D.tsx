@@ -27,37 +27,45 @@ export default function GlobalViewer3D() {
         const scene = new THREE.Scene()
         scene.background = new THREE.Color('#111') // Dark grey background
 
-        // Camera setup
-        const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 1000000)
-        // Match main viewer orientation (Y down)
-        camera.up.set(0, -1, 0)
-        
-        // Position camera to see the whole store
+        // Content Group to match Local Viewer's coordinate system (Reflect Z)
+        const contentGroup = new THREE.Group()
+        contentGroup.scale.set(1, 1, -1)
+        scene.add(contentGroup)
+
+        // Dimensions
         const maxX = msInfo.shape.x
         const maxY = msInfo.shape.y
         const maxZ = msInfo.shape.z || 0
         const maxDim = Math.max(maxX, maxY, maxZ)
+        const centerX = maxX / 2
+        const centerY = maxY / 2
+        const centerZ = maxZ / 2
+
+        // Camera setup
+        const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 1000000)
+        camera.up.set(0, -1, 0) // Match main viewer orientation (Y down)
         
-        camera.position.set(maxX / 2, maxY / 2, maxDim * 2)
-        camera.lookAt(maxX / 2, maxY / 2, maxZ / 2)
+        // Position camera at Negative Z (looking from "front" in this inverted system)
+        // Center of data is at (centerX, centerY, -centerZ) in World Space due to group scale
+        camera.position.set(centerX, centerY, -maxDim * 2)
+        camera.lookAt(centerX, centerY, -centerZ)
 
         // Controls
         const controls = new OrbitControls(camera, canvas)
-        controls.target.set(maxX / 2, maxY / 2, maxZ / 2)
+        controls.target.set(centerX, centerY, -centerZ)
         controls.update()
 
         // 1. Global Wireframe
-        // BoxGeometry is centered at origin.
         const globalGeo = new THREE.BoxGeometry(maxX, maxY, maxZ || 1)
         const edges = new THREE.EdgesGeometry(globalGeo)
         const globalWireframe = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x666666 }))
-        globalWireframe.position.set(maxX / 2, maxY / 2, maxZ / 2)
-        scene.add(globalWireframe)
+        globalWireframe.position.set(centerX, centerY, centerZ)
+        contentGroup.add(globalWireframe)
 
         // 2. Context Box (Current Selection)
         const width = frameSize[0]
         const height = frameSize[1]
-        const depth = frameZLayersAbove + frameZLayersBelow + 1 // +1 for current slice
+        const depth = frameZLayersAbove + frameZLayersBelow + 1
         const contextGeo = new THREE.BoxGeometry(width, height, depth)
         const contextMat = new THREE.MeshBasicMaterial({ 
             color: 0xaaaaaa, 
@@ -68,18 +76,15 @@ export default function GlobalViewer3D() {
         })
         const contextBox = new THREE.Mesh(contextGeo, contextMat)
         
-        // Position logic:
-        // frameCenter is [x, y]
-        // Z center = currentZSlice + (above - below) / 2
         const zCenter = currentZSlice + (frameZLayersAbove - frameZLayersBelow) / 2
         contextBox.position.set(frameCenter[0], frameCenter[1], zCenter)
-        scene.add(contextBox)
+        contentGroup.add(contextBox)
         
         // Add Wireframe for Context Box
         const contextEdges = new THREE.EdgesGeometry(contextGeo)
         const contextWireframe = new THREE.LineSegments(contextEdges, new THREE.LineBasicMaterial({ color: 0xffffff }))
         contextWireframe.position.copy(contextBox.position)
-        scene.add(contextWireframe)
+        contentGroup.add(contextWireframe)
 
         // 3. ROIs & Interaction
         const roiMeshes: THREE.Line[] = []
@@ -88,18 +93,15 @@ export default function GlobalViewer3D() {
                 if (roi.vertices.length < 2) return
                 
                 const points = roi.vertices.map(v => new THREE.Vector3(v.x, v.y, roi.zSlice))
-                // Close the loop
-                points.push(points[0])
+                points.push(points[0]) // Close loop
                 
                 const roiGeo = new THREE.BufferGeometry().setFromPoints(points)
-                // Use a distinct color for ROIs
                 const roiMat = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }) 
                 const roiLine = new THREE.Line(roiGeo, roiMat)
                 
-                // Store ROI data for interaction
                 roiLine.userData = { roi }
                 
-                scene.add(roiLine)
+                contentGroup.add(roiLine)
                 roiMeshes.push(roiLine)
             })
         }
