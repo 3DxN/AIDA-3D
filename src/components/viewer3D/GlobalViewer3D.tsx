@@ -11,9 +11,10 @@ export default function GlobalViewer3D() {
     const { msInfo } = useZarrStore()
     const { 
         frameCenter, frameSize, 
-        currentZSlice, frameZLayersAbove, frameZLayersBelow 
+        currentZSlice, frameZLayersAbove, frameZLayersBelow,
+        setFrameCenter, setZSlice 
     } = useViewer2DData()
-    const { rois, roisVisible } = useROI()
+    const { rois, roisVisible, getROIBoundingBox } = useROI()
 
     useEffect(() => {
         if (!canvasRef.current || !msInfo) return
@@ -36,15 +37,6 @@ export default function GlobalViewer3D() {
         const maxY = msInfo.shape.y
         const maxZ = msInfo.shape.z || 0
         const maxDim = Math.max(maxX, maxY, maxZ)
-        
-        camera.position.set(maxX / 2, maxY / 2, -maxDim * 1.5) // Look from "front" (negative Z in Three.js terms if reflected? No, wait.)
-        // Viewer3D uses .scale.set(1, 1, -1) and camera at negative Z.
-        // Here we are in "global" coords which are positive.
-        // Let's stick to standard Right-Handed system but with Y down.
-        // X right, Y down, Z forward (into screen).
-        // If Y is down, Z is away from viewer?
-        // Standard Three.js: Y up, Z towards viewer.
-        // If we flip Y (up vector 0,-1,0), Y is down. Z is still towards viewer.
         
         camera.position.set(maxX / 2, maxY / 2, maxDim * 2)
         camera.lookAt(maxX / 2, maxY / 2, maxZ / 2)
@@ -78,13 +70,7 @@ export default function GlobalViewer3D() {
         
         // Position logic:
         // frameCenter is [x, y]
-        // Z center = currentZSlice + (above - below) / 2  <-- Wait.
-        // Range is [current - below, current + above]
-        // Center = (current - below + current + above) / 2 = (2*current + above - below) / 2 = current + (above - below) / 2
-        
-        // Wait, if "Layers Below" means "Lower index", then [current - below].
-        // Usually Z=0 is top/front.
-        
+        // Z center = currentZSlice + (above - below) / 2
         const zCenter = currentZSlice + (frameZLayersAbove - frameZLayersBelow) / 2
         contextBox.position.set(frameCenter[0], frameCenter[1], zCenter)
         scene.add(contextBox)
@@ -95,7 +81,8 @@ export default function GlobalViewer3D() {
         contextWireframe.position.copy(contextBox.position)
         scene.add(contextWireframe)
 
-        // 3. ROIs
+        // 3. ROIs & Interaction
+        const roiMeshes: THREE.Line[] = []
         if (roisVisible) {
             rois.forEach(roi => {
                 if (roi.vertices.length < 2) return
@@ -108,9 +95,49 @@ export default function GlobalViewer3D() {
                 // Use a distinct color for ROIs
                 const roiMat = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }) 
                 const roiLine = new THREE.Line(roiGeo, roiMat)
+                
+                // Store ROI data for interaction
+                roiLine.userData = { roi }
+                
                 scene.add(roiLine)
+                roiMeshes.push(roiLine)
             })
         }
+
+        // Raycaster for interaction
+        const raycaster = new THREE.Raycaster()
+        raycaster.params.Line.threshold = maxDim * 0.01 // Make it easier to click lines (1% of max dimension)
+        
+        // Handle click
+        let isDragging = false
+        const onPointerDown = () => { isDragging = false }
+        const onPointerMove = () => { isDragging = true }
+        
+        const onPointerUp = (event: PointerEvent) => {
+            if (isDragging) return // Ignore drags (orbiting)
+
+            const rect = canvas.getBoundingClientRect()
+            const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+            const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+            
+            raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
+            const intersects = raycaster.intersectObjects(roiMeshes)
+            
+            if (intersects.length > 0) {
+                const hit = intersects[0]
+                const roi = hit.object.userData.roi
+                if (roi) {
+                    console.log('🎯 Clicked ROI:', roi.label)
+                    const bbox = getROIBoundingBox(roi)
+                    setFrameCenter([bbox.centerX, bbox.centerY])
+                    setZSlice(roi.zSlice)
+                }
+            }
+        }
+
+        canvas.addEventListener('pointerdown', onPointerDown)
+        canvas.addEventListener('pointermove', onPointerMove)
+        canvas.addEventListener('pointerup', onPointerUp)
 
         // Render Loop
         let animationId: number
@@ -130,6 +157,9 @@ export default function GlobalViewer3D() {
 
         return () => {
             window.removeEventListener('resize', handleResize)
+            canvas.removeEventListener('pointerdown', onPointerDown)
+            canvas.removeEventListener('pointermove', onPointerMove)
+            canvas.removeEventListener('pointerup', onPointerUp)
             cancelAnimationFrame(animationId)
             renderer.dispose()
             controls.dispose()
@@ -141,8 +171,17 @@ export default function GlobalViewer3D() {
             contextMat.dispose()
             contextEdges.dispose()
             contextWireframe.material.dispose()
+            roiMeshes.forEach(mesh => {
+                if (mesh.geometry && typeof mesh.geometry.dispose === 'function') {
+                    mesh.geometry.dispose()
+                }
+                if (mesh.material) {
+                    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                    materials.forEach(m => m.dispose && m.dispose());
+                }
+            })
         }
-    }, [msInfo, frameCenter, frameSize, currentZSlice, frameZLayersAbove, frameZLayersBelow, rois, roisVisible])
+    }, [msInfo, frameCenter, frameSize, currentZSlice, frameZLayersAbove, frameZLayersBelow, rois, roisVisible, setFrameCenter, setZSlice, getROIBoundingBox])
 
     if (!msInfo) return (
         <div className="w-full h-full flex items-center justify-center bg-gray-900 text-gray-500 text-sm">
