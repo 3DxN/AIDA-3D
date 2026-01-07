@@ -138,10 +138,12 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   // Helper function for frame-bound array slicing (DRY principle)
   const getFrameBoundData = useCallback(async (
     array: zarrita.Array<zarrita.DataType>,
+    zSlice: number,
+    timeSlice: number
   ): Promise<zarrita.Chunk<zarrita.DataType> | null> => {
-    if (!navigationState) {
-      return null
-    }
+    // If array is missing, we can't load. navigationState is not strictly needed here 
+    // if z/t are passed, but we might want to ensure initialization.
+    // However, if z/t are passed, we assume valid context.
 
     try {
       // Calculate frame bounds (these are in resolution 0 coordinates)
@@ -181,9 +183,9 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
       const hasZ = array.shape.length > 2 && msInfo?.shape.z && msInfo.shape.z >= 1
       if (hasZ) {
         // For 2D overlay, get ONLY the current z slice (high-res single layer)
-        const scaledZ = Math.floor(currentZSlice / zScale)
+        const scaledZ = Math.floor(zSlice / zScale)
         const clampedZ = Math.max(0, Math.min(array.shape[0] - 1, scaledZ))
-        console.log(`   Getting single Z layer at index ${clampedZ} (original: ${currentZSlice}, scaled: ${scaledZ})`)
+        console.log(`   Getting single Z layer at index ${clampedZ} (original: ${zSlice}, scaled: ${scaledZ})`)
         selection.push(clampedZ)
       }
       selection.push(zarrita.slice(y1, y2))
@@ -197,14 +199,15 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
       console.error(`❌ Error getting frame-bound main data:`, errorMsg)
       throw error
     }
-  }, [navigationState, getFrameBounds, currentZSlice, currentTimeSlice, frameZLayersAbove, frameZLayersBelow, msInfo, cellposeScales, selectedCellposeOverlayResolution])
+  }, [getFrameBounds, msInfo, cellposeScales, selectedCellposeOverlayResolution])
   
   // Auto-update frame-bound Cellpose data when dependencies change
   useEffect(() => {
     const loadFrameBoundCellposeData = async () => {
       const cellposeArray = cellposeArrays[selectedCellposeOverlayResolution]
 
-      if (!cellposeArray || !navigationState) {
+      // We depend on currentZSlice/currentTimeSlice instead of navigationState to prevent reloads on contrast change
+      if (!cellposeArray) {
         setFrameBoundCellposeData(null)
         return
       }
@@ -215,8 +218,8 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
       setDataError(null)
 
       try {
-        // Use shared helper function
-        const result = await getFrameBoundData(cellposeArray)
+        // Use shared helper function with explicit Z/T
+        const result = await getFrameBoundData(cellposeArray, currentZSlice, currentTimeSlice)
         console.log(`✅ Frame-bound Cellpose data loaded, chunk shape: ${result?.shape.join(' × ') || 'null'}`)
         setFrameBoundCellposeData(result)
       } catch (error) {
@@ -230,14 +233,14 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     }
 
     loadFrameBoundCellposeData()
-  }, [cellposeArrays, selectedCellposeOverlayResolution, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, currentZSlice, currentTimeSlice, getFrameBoundData])
+  }, [cellposeArrays, selectedCellposeOverlayResolution, currentZSlice, currentTimeSlice, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, getFrameBoundData])
 
   // Auto-update frame-bound Cellpose MESH data when dependencies change (low-res all Z layers)
   useEffect(() => {
     const loadFrameBoundCellposeMeshData = async () => {
       const cellposeMeshArray = cellposeArrays[selectedCellposeMeshResolution]
 
-      if (!cellposeMeshArray || !navigationState) {
+      if (!cellposeMeshArray) {
         setFrameBoundCellposeMeshData(null)
         return
       }
@@ -310,7 +313,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     }
 
     loadFrameBoundCellposeMeshData()
-  }, [cellposeArrays, selectedCellposeMeshResolution, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, currentZSlice, msInfo, cellposeScales, getFrameBounds])
+  }, [cellposeArrays, selectedCellposeMeshResolution, currentZSlice, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, msInfo, cellposeScales, getFrameBounds])
 
   // Get current cellpose scale for mesh creation (3D viewer uses this)
   const cellposeScale = cellposeScales[selectedCellposeMeshResolution] || [1.0, 1.0, 1.0]
