@@ -13,6 +13,7 @@ import ChannelSelector from './ChannelSelector'
 import ContrastLimitsSelector from './ContrastLimitsSelector'
 import CellposeOverlayResolutionSelector from './CellposeOverlayResolutionSelector'
 import CellposeMeshResolutionSelector from './CellposeMeshResolutionSelector'
+import ROIPanel from './ROIPanel'
 
 function classNames(...classes: (string | boolean | undefined)[]) {
     return classes.filter(Boolean).join(' ')
@@ -442,6 +443,9 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                             </>
                         )}
                     </Disclosure>
+
+                    {/* ROI Section */}
+                    <ROIPanel />
                 </div>
             )}
         </>
