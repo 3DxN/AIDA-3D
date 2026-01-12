@@ -406,7 +406,7 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                             label="Layers Above"
                                             value={tempFrameZLayersAbove ?? frameZLayersAbove}
                                             minValue={0}
-                                            maxValue={msInfo.shape.z - 1 - zSlice}
+                                            maxValue={Math.max(0, (msInfo.shape.z || 1) - 1 - zSlice)}
                                             onChange={(value) => setTempFrameZLayersAbove(Array.isArray(value) ? value[0] : value)}
                                             onChangeCommitted={(value) => {
                                                 setFrameZLayersAbove(Array.isArray(value) ? value[0] : value);
