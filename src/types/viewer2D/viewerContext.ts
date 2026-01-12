@@ -52,6 +52,10 @@ export interface Viewer2DDataContextType {
 
   // Cellpose resolution and scaling
   cellposeScale: number[] // [z_scale, y_scale, x_scale] for mesh resolution
+
+  // Full 3D mode - loads entire volume, decouples Z changes from mesh updates
+  full3DMode: boolean
+  setFull3DMode: (enabled: boolean) => void
 }
 
 export interface Viewer2DDataProviderProps {
