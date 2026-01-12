@@ -1,5 +1,6 @@
 import * as zarr from "zarrita";
 import type * as viv from "@vivjs/types";
+import { acquireSlot, releaseSlot } from "./fetchLimiter";
 
 // TODO: Export from top-level zarrita
 type Slice = ReturnType<typeof zarr.slice>;
@@ -222,7 +223,7 @@ export default class DynamicResolutionZarrPixelSource implements viv.PixelSource
         : batchSignal;
 
       try {
-        const { data, shape } = await zarr.get(array, request.selection, { opts: { signal } });
+        const { data, shape } = await this.#fetchWithRetry(array, request.selection, signal, 3);
         resolve({
           data: transform(data),
           width: shape[1],
@@ -242,6 +243,48 @@ export default class DynamicResolutionZarrPixelSource implements viv.PixelSource
     // Clear batch state
     this.#pendingId = undefined;
     this.#pending = [];
+  }
+
+  /**
+   * Fetch data with retry logic, exponential backoff, and concurrency limiting.
+   */
+  async #fetchWithRetry(
+    array: zarr.Array<zarr.NumberDataType | zarr.BigintDataType, zarr.Readable>,
+    selection: Array<number | zarr.Slice>,
+    signal: AbortSignal | undefined,
+    maxRetries: number,
+    attempt: number = 0
+  ): Promise<{ data: zarr.TypedArray<zarr.NumberDataType | zarr.BigintDataType>; shape: readonly number[] }> {
+    // Wait for a slot (only on first attempt - retries reuse the slot)
+    if (attempt === 0) {
+      await acquireSlot(signal);
+    }
+
+    try {
+      const result = await zarr.get(array, selection, { opts: { signal } });
+      releaseSlot();
+      return result;
+    } catch (error) {
+      // Don't retry aborted requests
+      if (error instanceof Error && error.name === 'AbortError') {
+        releaseSlot();
+        throw error;
+      }
+
+      // Check if this is a retryable network error
+      const isNetworkError = error instanceof TypeError &&
+        (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'));
+
+      if (isNetworkError && attempt < maxRetries) {
+        // Exponential backoff: 200ms, 400ms, 800ms, etc.
+        const delay = Math.min(200 * Math.pow(2, attempt), 3000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.#fetchWithRetry(array, selection, signal, maxRetries, attempt + 1);
+      }
+
+      releaseSlot();
+      throw error;
+    }
   }
 
   /**
