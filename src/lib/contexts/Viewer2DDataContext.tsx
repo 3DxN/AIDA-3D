@@ -248,6 +248,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
       setDataError(null)
 
       try {
+        const fetchStart = performance.now()
         // Get scale factor for mesh resolution
         const meshScale = cellposeScales[selectedCellposeMeshResolution] || [1.0, 1.0, 1.0]
         const xScale = meshScale[2]
@@ -297,6 +298,8 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
         selection.push(zarrita.slice(x1, x2))
 
         const result = await zarrita.get(cellposeMeshArray, selection)
+        const fetchEnd = performance.now()
+        console.log(`⏱️ Zarr MESH fetch: ${(fetchEnd - fetchStart).toFixed(1)}ms`)
         console.log(`✅ Frame-bound Cellpose MESH data loaded, chunk shape: ${result?.shape.join(' × ') || 'null'}`)
         setFrameBoundCellposeMeshData(result)
       } catch (error) {
