@@ -41,6 +41,7 @@ export function useFrameInteraction(
         setFrameSize,
         frameBoundCellposeData,
         navigationState,
+        full3DMode,
     } = useViewer2DData();
 
     const { msInfo } = useZarrStore();
@@ -84,7 +85,13 @@ export function useFrameInteraction(
     })
 
     // Handle frame interactions (handles and move area are pickable)
+    // Disabled in Full 3D Mode as the frame is not shown
     const handleFrameInteraction = useCallback((info: PickingInfo) => {
+        // Disable frame interaction in Full 3D Mode
+        if (full3DMode) {
+            return false;
+        }
+
         if (!info || !info.object) {
             console.log('No interaction info or object, returning false');
             return false;
@@ -112,7 +119,7 @@ export function useFrameInteraction(
             return true;
         }
         return false;
-    }, [frameCenter, frameSize]);
+    }, [full3DMode, frameCenter, frameSize]);
 
     // Handle DeckGL hover events for visual feedback only
     const handleHover = useCallback((info: PickingInfo) => {
@@ -223,8 +230,10 @@ export function useFrameInteraction(
     }, [frameInteraction.isDragging, hoveredHandle]);
 
     // Create interactive frame overlay layers (use temp state when dragging, actual state otherwise)
+    // In Full 3D Mode: hide frame overlay as the entire volume is loaded
     const frameOverlayLayers = useMemo(() => {
-        if (!msInfo) {
+        // No frame overlay in Full 3D Mode or if msInfo is not loaded
+        if (full3DMode || !msInfo) {
             return [];
         }
 
@@ -242,7 +251,7 @@ export function useFrameInteraction(
             handleSize: 8,
             hoveredHandle
         });
-    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle]);
+    }, [full3DMode, msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle]);
 
     // Handle selection box area selection
     const handleSelectionBoxAreaSelection = useCallback((startCoord: [number, number], endCoord: [number, number]) => {

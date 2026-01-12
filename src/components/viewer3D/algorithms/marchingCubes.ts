@@ -123,7 +123,9 @@ export const generateMeshesFromVoxelData = (
 	input: Chunk<Uint32>,
 	currentZSlice?: number,
 	filterIncompleteNuclei: boolean = true,
-	voxelScale?: number[] // [z_scale, y_scale, x_scale] from OME metadata
+	voxelScale?: number[], // [z_scale, y_scale, x_scale] from OME metadata
+	full3DMode: boolean = false, // When true, centers mesh around volume center instead of currentZSlice
+	totalZLayers?: number // Total Z layers in full resolution (for centering in full 3D mode)
 ) => {
 	const meshDataArray = [];
 	const { data, shape, stride } = input;
@@ -181,10 +183,20 @@ export const generateMeshesFromVoxelData = (
 				const centeredX = vertex.x - dims[2] / 2;
 				const centeredY = vertex.y - dims[1] / 2;
 
-				// Transform z so that currentZSlice becomes z=0
-				// currentZSlice should be at z=0, layers below in negative z, layers above in positive z
-				const currentZ = currentZSlice !== undefined ? currentZSlice : dims[0] / 2;
-				const transformedZ = vertex.z - currentZ; // Direct offset from current slice
+				// Transform z based on mode:
+				// - Frame mode: z=0 is at currentZSlice (plane stays at origin, mesh moves)
+				// - Full 3D mode: z=0 is at volume center (mesh stays centered, plane moves)
+				let transformedZ: number;
+				if (full3DMode) {
+					// In Full 3D Mode: center mesh around middle of entire volume
+					// Use totalZLayers if provided, otherwise use dims[0]
+					const volumeCenter = (totalZLayers ?? dims[0]) / 2;
+					transformedZ = vertex.z - volumeCenter;
+				} else {
+					// In Frame Mode: z=0 is at currentZSlice
+					const currentZ = currentZSlice !== undefined ? currentZSlice : dims[0] / 2;
+					transformedZ = vertex.z - currentZ;
+				}
 
 				// Apply voxel scale factors to correct for anisotropic voxels
 				// This ensures proper proportions when X/Y resolution changes but Z stays the same
