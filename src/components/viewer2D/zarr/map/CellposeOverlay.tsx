@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext';
+import { useZarrStore } from '../../../../lib/contexts/ZarrStoreContext';
 import { useNucleusSelection } from '../../../../lib/contexts/NucleusSelectionContext';
 import { useNucleusColor } from '../../../../lib/contexts/NucleusColorContext';
 import { VivViewState } from '../../../../types/viewer2D/vivViewer';
@@ -18,8 +19,10 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
         frameZLayersBelow,
         frameCenter,
         frameSize,
-        isDataLoading
+        isDataLoading,
+        full3DMode
     } = useViewer2DData();
+    const { msInfo } = useZarrStore();
     const { selectedNucleiIndices } = useNucleusSelection();
     const { getNucleusColor } = useNucleusColor();
 
@@ -42,15 +45,23 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
             const { target, zoom } = viewState;
             const scale = Math.pow(2, zoom);
 
+            // In Full 3D Mode: use full image dimensions; otherwise use frame bounds
+            const effectiveFrameSize: [number, number] = full3DMode && msInfo?.shape.x && msInfo?.shape.y
+                ? [msInfo.shape.x, msInfo.shape.y]
+                : frameSize;
+            const effectiveFrameCenter: [number, number] = full3DMode && msInfo?.shape.x && msInfo?.shape.y
+                ? [msInfo.shape.x / 2, msInfo.shape.y / 2]
+                : frameCenter;
+
             // Top-left corner of the frame in world coordinates
-            const frameWorldX = frameCenter[0] - frameSize[0] / 2;
-            const frameWorldY = frameCenter[1] - frameSize[1] / 2;
+            const frameWorldX = effectiveFrameCenter[0] - effectiveFrameSize[0] / 2;
+            const frameWorldY = effectiveFrameCenter[1] - effectiveFrameSize[1] / 2;
 
             // Convert to screen coordinates
             const screenX = (frameWorldX - target[0]) * scale + containerSize.width / 2;
             const screenY = (frameWorldY - target[1]) * scale + containerSize.height / 2;
-            const screenWidth = frameSize[0] * scale;
-            const screenHeight = frameSize[1] * scale;
+            const screenWidth = effectiveFrameSize[0] * scale;
+            const screenHeight = effectiveFrameSize[1] * scale;
 
             // --- 2. Extract the 2D slice data (now a single Z layer from high-res overlay) ---
             const { data, shape } = frameBoundCellposeData;
@@ -108,7 +119,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 ctx.drawImage(bitmap, screenX, screenY, screenWidth, screenHeight);
             });
         }
-    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor, isDataLoading]);
+    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor, isDataLoading, full3DMode, msInfo]);
 
     return (
         <canvas

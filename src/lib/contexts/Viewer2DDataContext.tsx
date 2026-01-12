@@ -205,6 +205,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
   }, [getFrameBounds, msInfo, cellposeScales, selectedCellposeOverlayResolution])
   
   // Auto-update frame-bound Cellpose data when dependencies change
+  // In full3DMode: loads entire X/Y range, still updates on Z changes
   useEffect(() => {
     const loadFrameBoundCellposeData = async () => {
       const cellposeArray = cellposeArrays[selectedCellposeOverlayResolution]
@@ -215,16 +216,41 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
         return
       }
 
-      console.log(`🔄 Loading frame-bound Cellpose data at overlay resolution ${selectedCellposeOverlayResolution}, array shape: ${cellposeArray.shape.join(' × ')}`)
+      console.log(`🔄 Loading ${full3DMode ? 'FULL X/Y' : 'frame-bound'} Cellpose data at overlay resolution ${selectedCellposeOverlayResolution}, array shape: ${cellposeArray.shape.join(' × ')}`)
 
       setIsDataLoading(true)
       setDataError(null)
 
       try {
-        // Use shared helper function with explicit Z/T
-        const result = await getFrameBoundData(cellposeArray, currentZSlice, currentTimeSlice)
-        console.log(`✅ Frame-bound Cellpose data loaded, chunk shape: ${result?.shape.join(' × ') || 'null'}`)
-        setFrameBoundCellposeData(result)
+        if (full3DMode) {
+          // In Full 3D Mode: load entire X/Y extent for the current Z slice
+          const scale = cellposeScales[selectedCellposeOverlayResolution] || [1.0, 1.0, 1.0]
+          const zScale = scale[0]
+
+          const maxX = cellposeArray.shape[cellposeArray.shape.length - 1]
+          const maxY = cellposeArray.shape[cellposeArray.shape.length - 2]
+
+          const selection: (number | zarrita.Slice | null)[] = []
+
+          const hasZ = cellposeArray.shape.length > 2 && msInfo?.shape.z && msInfo.shape.z >= 1
+          if (hasZ) {
+            const scaledZ = Math.floor(currentZSlice / zScale)
+            const clampedZ = Math.max(0, Math.min(cellposeArray.shape[0] - 1, scaledZ))
+            console.log(`   Full 3D Mode: Getting single Z layer at index ${clampedZ} (original: ${currentZSlice})`)
+            selection.push(clampedZ)
+          }
+          selection.push(zarrita.slice(0, maxY))
+          selection.push(zarrita.slice(0, maxX))
+
+          const result = await zarrita.get(cellposeArray, selection)
+          console.log(`✅ Full X/Y Cellpose data loaded, chunk shape: ${result?.shape.join(' × ') || 'null'}`)
+          setFrameBoundCellposeData(result)
+        } else {
+          // In Frame Mode: use shared helper function with explicit Z/T
+          const result = await getFrameBoundData(cellposeArray, currentZSlice, currentTimeSlice)
+          console.log(`✅ Frame-bound Cellpose data loaded, chunk shape: ${result?.shape.join(' × ') || 'null'}`)
+          setFrameBoundCellposeData(result)
+        }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error'
         console.error('❌ Error getting frame-bound Cellpose data:', errorMsg)
@@ -236,7 +262,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     }
 
     loadFrameBoundCellposeData()
-  }, [cellposeArrays, selectedCellposeOverlayResolution, currentZSlice, currentTimeSlice, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, getFrameBoundData])
+  }, [cellposeArrays, selectedCellposeOverlayResolution, currentZSlice, currentTimeSlice, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, getFrameBoundData, full3DMode, cellposeScales, msInfo])
 
   // Auto-update frame-bound Cellpose MESH data when dependencies change (low-res all Z layers)
   // In full3DMode: loads entire volume, Z changes don't trigger reload

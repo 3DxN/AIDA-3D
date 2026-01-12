@@ -343,13 +343,13 @@ const Viewer3D = (props: {
 			setFeatureData(newFeatureData);
 
 			// Add cross-section plane centered at global origin facing z direction
-			if (frameCenter && frameSize && frameSize[0] > 0 && frameSize[1] > 0) {
-				const bounds = getFrameBounds();
-				const width = bounds.right - bounds.left;
-				const height = bounds.bottom - bounds.top;
+			// In Full 3D Mode: use full data dimensions; otherwise use frame bounds
+			const planeWidth = full3DMode && msInfo?.shape.x ? msInfo.shape.x : (frameSize ? frameSize[0] : 100);
+			const planeHeight = full3DMode && msInfo?.shape.y ? msInfo.shape.y : (frameSize ? frameSize[1] : 100);
 
-				// Create plane with 2D selection dimensions
-				const planeGeometry = new THREE.PlaneGeometry(width, height);
+			if (planeWidth > 0 && planeHeight > 0) {
+				// Create plane with appropriate dimensions
+				const planeGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
 				const planeMaterial = new THREE.MeshBasicMaterial({
 					color: 0xffffff,
 					transparent: true,
@@ -381,10 +381,10 @@ const Viewer3D = (props: {
 			// Only set camera position on first initialization, preserve user's camera state afterwards
 			if (!isCameraInitialized) {
 				// Calculate camera distance to ensure everything is comfortably visible
-				const bounds = getFrameBounds();
-				const frameWidth = bounds.right - bounds.left;
-				const frameHeight = bounds.bottom - bounds.top;
-				const planeSize = Math.max(frameWidth, frameHeight);
+				// In Full 3D Mode: use full data dimensions
+				const effectiveWidth = full3DMode && msInfo?.shape.x ? msInfo.shape.x : (frameSize ? frameSize[0] : 100);
+				const effectiveHeight = full3DMode && msInfo?.shape.y ? msInfo.shape.y : (frameSize ? frameSize[1] : 100);
+				const planeSize = Math.max(effectiveWidth, effectiveHeight);
 
 				// Zoomed in for better detail view
 				const distanceScale = Math.max(2.0, planeSize / 40); // 4x more zoomed in
@@ -408,7 +408,7 @@ const Viewer3D = (props: {
 			renderer.render(scene, camera);
 			setIsLoading(false);
 		}
-	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei]);
+	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei, full3DMode, msInfo, frameSize, cellposeScale]);
 
 	// Adjust selections
 	useEffect(() => {
@@ -507,14 +507,13 @@ const Viewer3D = (props: {
 
 	// Update cross-section plane when frame changes
 	useEffect(() => {
-		if (!crossSectionPlane.current || !frameCenter || !frameSize) return;
+		if (!crossSectionPlane.current) return;
 
-		// Update plane position when frame changes
-		const bounds = getFrameBounds();
-		const width = bounds.right - bounds.left;
-		const height = bounds.bottom - bounds.top;
+		// In Full 3D Mode: use full data dimensions; otherwise use frame bounds
+		const width = full3DMode && msInfo?.shape.x ? msInfo.shape.x : (frameSize ? frameSize[0] : 100);
+		const height = full3DMode && msInfo?.shape.y ? msInfo.shape.y : (frameSize ? frameSize[1] : 100);
 
-		// Update geometry size to match 2D selection
+		// Update geometry size to match appropriate dimensions
 		crossSectionPlane.current.geometry.dispose();
 		crossSectionPlane.current.geometry = new THREE.PlaneGeometry(width, height);
 
@@ -526,7 +525,7 @@ const Viewer3D = (props: {
 		if (renderer && scene && camera) {
 			renderer.render(scene, camera);
 		}
-	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeMeshData, full3DMode]);
+	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeMeshData, full3DMode, msInfo]);
 
 	// Update cross-section plane Z position when currentZSlice changes (Full 3D Mode only)
 	// In full 3D mode, changing Z slice should move the plane without regenerating the mesh
