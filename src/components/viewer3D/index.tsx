@@ -9,6 +9,7 @@ import * as checkPointInPolygon from 'robust-point-in-polygon';
 import { generateMeshesFromVoxelData } from './algorithms/marchingCubes';
 import { calculateNucleusVolume } from './algorithms/nucleusVolume';
 import { calculateNucleusDiameter } from './algorithms/nucleusDiameter';
+import { calculateNucleusMorphology } from './algorithms/nucleusMorphology';
 import { useViewer2DData } from '../../lib/contexts/Viewer2DDataContext';
 import { useNucleusSelection } from '../../lib/contexts/NucleusSelectionContext';
 import { useNucleusColor } from '../../lib/contexts/NucleusColorContext';
@@ -63,6 +64,9 @@ const Viewer3D = (props: {
 	const globalPropertyTypes = useRef<{ id: number; name: string; count: number }[]>(
 		[]
 	);
+	// Transient (live) properties storage
+	const transientProperties = useRef<Map<number, Record<string, any>>>(new Map());
+	const transientPropertyTypes = useRef<{ name: string; isTransient: boolean }[]>([]);
 
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
@@ -328,6 +332,27 @@ const Viewer3D = (props: {
 					}
 				}
 			}
+
+			const nucleusMorphologies = nucleusMeshes.map(mesh => calculateNucleusMorphology(mesh));
+
+			// Populate transient (live) properties
+			const newTransientData = new Map<number, Record<string, any>>();
+			nucleusMorphologies.forEach((morph, index) => {
+				const nucleusIndex = Number(nucleusMeshes[index].name.split('_')[1]);
+				newTransientData.set(nucleusIndex, {
+					elongation: morph.elongation,
+					flatness: morph.flatness,
+					sphericity: morph.sphericity
+				});
+			});
+			transientProperties.current = newTransientData;
+
+			// Define transient property types for ColorMaps
+			transientPropertyTypes.current = [
+				{ name: 'elongation', isTransient: true },
+				{ name: 'flatness', isTransient: true },
+				{ name: 'sphericity', isTransient: true },
+			];
 
 			const newFeatureData = {
 				labels: globalProperties.current, // Always use the persistent, dense global array
@@ -636,6 +661,8 @@ const Viewer3D = (props: {
 					setFeatureData={setFeatureData}
 					globalProperties={globalProperties}
 					globalPropertyTypes={globalPropertyTypes}
+					transientProperties={transientProperties}
+					transientPropertyTypes={transientPropertyTypes}
 					filterIncompleteNuclei={filterIncompleteNuclei}
 					setFilterIncompleteNuclei={setFilterIncompleteNuclei}
 				/>

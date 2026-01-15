@@ -6,8 +6,7 @@ import { WebGLRenderer, Scene, Camera, Group } from 'three';
 
 import Clipping from './Clipping';
 import Explode from './Explode';
-import ColorMap from './colorMaps';
-import Filter from './Filter';
+import ColorsAndFilter from './ColorsAndFilter';
 import Orientation from './Orientation';
 import Properties from './Properties';
 import Export from './Export';
@@ -25,6 +24,8 @@ export default function Settings(props: {
 	setFeatureData: (data: any) => void;
 	globalProperties: any;
 	globalPropertyTypes: any;
+	transientProperties?: any;
+	transientPropertyTypes?: any;
 	filterIncompleteNuclei: boolean;
 	setFilterIncompleteNuclei: (value: boolean) => void;
 }) {
@@ -38,6 +39,8 @@ export default function Settings(props: {
 		setFeatureData,
 		globalProperties,
 		globalPropertyTypes,
+		transientProperties,
+		transientPropertyTypes,
 		filterIncompleteNuclei,
 		setFilterIncompleteNuclei,
 	} = props;
@@ -85,16 +88,7 @@ export default function Settings(props: {
 						camera={camera}
 						content={content}
 					/>
-					<ColorMap
-						renderer={renderer}
-						scene={scene}
-						camera={camera}
-						content={content}
-						featureData={featureData}
-						globalProperties={globalProperties}
-						globalPropertyTypes={globalPropertyTypes}
-					/>
-					<Filter
+					<ColorsAndFilter
 						renderer={renderer}
 						scene={scene}
 						camera={camera}
@@ -103,6 +97,8 @@ export default function Settings(props: {
 						selected={selected}
 						globalProperties={globalProperties}
 						globalPropertyTypes={globalPropertyTypes}
+						transientProperties={transientProperties}
+						transientPropertyTypes={transientPropertyTypes}
 						filterIncompleteNuclei={filterIncompleteNuclei}
 						setFilterIncompleteNuclei={setFilterIncompleteNuclei}
 					/>
@@ -112,6 +108,7 @@ export default function Settings(props: {
 						camera={camera}
 						content={content}
 						featureData={featureData}
+						transientProperties={transientProperties}
 					/>
 					<Properties
 						featureData={featureData}
@@ -119,6 +116,8 @@ export default function Settings(props: {
 						setFeatureData={setFeatureData}
 						globalProperties={globalProperties}
 						globalPropertyTypes={globalPropertyTypes}
+						transientProperties={transientProperties}
+						transientPropertyTypes={transientPropertyTypes}
 					/>
 					<Export
 						renderer={renderer}
