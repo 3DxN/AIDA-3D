@@ -10,6 +10,7 @@ import {
 import { useViewer2DData } from '../contexts/Viewer2DDataContext'
 import { useNucleusSelection } from '../contexts/NucleusSelectionContext'
 import { useZarrStore } from '../contexts/ZarrStoreContext'
+import { useROI } from '../contexts/ROIContext'
 
 
 import type { PickingInfo } from 'deck.gl'
@@ -29,6 +30,7 @@ export function useFrameInteraction(
     setDetailViewDrag: (drag: VivDetailViewState) => void,
     detailViewDrag: VivDetailViewState,
     setControlledDetailViewState: (state: VivViewState) => void,
+    setShowLabelModal: (show: boolean) => void,
 ) {
     const {
         frameCenter,
@@ -39,6 +41,7 @@ export function useFrameInteraction(
         setFrameSize,
         frameBoundCellposeData,
         navigationState,
+        full3DMode,
     } = useViewer2DData();
 
     const { msInfo } = useZarrStore();
@@ -50,6 +53,12 @@ export function useFrameInteraction(
         setSelectedNucleiIndices,
         clearSelection,
     } = useNucleusSelection();
+
+    const {
+        drawingState,
+        addVertex,
+        updatePreviewVertex,
+    } = useROI();
 
     const [frameInteraction, setFrameInteraction] = useState<FrameInteractionState>({
         isDragging: false,
@@ -76,7 +85,13 @@ export function useFrameInteraction(
     })
 
     // Handle frame interactions (handles and move area are pickable)
+    // Disabled in Full 3D Mode as the frame is not shown
     const handleFrameInteraction = useCallback((info: PickingInfo) => {
+        // Disable frame interaction in Full 3D Mode
+        if (full3DMode) {
+            return false;
+        }
+
         if (!info || !info.object) {
             console.log('No interaction info or object, returning false');
             return false;
@@ -104,10 +119,19 @@ export function useFrameInteraction(
             return true;
         }
         return false;
-    }, [frameCenter, frameSize]);
+    }, [full3DMode, frameCenter, frameSize]);
 
     // Handle DeckGL hover events for visual feedback only
     const handleHover = useCallback((info: PickingInfo) => {
+        // Update ROI preview vertex when in drawing mode
+        // Accept hover from both DETAIL_VIEW_ID and FRAME_VIEW_ID (the frame area where segmentation is shown)
+        const isDrawingViewport = info.viewport?.id === DETAIL_VIEW_ID || info.viewport?.id === FRAME_VIEW_ID;
+        if (drawingState.isDrawing && info.coordinate && isDrawingViewport) {
+            updatePreviewVertex({ x: info.coordinate[0], y: info.coordinate[1] });
+        } else if (drawingState.isDrawing) {
+            updatePreviewVertex(null);
+        }
+
         // Only update hover state for handles (only handles are pickable now)
         if (!frameInteraction.isDragging && info.object && info.object.type && info.object.type.startsWith('resize-') && info.layer && info.layer.id && info.layer.id.includes('handle')) {
             setHoveredHandle(info.object.type);
@@ -117,7 +141,7 @@ export function useFrameInteraction(
                 setHoveredHandle(null);
             }
         }
-    }, [frameInteraction.isDragging, hoveredHandle]);
+    }, [frameInteraction.isDragging, hoveredHandle, drawingState.isDrawing, updatePreviewVertex]);
 
     // Handle drag events for frame resizing/moving (use temp state to avoid cellpose updates)
     const handleDrag = useCallback((info: PickingInfo) => {
@@ -206,8 +230,10 @@ export function useFrameInteraction(
     }, [frameInteraction.isDragging, hoveredHandle]);
 
     // Create interactive frame overlay layers (use temp state when dragging, actual state otherwise)
+    // In Full 3D Mode: hide frame overlay as the entire volume is loaded
     const frameOverlayLayers = useMemo(() => {
-        if (!msInfo) {
+        // No frame overlay in Full 3D Mode or if msInfo is not loaded
+        if (full3DMode || !msInfo) {
             return [];
         }
 
@@ -225,7 +251,7 @@ export function useFrameInteraction(
             handleSize: 8,
             hoveredHandle
         });
-    }, [msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle]);
+    }, [full3DMode, msInfo, frameCenter, frameSize, tempFrameCenter, tempFrameSize, hoveredHandle]);
 
     // Handle selection box area selection
     const handleSelectionBoxAreaSelection = useCallback((startCoord: [number, number], endCoord: [number, number]) => {
@@ -399,6 +425,36 @@ export function useFrameInteraction(
 
     // Complete onClick handler combining frame and overview interactions
     const onClick = useCallback((info: PickingInfo) => {
+        // ROI Drawing Mode - intercept clicks when drawing
+        // Accept clicks from both DETAIL_VIEW_ID and FRAME_VIEW_ID (the frame area where segmentation is shown)
+        const isDrawingViewport = info.viewport?.id === DETAIL_VIEW_ID || info.viewport?.id === FRAME_VIEW_ID;
+        if (drawingState.isDrawing && info.coordinate && isDrawingViewport) {
+            const [clickX, clickY] = info.coordinate;
+            const newVertex = { x: clickX, y: clickY };
+
+            // Check if clicking near first vertex to close polygon (need at least 3 vertices)
+            if (drawingState.currentVertices.length >= 3) {
+                const firstVertex = drawingState.currentVertices[0];
+                const distance = Math.sqrt(
+                    Math.pow(clickX - firstVertex.x, 2) + Math.pow(clickY - firstVertex.y, 2)
+                );
+
+                // Use a threshold that scales with zoom (smaller threshold when zoomed in)
+                const zoom = detailViewStateRef.current?.zoom ?? 0;
+                const threshold = 15 / Math.pow(2, zoom); // ~15 pixels at zoom 0
+
+                if (distance < threshold) {
+                    // Close polygon - trigger label modal
+                    setShowLabelModal(true);
+                    return true;
+                }
+            }
+
+            // Otherwise, add the vertex
+            addVertex(newVertex);
+            return true;
+        }
+
         const frameHandled = handleClick(info);
         if (frameHandled) {
             return true;
@@ -472,8 +528,19 @@ export function useFrameInteraction(
     }, [
         handleClick, setFrameCenter, frameBoundCellposeData, frameCenter,
         frameSize, navigationState, frameZLayersAbove, frameZLayersBelow, selectedNucleiIndices,
-        addSelectedNucleus, removeSelectedNucleus, clearSelection, setSelectedNucleiIndices
+        addSelectedNucleus, removeSelectedNucleus, clearSelection, setSelectedNucleiIndices,
+        drawingState.isDrawing, drawingState.currentVertices, addVertex, setShowLabelModal, detailViewStateRef
     ]);
+
+    // Handle double-click for finishing ROI polygon
+    const onDoubleClick = useCallback((info: PickingInfo) => {
+        // ROI Drawing Mode - double-click to finish polygon
+        if (drawingState.isDrawing && drawingState.currentVertices.length >= 3) {
+            setShowLabelModal(true);
+            return true;
+        }
+        return false;
+    }, [drawingState.isDrawing, drawingState.currentVertices.length, setShowLabelModal]);
 
 
     return {
@@ -488,5 +555,6 @@ export function useFrameInteraction(
         onDrag,
         onDragEnd,
         onClick,
+        onDoubleClick,
     };
 }

@@ -1,14 +1,17 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { VivViewer } from '@hms-dbmi/viv'
 
 import { useZarrStore } from '../../../../lib/contexts/ZarrStoreContext'
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext'
+import { useROI } from '../../../../lib/contexts/ROIContext'
 import { useFrameInteraction } from '../../../../lib/hooks/useFrameInteraction'
 import useVivViewer from '../../../../lib/hooks/useVivViewer'
 import useFrameInitialisation from '../../../../lib/hooks/useFrameInitialisation'
 import { CellposeOverlay } from './CellposeOverlay'
+import { ROIOverlay } from './ROIOverlay'
 import { SelectionBox } from '../../overlay/SelectionBox'
 import { HistogramEqualizationOverlay } from '../../effects/HistogramEqualizationOverlay'
+import ROILabelModal from '../ROILabelModal'
 
 
 const VivViewerWrapper: React.FC = () => {
@@ -18,6 +21,22 @@ const VivViewerWrapper: React.FC = () => {
         setFrameCenter,
         setFrameSize,
     } = useViewer2DData()
+    const { finishDrawing, cancelDrawing } = useROI()
+
+    // Label modal state
+    const [showLabelModal, setShowLabelModal] = useState(false)
+
+    // Handle label confirmation
+    const handleLabelConfirm = (label: string) => {
+        finishDrawing(label, navigationState?.zSlice ?? 0)
+        setShowLabelModal(false)
+    }
+
+    // Handle label cancellation
+    const handleLabelCancel = () => {
+        cancelDrawing()
+        setShowLabelModal(false)
+    }
 
     // Early return if required data not available
     if (!msInfo || !navigationState) {
@@ -50,13 +69,15 @@ const VivViewerWrapper: React.FC = () => {
         onDragStart,
         onDrag,
         onDragEnd,
-        onClick
+        onClick,
+        onDoubleClick
     } = useFrameInteraction(
         detailViewStateRef,
         setIsManuallyPanning,
         setDetailViewDrag,
         detailViewDrag,
         setControlledDetailViewState,
+        setShowLabelModal
     )
 
     // Generate final layer props with frame overlays using the original architecture
@@ -107,7 +128,7 @@ const VivViewerWrapper: React.FC = () => {
                     controller: {
                         dragPan: true,
                         scrollZoom: true,
-                        doubleClickZoom: true,
+                        doubleClickZoom: false, // Disabled to allow ROI drawing double-click
                         touchZoom: true,
                         dragRotate: false,
                         touchRotate: false,
@@ -118,6 +139,7 @@ const VivViewerWrapper: React.FC = () => {
                     onDrag,
                     onDragEnd,
                     onClick,
+                    onDoubleClick,
                     onHover: handleHover,
                     getCursor
                 }}
@@ -133,9 +155,18 @@ const VivViewerWrapper: React.FC = () => {
                 viewState={controlledDetailViewState}
                 containerSize={containerDimensions}
             />
+            <ROIOverlay
+                viewState={controlledDetailViewState}
+                containerSize={containerDimensions}
+            />
             <SelectionBox
                 selectionBox={selectionBox}
                 containerSize={containerDimensions}
+            />
+            <ROILabelModal
+                isOpen={showLabelModal}
+                onConfirm={handleLabelConfirm}
+                onCancel={handleLabelCancel}
             />
         </div>
     )

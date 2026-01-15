@@ -70,7 +70,8 @@ const Viewer3D = (props: {
 
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
-	const { frameBoundCellposeMeshData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow, cellposeScale } = useViewer2DData();
+	const { frameBoundCellposeMeshData, frameCenter, frameSize, getFrameBounds, currentZSlice, frameZLayersBelow, cellposeScale, full3DMode } = useViewer2DData();
+	const { msInfo } = useZarrStore();
 	const { setPropertiesCallback } = useZarrStore();
 
 	// Function to handle automatic properties loading from Cellpose zarr.json
@@ -261,16 +262,22 @@ const Viewer3D = (props: {
 			}
 
 			// Calculate the relative z position within the frameBoundCellposeData
-			// The current slice should be at frameZLayersBelow index within the slice
-			const relativeCurrentZSlice = frameZLayersBelow;
+			// In frame mode: current slice is at frameZLayersBelow index within the slice
+			// In full 3D mode: we pass undefined and let the function center around the volume
+			const relativeCurrentZSlice = full3DMode ? undefined : frameZLayersBelow;
+
+			// Get total Z layers from mesh data for centering in full 3D mode
+			const totalZLayers = frameBoundCellposeMeshData.shape[0];
 
 			// Pass scale factors to ensure proper proportions at different resolutions
-			console.log('🔧 Generating meshes with voxel scale:', cellposeScale);
+			console.log('🔧 Generating meshes with voxel scale:', cellposeScale, full3DMode ? '(Full 3D Mode)' : '(Frame Mode)');
 			const meshDataArray = generateMeshesFromVoxelData(
 				frameBoundCellposeMeshData,
 				relativeCurrentZSlice,
 				filterIncompleteNuclei,
-				cellposeScale
+				cellposeScale,
+				full3DMode,
+				totalZLayers
 			);
 			const newContentGroup = new THREE.Group();
 
@@ -361,13 +368,13 @@ const Viewer3D = (props: {
 			setFeatureData(newFeatureData);
 
 			// Add cross-section plane centered at global origin facing z direction
-			if (frameCenter && frameSize && frameSize[0] > 0 && frameSize[1] > 0) {
-				const bounds = getFrameBounds();
-				const width = bounds.right - bounds.left;
-				const height = bounds.bottom - bounds.top;
+			// In Full 3D Mode: use full data dimensions; otherwise use frame bounds
+			const planeWidth = full3DMode && msInfo?.shape.x ? msInfo.shape.x : (frameSize ? frameSize[0] : 100);
+			const planeHeight = full3DMode && msInfo?.shape.y ? msInfo.shape.y : (frameSize ? frameSize[1] : 100);
 
-				// Create plane with 2D selection dimensions
-				const planeGeometry = new THREE.PlaneGeometry(width, height);
+			if (planeWidth > 0 && planeHeight > 0) {
+				// Create plane with appropriate dimensions
+				const planeGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
 				const planeMaterial = new THREE.MeshBasicMaterial({
 					color: 0xffffff,
 					transparent: true,
@@ -399,10 +406,10 @@ const Viewer3D = (props: {
 			// Only set camera position on first initialization, preserve user's camera state afterwards
 			if (!isCameraInitialized) {
 				// Calculate camera distance to ensure everything is comfortably visible
-				const bounds = getFrameBounds();
-				const frameWidth = bounds.right - bounds.left;
-				const frameHeight = bounds.bottom - bounds.top;
-				const planeSize = Math.max(frameWidth, frameHeight);
+				// In Full 3D Mode: use full data dimensions
+				const effectiveWidth = full3DMode && msInfo?.shape.x ? msInfo.shape.x : (frameSize ? frameSize[0] : 100);
+				const effectiveHeight = full3DMode && msInfo?.shape.y ? msInfo.shape.y : (frameSize ? frameSize[1] : 100);
+				const planeSize = Math.max(effectiveWidth, effectiveHeight);
 
 				// Zoomed in for better detail view
 				const distanceScale = Math.max(2.0, planeSize / 40); // 4x more zoomed in
@@ -426,7 +433,7 @@ const Viewer3D = (props: {
 			renderer.render(scene, camera);
 			setIsLoading(false);
 		}
-	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei]);
+	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei, full3DMode, msInfo, frameSize, cellposeScale]);
 
 	// Adjust selections
 	useEffect(() => {
@@ -525,24 +532,51 @@ const Viewer3D = (props: {
 
 	// Update cross-section plane when frame changes
 	useEffect(() => {
-		if (!crossSectionPlane.current || !frameCenter || !frameSize) return;
+		if (!crossSectionPlane.current) return;
 
-		// Update plane position when frame changes
-		const bounds = getFrameBounds();
-		const width = bounds.right - bounds.left;
-		const height = bounds.bottom - bounds.top;
+		// In Full 3D Mode: use full data dimensions; otherwise use frame bounds
+		const width = full3DMode && msInfo?.shape.x ? msInfo.shape.x : (frameSize ? frameSize[0] : 100);
+		const height = full3DMode && msInfo?.shape.y ? msInfo.shape.y : (frameSize ? frameSize[1] : 100);
 
-		// Update geometry size to match 2D selection
+		// Update geometry size to match appropriate dimensions
 		crossSectionPlane.current.geometry.dispose();
 		crossSectionPlane.current.geometry = new THREE.PlaneGeometry(width, height);
 
-		// Keep plane at global origin (0,0,0) facing z direction
-		crossSectionPlane.current.position.set(0, 0, 0);
+		// Keep plane at global origin (0,0,0) facing z direction (unless in full 3D mode)
+		if (!full3DMode) {
+			crossSectionPlane.current.position.set(0, 0, 0);
+		}
 
 		if (renderer && scene && camera) {
 			renderer.render(scene, camera);
 		}
-	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeMeshData]);
+	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeMeshData, full3DMode, msInfo]);
+
+	// Update cross-section plane Z position when currentZSlice changes (Full 3D Mode only)
+	// In full 3D mode, changing Z slice should move the plane without regenerating the mesh
+	useEffect(() => {
+		if (!full3DMode || !crossSectionPlane.current || !frameBoundCellposeMeshData || !msInfo) return;
+
+		// Calculate plane Z position based on current slice
+		// The mesh is centered at totalZLayers/2, so we need to offset accordingly
+		const totalZLayers = frameBoundCellposeMeshData.shape[0];
+		const volumeCenter = totalZLayers / 2;
+		const zScale = cellposeScale[0];
+
+		// currentZSlice is in full resolution coordinates - need to convert to mesh resolution
+		const meshZScale = cellposeScale[0]; // z scale factor between resolutions
+		const currentZInMeshCoords = currentZSlice / meshZScale;
+
+		// Position plane at currentZSlice relative to volume center
+		// Note: the scene has scale.z = -1 (reflection), so we need to account for that
+		const planeZ = (currentZInMeshCoords - volumeCenter) * zScale;
+
+		crossSectionPlane.current.position.setZ(planeZ);
+
+		if (renderer && scene && camera) {
+			renderer.render(scene, camera);
+		}
+	}, [full3DMode, currentZSlice, cellposeScale, frameBoundCellposeMeshData, msInfo, renderer, scene, camera]);
 
 	// Update colors based on labels (only as fallback when no ColorMaps are active)
 	useEffect(() => {

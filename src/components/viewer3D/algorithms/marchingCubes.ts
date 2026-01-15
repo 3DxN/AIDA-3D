@@ -21,16 +21,28 @@ const interpolateVertex = (
 	)
 }
 
-const march = (grid: number[][][], isoLevel: number) => {
+const march = (
+	grid: number[][][],
+	isoLevel: number,
+	bounds?: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number }
+) => {
 	const vertices: THREE.Vector3[] = []
 	const indices: number[] = []
 	const vertexMap = new Map<string, number>()
 
 	const dims = [grid.length, grid[0]?.length ?? 0, grid[0]?.[0]?.length ?? 0]
 
-	for (let z = 0; z < dims[0] - 1; z++) {
-		for (let y = 0; y < dims[1] - 1; y++) {
-			for (let x = 0; x < dims[2] - 1; x++) {
+	// Use bounding box if provided, otherwise scan full grid
+	const startZ = bounds ? Math.max(0, bounds.minZ - 1) : 0
+	const endZ = bounds ? Math.min(dims[0] - 1, bounds.maxZ + 1) : dims[0] - 1
+	const startY = bounds ? Math.max(0, bounds.minY - 1) : 0
+	const endY = bounds ? Math.min(dims[1] - 1, bounds.maxY + 1) : dims[1] - 1
+	const startX = bounds ? Math.max(0, bounds.minX - 1) : 0
+	const endX = bounds ? Math.min(dims[2] - 1, bounds.maxX + 1) : dims[2] - 1
+
+	for (let z = startZ; z < endZ; z++) {
+		for (let y = startY; y < endY; y++) {
+			for (let x = startX; x < endX; x++) {
 				// Define the 8 vertices of the current cube
 				// Following the standard marching cubes vertex indexing
 				const p = [
@@ -123,51 +135,91 @@ export const generateMeshesFromVoxelData = (
 	input: Chunk<Uint32>,
 	currentZSlice?: number,
 	filterIncompleteNuclei: boolean = true,
-	voxelScale?: number[] // [z_scale, y_scale, x_scale] from OME metadata
+	voxelScale?: number[], // [z_scale, y_scale, x_scale] from OME metadata
+	full3DMode: boolean = false, // When true, centers mesh around volume center instead of currentZSlice
+	totalZLayers?: number // Total Z layers in full resolution (for centering in full 3D mode)
 ) => {
+	const totalStart = performance.now();
 	const meshDataArray = [];
 	const { data, shape, stride } = input;
 	const dims = shape; // e.g., [depth, height, width]
-	const allVoxelValues = data; // The flat TypedArray
 
 	// Accessor for the 1D strided array
 	const getValue = (z: number, y: number, x: number) => data[z * stride[0] + y * stride[1] + x * stride[2]];
 
-	const uniqueProperties = [...new Set(allVoxelValues)].filter(label => label > 0);
+	// Single O(V) pass - group all voxels by label and compute bounding boxes
+	const groupStart = performance.now();
+	const labelVoxelMap = new Map<number, { x: number; y: number; z: number }[]>();
+	const labelBounds = new Map<number, { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number }>();
+	const labelsOnBoundary = new Set<number>();
 
-	for (const label of uniqueProperties) {
-		let isOnBoundary = false;
-		const labelVoxels = [];
+	for (let z = 0; z < dims[0]; z++) {
+		for (let y = 0; y < dims[1]; y++) {
+			for (let x = 0; x < dims[2]; x++) {
+				const label = getValue(z, y, x);
+				if (label > 0) {
+					if (!labelVoxelMap.has(label)) {
+						labelVoxelMap.set(label, []);
+						labelBounds.set(label, { minX: x, maxX: x, minY: y, maxY: y, minZ: z, maxZ: z });
+					}
+					labelVoxelMap.get(label)!.push({ x, y, z });
 
-		// First, find all voxels for the current label and check for boundaries
-		for (let z = 0; z < dims[0]; z++) {
-			for (let y = 0; y < dims[1]; y++) {
-				for (let x = 0; x < dims[2]; x++) {
-					if (getValue(z, y, x) === label) {
-						labelVoxels.push({ x, y, z });
-						if (!isOnBoundary && (x === 0 || x === dims[2] - 1 || y === 0 || y === dims[1] - 1 || z === 0 || z === dims[0] - 1)) {
-							isOnBoundary = true;
-						}
+					// Update bounding box
+					const bounds = labelBounds.get(label)!;
+					if (x < bounds.minX) bounds.minX = x;
+					if (x > bounds.maxX) bounds.maxX = x;
+					if (y < bounds.minY) bounds.minY = y;
+					if (y > bounds.maxY) bounds.maxY = y;
+					if (z < bounds.minZ) bounds.minZ = z;
+					if (z > bounds.maxZ) bounds.maxZ = z;
+
+					// Check boundary once per voxel, not once per label
+					if (x === 0 || x === dims[2] - 1 || y === 0 || y === dims[1] - 1 || z === 0 || z === dims[0] - 1) {
+						labelsOnBoundary.add(label);
 					}
 				}
 			}
 		}
+	}
+	const groupEnd = performance.now();
+	console.log(`⏱️ Voxel grouping: ${(groupEnd - groupStart).toFixed(1)}ms for ${labelVoxelMap.size} labels`);
 
-		// If this nucleus is on the boundary, we will not generate a mesh for it at all.
-		if (isOnBoundary && filterIncompleteNuclei) {
-			continue; // Skip to the next nucleus label
+	// Reuse a single binary grid to avoid repeated allocations
+	const binaryGrid: number[][][] = Array.from({ length: dims[0] }, () =>
+		Array.from({ length: dims[1] }, () => new Array(dims[2]).fill(0))
+	);
+
+	let totalMarchTime = 0;
+	let totalGridResetTime = 0;
+	let meshCount = 0;
+
+	// Now process each label's pre-grouped voxels
+	for (const [label, labelVoxels] of labelVoxelMap) {
+		// If this nucleus is on the boundary, skip it
+		if (labelsOnBoundary.has(label) && filterIncompleteNuclei) {
+			continue;
 		}
 
-		// If not on the boundary, proceed with mesh generation
-		const binaryGrid = Array.from({ length: dims[0] }, () =>
-			Array.from({ length: dims[1] }, () => new Array(dims[2]).fill(0))
-		);
-
+		// Mark voxels for this label
 		for (const { x, y, z } of labelVoxels) {
 			binaryGrid[z][y][x] = 1;
 		}
 
-		const { vertices, indices } = march(binaryGrid, 0.5);
+		// Get bounding box for this label to limit marching cubes scan
+		const bounds = labelBounds.get(label)!;
+
+		const marchStart = performance.now();
+		const { vertices, indices } = march(binaryGrid, 0.5, bounds);
+		totalMarchTime += performance.now() - marchStart;
+
+		// Reset only the voxels we marked (sparse reset instead of full grid clear)
+		const resetStart = performance.now();
+		for (const { x, y, z } of labelVoxels) {
+			binaryGrid[z][y][x] = 0;
+		}
+		totalGridResetTime += performance.now() - resetStart;
+
+		meshCount++;
 
 		if (vertices.length > 0 && indices.length > 0) {
 			// Get voxel scale factors (default to 1.0 if not provided)
@@ -181,10 +233,20 @@ export const generateMeshesFromVoxelData = (
 				const centeredX = vertex.x - dims[2] / 2;
 				const centeredY = vertex.y - dims[1] / 2;
 
-				// Transform z so that currentZSlice becomes z=0
-				// currentZSlice should be at z=0, layers below in negative z, layers above in positive z
-				const currentZ = currentZSlice !== undefined ? currentZSlice : dims[0] / 2;
-				const transformedZ = vertex.z - currentZ; // Direct offset from current slice
+				// Transform z based on mode:
+				// - Frame mode: z=0 is at currentZSlice (plane stays at origin, mesh moves)
+				// - Full 3D mode: z=0 is at volume center (mesh stays centered, plane moves)
+				let transformedZ: number;
+				if (full3DMode) {
+					// In Full 3D Mode: center mesh around middle of entire volume
+					// Use totalZLayers if provided, otherwise use dims[0]
+					const volumeCenter = (totalZLayers ?? dims[0]) / 2;
+					transformedZ = vertex.z - volumeCenter;
+				} else {
+					// In Frame Mode: z=0 is at currentZSlice
+					const currentZ = currentZSlice !== undefined ? currentZSlice : dims[0] / 2;
+					transformedZ = vertex.z - currentZ;
+				}
 
 				// Apply voxel scale factors to correct for anisotropic voxels
 				// This ensures proper proportions when X/Y resolution changes but Z stays the same
@@ -197,6 +259,11 @@ export const generateMeshesFromVoxelData = (
 			meshDataArray.push({ label, vertices: transformedVertices, indices });
 		}
 	}
+
+	const totalEnd = performance.now();
+	console.log(`⏱️ Marching cubes total: ${totalMarchTime.toFixed(1)}ms for ${meshCount} meshes (${(totalMarchTime / Math.max(meshCount, 1)).toFixed(1)}ms avg)`);
+	console.log(`⏱️ Grid reset total: ${totalGridResetTime.toFixed(1)}ms`);
+	console.log(`⏱️ TOTAL mesh generation: ${(totalEnd - totalStart).toFixed(1)}ms`);
 
 	return meshDataArray;
 };

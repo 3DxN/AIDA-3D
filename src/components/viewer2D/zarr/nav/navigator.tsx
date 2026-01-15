@@ -13,6 +13,7 @@ import ChannelSelector from './ChannelSelector'
 import ContrastLimitsSelector from './ContrastLimitsSelector'
 import CellposeOverlayResolutionSelector from './CellposeOverlayResolutionSelector'
 import CellposeMeshResolutionSelector from './CellposeMeshResolutionSelector'
+import ROIPanel from './ROIPanel'
 
 function classNames(...classes: (string | boolean | undefined)[]) {
     return classes.filter(Boolean).join(' ')
@@ -32,7 +33,9 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         setFrameSize,
         setFrameZLayersAbove,
         setFrameZLayersBelow,
-        getFrameBounds
+        getFrameBounds,
+        full3DMode,
+        setFull3DMode
     } = useViewer2DData()
 
     const [isCollapsed, setIsCollapsed] = useState(true)
@@ -401,47 +404,66 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                             condition={Boolean(msInfo.shape.z && maxZSlice > 0)}
                                         />
 
-                                        <UnifiedSlider
-                                            label="Layers Above"
-                                            value={tempFrameZLayersAbove ?? frameZLayersAbove}
-                                            minValue={0}
-                                            maxValue={msInfo.shape.z - 1 - zSlice}
-                                            onChange={(value) => setTempFrameZLayersAbove(Array.isArray(value) ? value[0] : value)}
-                                            onChangeCommitted={(value) => {
-                                                setFrameZLayersAbove(Array.isArray(value) ? value[0] : value);
-                                                setTempFrameZLayersAbove(null);
-                                            }}
-                                            valueDisplay={(val) => {
-                                                const layers = Array.isArray(val) ? val[0] : val;
-                                                const maxZ = msInfo.shape.z || 1;
-                                                const actualEnd = Math.min(maxZ - 1, zSlice + layers);
-                                                return `${layers} (up to Z ${actualEnd})`;
-                                            }}
-                                            condition={Boolean(msInfo.shape.z && msInfo.shape.z > 1)}
-                                        />
+                                        {/* Full 3D Mode Toggle */}
+                                        <div className="flex my-2 justify-between items-center">
+                                            <div className="text-sm" title="Load entire 3D volume - Z changes only move the cross-section plane">
+                                                Full 3D Mode
+                                            </div>
+                                            <Switch
+                                                enabled={full3DMode}
+                                                onChange={setFull3DMode}
+                                            />
+                                        </div>
 
-                                        <UnifiedSlider
-                                            label="Layers Below"
-                                            value={tempFrameZLayersBelow ?? frameZLayersBelow}
-                                            minValue={0}
-                                            maxValue={zSlice}
-                                            onChange={(value) => setTempFrameZLayersBelow(Array.isArray(value) ? value[0] : value)}
-                                            onChangeCommitted={(value) => {
-                                                setFrameZLayersBelow(Array.isArray(value) ? value[0] : value);
-                                                setTempFrameZLayersBelow(null);
-                                            }}
-                                            valueDisplay={(val) => {
-                                                const layers = Array.isArray(val) ? val[0] : val;
-                                                const actualStart = Math.max(0, zSlice - layers);
-                                                return `${layers} (down to Z ${actualStart})`;
-                                            }}
-                                            condition={Boolean(msInfo.shape.z && msInfo.shape.z > 1)}
-                                        />
+                                        {/* Layers Above/Below sliders - hidden in Full 3D Mode */}
+                                        {!full3DMode && (
+                                            <UnifiedSlider
+                                                label="Layers Above"
+                                                value={tempFrameZLayersAbove ?? frameZLayersAbove}
+                                                minValue={0}
+                                                maxValue={Math.max(0, (msInfo.shape.z || 1) - 1 - zSlice)}
+                                                onChange={(value) => setTempFrameZLayersAbove(Array.isArray(value) ? value[0] : value)}
+                                                onChangeCommitted={(value) => {
+                                                    setFrameZLayersAbove(Array.isArray(value) ? value[0] : value);
+                                                    setTempFrameZLayersAbove(null);
+                                                }}
+                                                valueDisplay={(val) => {
+                                                    const layers = Array.isArray(val) ? val[0] : val;
+                                                    const maxZ = msInfo.shape.z || 1;
+                                                    const actualEnd = Math.min(maxZ - 1, zSlice + layers);
+                                                    return `${layers} (up to Z ${actualEnd})`;
+                                                }}
+                                                condition={Boolean(msInfo.shape.z && msInfo.shape.z > 1)}
+                                            />
+                                        )}
+
+                                        {!full3DMode && (
+                                            <UnifiedSlider
+                                                label="Layers Below"
+                                                value={tempFrameZLayersBelow ?? frameZLayersBelow}
+                                                minValue={0}
+                                                maxValue={zSlice}
+                                                onChange={(value) => setTempFrameZLayersBelow(Array.isArray(value) ? value[0] : value)}
+                                                onChangeCommitted={(value) => {
+                                                    setFrameZLayersBelow(Array.isArray(value) ? value[0] : value);
+                                                    setTempFrameZLayersBelow(null);
+                                                }}
+                                                valueDisplay={(val) => {
+                                                    const layers = Array.isArray(val) ? val[0] : val;
+                                                    const actualStart = Math.max(0, zSlice - layers);
+                                                    return `${layers} (down to Z ${actualStart})`;
+                                                }}
+                                                condition={Boolean(msInfo.shape.z && msInfo.shape.z > 1)}
+                                            />
+                                        )}
                                     </div>
                                 </Disclosure.Panel>
                             </>
                         )}
                     </Disclosure>
+
+                    {/* ROI Section */}
+                    <ROIPanel />
                 </div>
             )}
         </>
