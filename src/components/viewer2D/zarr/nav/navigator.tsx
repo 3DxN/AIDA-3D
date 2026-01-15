@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid'
 import { Disclosure } from '@headlessui/react'
 import { useViewer2DData } from '../../../../lib/contexts/Viewer2DDataContext'
@@ -46,10 +46,48 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
     const [tempZSlice, setTempZSlice] = useState<number | null>(null)
     const [tempTimeSlice, setTempTimeSlice] = useState<number | null>(null)
 
+    // Z-layer animation state
+    const [isZAnimating, setIsZAnimating] = useState(false)
+    const [secondsPerZLayer, setSecondsPerZLayer] = useState<number>(1)
+    const [layersPerJump, setLayersPerJump] = useState<number>(1)
+    const animationRef = useRef<NodeJS.Timeout | null>(null)
+
     const handleToggle = (newState: boolean) => {
         setIsCollapsed(newState)
         onToggle?.(newState)
     }
+
+    // Z-layer animation effect
+    useEffect(() => {
+        if (isZAnimating && navigationState && msInfo) {
+            const maxZ = msInfo.shape.z ? msInfo.shape.z - 1 : 0
+
+            animationRef.current = setInterval(() => {
+                setNavigationState(prev => {
+                    if (!prev) return prev
+                    const nextZ = prev.zSlice + layersPerJump
+                    if (nextZ > maxZ) {
+                        // Stop animation when reaching the top
+                        setIsZAnimating(false)
+                        return { ...prev, zSlice: maxZ }
+                    }
+                    if (nextZ < 0) {
+                        // Stop animation when reaching the bottom
+                        setIsZAnimating(false)
+                        return { ...prev, zSlice: 0 }
+                    }
+                    return { ...prev, zSlice: nextZ }
+                })
+            }, secondsPerZLayer * 1000)
+        }
+
+        return () => {
+            if (animationRef.current) {
+                clearInterval(animationRef.current)
+                animationRef.current = null
+            }
+        }
+    }, [isZAnimating, secondsPerZLayer, layersPerJump, msInfo, navigationState, setNavigationState])
 
     if (!msInfo || !navigationState) {
         return null
@@ -412,6 +450,53 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                             <Switch
                                                 enabled={full3DMode}
                                                 onChange={setFull3DMode}
+                                            />
+                                        </div>
+
+                                        {/* Z-Layer Animation Controls */}
+                                        <div className="flex my-2 justify-between items-center">
+                                            <div className="text-sm" title="Animate through Z layers from current position">
+                                                Animate Z Layers
+                                            </div>
+                                            <Switch
+                                                enabled={isZAnimating}
+                                                onChange={setIsZAnimating}
+                                            />
+                                        </div>
+                                        <div className="flex my-2 justify-between items-center">
+                                            <div className="text-sm">Seconds per layer</div>
+                                            <input
+                                                type="number"
+                                                value={secondsPerZLayer}
+                                                min={0.1}
+                                                max={60}
+                                                step={0.1}
+                                                onChange={(e) => {
+                                                    const value = parseFloat(e.target.value)
+                                                    if (!isNaN(value) && value >= 0.1) {
+                                                        setSecondsPerZLayer(value)
+                                                    }
+                                                }}
+                                                disabled={isZAnimating}
+                                                className="w-16 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 disabled:bg-gray-100"
+                                            />
+                                        </div>
+                                        <div className="flex my-2 justify-between items-center">
+                                            <div className="text-sm" title="Positive = up, Negative = down">Layers per jump</div>
+                                            <input
+                                                type="number"
+                                                value={layersPerJump}
+                                                min={-(maxZSlice || 100)}
+                                                max={maxZSlice || 100}
+                                                step={1}
+                                                onChange={(e) => {
+                                                    const value = parseInt(e.target.value)
+                                                    if (!isNaN(value) && value !== 0) {
+                                                        setLayersPerJump(value)
+                                                    }
+                                                }}
+                                                disabled={isZAnimating}
+                                                className="w-16 px-1 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 disabled:bg-gray-100"
                                             />
                                         </div>
 
