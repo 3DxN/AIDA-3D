@@ -272,12 +272,16 @@ const Viewer3D = (props: {
 			newCamera.updateProjectionMatrix();
 
 			// Set up post-processing with OutlinePass for selection visualization
+			const pixelRatio = window.devicePixelRatio;
 			const newComposer = new EffectComposer(newRenderer);
+			newComposer.setPixelRatio(pixelRatio);
+			newComposer.setSize(canvas.clientWidth, canvas.clientHeight);
+
 			const renderPass = new RenderPass(newScene, newCamera);
 			newComposer.addPass(renderPass);
 
 			const outlinePass = new OutlinePass(
-				new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
+				new THREE.Vector2(canvas.clientWidth * pixelRatio, canvas.clientHeight * pixelRatio),
 				newScene,
 				newCamera
 			);
