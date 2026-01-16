@@ -157,7 +157,7 @@ function connectSegments(
 
 /**
  * Creates Line2 objects (fat lines) from mesh-plane intersection results.
- * Uses cyan color by default to distinguish from the white full-mesh outline.
+ * Uses white color for the cross-section outline.
  * Line2 supports actual line width unlike regular THREE.Line.
  */
 export function createIntersectionLines(
@@ -191,15 +191,19 @@ export function createIntersectionLines(
         geometry.setPositions(positions);
 
         const material = new LineMaterial({
-            color: 0x00ffff, // Cyan to distinguish from white OutlinePass
+            color: 0xffffff, // White
             linewidth: 4, // In pixels
             resolution: resolution || new THREE.Vector2(window.innerWidth, window.innerHeight),
-            depthTest: false, // Always visible
+            depthTest: false, // Don't test against depth buffer
+            depthWrite: false, // Don't write to depth buffer
+            transparent: true,
+            opacity: 1,
         });
 
         const line = new Line2(geometry, material);
         line.name = `crosssection_outline_${mesh.name}`;
-        line.renderOrder = 999; // Render on top
+        line.renderOrder = 99999; // Render last, on top of everything
+        line.frustumCulled = false; // Always render even if outside frustum
         line.computeLineDistances();
         lines.push(line);
     }

@@ -575,11 +575,6 @@ const Viewer3D = (props: {
 				}
 			});
 
-			// Update OutlinePass with selected meshes (full mesh outline - white)
-			if (outlinePassRef.current) {
-				outlinePassRef.current.selectedObjects = selectedMeshesList;
-			}
-
 			// Remove old cross-section outlines
 			crossSectionOutlines.current.forEach((line) => {
 				scene.remove(line);
@@ -587,12 +582,19 @@ const Viewer3D = (props: {
 			});
 			crossSectionOutlines.current = [];
 
-			// Create new cross-section outlines (cyan lines where plane intersects mesh)
-			const planeZ = crossSectionPlane.current?.position.z ?? 0;
+			// Create new cross-section outlines (white lines where plane intersects mesh)
+			// Get plane's world Z position (content group has scale.z = -1)
+			let planeWorldZ = 0;
+			if (crossSectionPlane.current) {
+				crossSectionPlane.current.updateMatrixWorld();
+				const planeWorldPos = new THREE.Vector3();
+				crossSectionPlane.current.getWorldPosition(planeWorldPos);
+				planeWorldZ = planeWorldPos.z;
+			}
 			const newOutlines: Line2[] = [];
 
 			for (const mesh of selectedMeshesList) {
-				const lines = createIntersectionLines(mesh, planeZ);
+				const lines = createIntersectionLines(mesh, planeWorldZ);
 				lines.forEach((line) => {
 					scene.add(line);
 					newOutlines.push(line);
@@ -658,10 +660,16 @@ const Viewer3D = (props: {
 			});
 			crossSectionOutlines.current = [];
 
+			// Get plane's world Z position (content group has scale.z = -1)
+			crossSectionPlane.current.updateMatrixWorld();
+			const planeWorldPos = new THREE.Vector3();
+			crossSectionPlane.current.getWorldPosition(planeWorldPos);
+			const planeWorldZ = planeWorldPos.z;
+
 			// Create new outlines at the new plane position
 			const newOutlines: Line2[] = [];
 			for (const mesh of selectedMeshes.current) {
-				const lines = createIntersectionLines(mesh, planeZ);
+				const lines = createIntersectionLines(mesh, planeWorldZ);
 				lines.forEach((line) => {
 					scene.add(line);
 					newOutlines.push(line);
