@@ -28,6 +28,42 @@ const cleanMaterial = (material: THREE.Material) => {
 	}
 };
 
+// Laplacian smoothing: moves each vertex toward the average of its neighbors
+const laplacianSmooth = (
+	vertices: THREE.Vector3[],
+	indices: number[],
+	iterations: number = 1,
+	lambda: number = 0.5
+): THREE.Vector3[] => {
+	// Build adjacency list (which vertices are connected to which)
+	const neighbors: Set<number>[] = vertices.map(() => new Set());
+	for (let i = 0; i < indices.length; i += 3) {
+		const a = indices[i], b = indices[i + 1], c = indices[i + 2];
+		neighbors[a].add(b); neighbors[a].add(c);
+		neighbors[b].add(a); neighbors[b].add(c);
+		neighbors[c].add(a); neighbors[c].add(b);
+	}
+
+	let current = vertices.map(v => v.clone());
+
+	for (let iter = 0; iter < iterations; iter++) {
+		const newPositions = current.map((v, i) => {
+			const neighborList = neighbors[i];
+			if (neighborList.size === 0) return v.clone();
+
+			const avg = new THREE.Vector3();
+			neighborList.forEach(ni => avg.add(current[ni]));
+			avg.divideScalar(neighborList.size);
+
+			// Move vertex toward neighbor average
+			return v.clone().lerp(avg, lambda);
+		});
+		current = newPositions;
+	}
+
+	return current;
+};
+
 const Viewer3D = (props: {
 	tile: [number, number];
 	tilesUrl: string;
@@ -215,10 +251,17 @@ const Viewer3D = (props: {
 			newScene.background = new THREE.Color('black');
 			setScene(newScene);
 
-			const light = new THREE.AmbientLight(0x505050);
-			newScene.add(light);
-			const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
-			newScene.add(dirLight);
+			// Ambient light for base illumination
+			const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+			newScene.add(ambientLight);
+
+			// Directional light attached to camera (moves with camera view)
+			const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+			dirLight.position.set(0, 0, 1);
+			newCamera.add(dirLight);
+
+			// Add camera to scene so camera-attached lights work
+			newScene.add(newCamera);
 
 			newCamera.aspect = canvas.clientWidth / canvas.clientHeight;
 			newCamera.updateProjectionMatrix();
@@ -279,7 +322,10 @@ const Viewer3D = (props: {
 
 			meshDataArray.forEach(({ label, vertices, indices }) => {
 				const geometry = new THREE.BufferGeometry();
-				const flatVertices = vertices.flatMap((v) => [v.x, v.y, v.z]);
+
+				// Apply Laplacian smoothing (2 iterations for double smoothing)
+				const smoothedVertices = laplacianSmooth(vertices, indices, 2);
+				const flatVertices = smoothedVertices.flatMap((v) => [v.x, v.y, v.z]);
 
 				geometry.setAttribute(
 					'position',
