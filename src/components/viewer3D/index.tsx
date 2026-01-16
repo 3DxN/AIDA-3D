@@ -12,6 +12,8 @@ import * as checkPointInPolygon from 'robust-point-in-polygon';
 import { generateMeshesFromVoxelData } from './algorithms/marchingCubes';
 import { calculateNucleusVolume } from './algorithms/nucleusVolume';
 import { calculateNucleusDiameter } from './algorithms/nucleusDiameter';
+import { createIntersectionLines, disposeIntersectionLine } from './algorithms/meshPlaneIntersection';
+import { Line2 } from 'three/examples/jsm/lines/Line2';
 import { useViewer2DData } from '../../lib/contexts/Viewer2DDataContext';
 import { useNucleusSelection } from '../../lib/contexts/NucleusSelectionContext';
 import { useNucleusColor } from '../../lib/contexts/NucleusColorContext';
@@ -93,6 +95,7 @@ const Viewer3D = (props: {
 	const selectedMeshes = useRef<THREE.Mesh[]>([]);
 	const [selectedMeshesState, setSelectedMeshesState] = useState<THREE.Mesh[]>([]);
 	const crossSectionPlane = useRef<THREE.Mesh | null>(null);
+	const crossSectionOutlines = useRef<Line2[]>([]);
 	const [isCameraInitialized, setIsCameraInitialized] = useState(false);
 	const [filterIncompleteNuclei, setFilterIncompleteNuclei] = useState(true);
 
@@ -572,10 +575,30 @@ const Viewer3D = (props: {
 				}
 			});
 
-			// Update OutlinePass with selected meshes
+			// Update OutlinePass with selected meshes (full mesh outline - white)
 			if (outlinePassRef.current) {
 				outlinePassRef.current.selectedObjects = selectedMeshesList;
 			}
+
+			// Remove old cross-section outlines
+			crossSectionOutlines.current.forEach((line) => {
+				scene.remove(line);
+				disposeIntersectionLine(line);
+			});
+			crossSectionOutlines.current = [];
+
+			// Create new cross-section outlines (cyan lines where plane intersects mesh)
+			const planeZ = crossSectionPlane.current?.position.z ?? 0;
+			const newOutlines: Line2[] = [];
+
+			for (const mesh of selectedMeshesList) {
+				const lines = createIntersectionLines(mesh, planeZ);
+				lines.forEach((line) => {
+					scene.add(line);
+					newOutlines.push(line);
+				});
+			}
+			crossSectionOutlines.current = newOutlines;
 
 			selectedMeshes.current = selectedMeshesList;
 			setSelectedMeshesState(selectedMeshesList);
@@ -625,6 +648,27 @@ const Viewer3D = (props: {
 		const planeZ = (currentZInMeshCoords - volumeCenter) * zScale;
 
 		crossSectionPlane.current.position.setZ(planeZ);
+
+		// Update cross-section outlines when plane moves
+		if (scene && selectedMeshes.current.length > 0) {
+			// Remove old outlines
+			crossSectionOutlines.current.forEach((line) => {
+				scene.remove(line);
+				disposeIntersectionLine(line);
+			});
+			crossSectionOutlines.current = [];
+
+			// Create new outlines at the new plane position
+			const newOutlines: Line2[] = [];
+			for (const mesh of selectedMeshes.current) {
+				const lines = createIntersectionLines(mesh, planeZ);
+				lines.forEach((line) => {
+					scene.add(line);
+					newOutlines.push(line);
+				});
+			}
+			crossSectionOutlines.current = newOutlines;
+		}
 
 		if (composer) {
 			composer.render();
