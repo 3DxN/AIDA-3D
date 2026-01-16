@@ -45,6 +45,9 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
 
   // Full 3D mode - loads entire volume, Z changes only move cross-section plane
   const [full3DMode, setFull3DMode] = useState<boolean>(false)
+
+  // Cellpose overlay appearance
+  const [cellposeOverlayOpacity, setCellposeOverlayOpacity] = useState<number>(70)  // Default 70%
   
   // View state
   const [navigationState, setNavigationState] = useState<NavigationState | null>(null)
@@ -416,7 +419,11 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
 
     // Full 3D mode
     full3DMode,
-    setFull3DMode
+    setFull3DMode,
+
+    // Cellpose overlay appearance
+    cellposeOverlayOpacity,
+    setCellposeOverlayOpacity
   }
   
   return (

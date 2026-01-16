@@ -51,6 +51,9 @@ const Appearance = (props: {
 
 		content.traverse((child) => {
 			if ((child as any).isMesh) {
+				// Skip the cross-section plane - it has its own fixed transparency
+				if (child.name === 'crossSectionPlane') return
+
 				const material = (child as any).material as MeshStandardMaterial
 				if (material) {
 					material.transparent = value > 0

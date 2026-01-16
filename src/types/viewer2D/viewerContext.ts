@@ -56,6 +56,10 @@ export interface Viewer2DDataContextType {
   // Full 3D mode - loads entire volume, decouples Z changes from mesh updates
   full3DMode: boolean
   setFull3DMode: (enabled: boolean) => void
+
+  // Cellpose overlay appearance
+  cellposeOverlayOpacity: number  // 0-100 percent
+  setCellposeOverlayOpacity: (opacity: number) => void
 }
 
 export interface Viewer2DDataProviderProps {

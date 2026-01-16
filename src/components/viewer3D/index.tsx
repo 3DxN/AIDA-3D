@@ -433,6 +433,7 @@ const Viewer3D = (props: {
 				});
 
 				const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+				planeMesh.name = 'crossSectionPlane';
 
 				// Position plane at global origin (0,0,0) facing z direction
 				planeMesh.position.set(0, 0, 0);

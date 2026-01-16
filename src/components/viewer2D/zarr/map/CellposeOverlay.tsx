@@ -20,7 +20,8 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
         frameCenter,
         frameSize,
         isDataLoading,
-        full3DMode
+        full3DMode,
+        cellposeOverlayOpacity
     } = useViewer2DData();
     const { msInfo } = useZarrStore();
     const { selectedNucleiIndices } = useNucleusSelection();
@@ -75,6 +76,9 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
             const sliceData = data;
             const imageData = new Uint8ClampedArray(width * height * 4);
 
+            // Calculate alpha value from opacity percentage
+            const alpha = Math.round((cellposeOverlayOpacity / 100) * 255);
+
             // First pass: render all nuclei with their colors (same opacity for selected/unselected)
             for (let i = 0; i < sliceData.length; i++) {
                 const nucleusIndex = sliceData[i];
@@ -93,13 +97,13 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                         imageData[i * 4] = r;       // R
                         imageData[i * 4 + 1] = g;   // G
                         imageData[i * 4 + 2] = b;   // B
-                        imageData[i * 4 + 3] = 178; // A (70% opacity for all)
+                        imageData[i * 4 + 3] = alpha; // A (user-controlled opacity)
                     } else {
                         // Fallback to default color
                         imageData[i * 4] = 128;     // R (Grey)
                         imageData[i * 4 + 1] = 128; // G
                         imageData[i * 4 + 2] = 128; // B
-                        imageData[i * 4 + 3] = 178; // A (70% opacity)
+                        imageData[i * 4 + 3] = alpha; // A (user-controlled opacity)
                     }
                 } else {
                     imageData[i * 4 + 3] = 0; // Transparent
@@ -157,7 +161,7 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                 ctx.drawImage(bitmap, screenX, screenY, screenWidth, screenHeight);
             });
         }
-    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor, isDataLoading, full3DMode, msInfo]);
+    }, [navigationState, frameBoundCellposeData, viewState, containerSize, frameCenter, frameSize, selectedNucleiIndices, getNucleusColor, isDataLoading, full3DMode, msInfo, cellposeOverlayOpacity]);
 
     return (
         <canvas

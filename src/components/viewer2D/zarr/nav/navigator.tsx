@@ -35,7 +35,9 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
         setFrameZLayersBelow,
         getFrameBounds,
         full3DMode,
-        setFull3DMode
+        setFull3DMode,
+        cellposeOverlayOpacity,
+        setCellposeOverlayOpacity
     } = useViewer2DData()
 
     const [isCollapsed, setIsCollapsed] = useState(true)
@@ -188,6 +190,21 @@ export default function NavigationControls({ onToggle }: { onToggle?: (open: boo
                                         <Switch
                                             enabled={cellposeOverlayOn}
                                             onChange={navigationHandlers.onCellposeOverlayToggle}
+                                        />
+                                    </div>
+                                    {/* Nucleus Opacity Slider */}
+                                    <div className="mx-4 my-2">
+                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                                            <label>Nucleus Opacity</label>
+                                            <span>{cellposeOverlayOpacity}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            value={cellposeOverlayOpacity}
+                                            onChange={(e) => setCellposeOverlayOpacity(parseInt(e.target.value, 10))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
                                         />
                                     </div>
                                     {/* Cellpose Resolution Selectors */}
