@@ -12,6 +12,7 @@ import {
 	Line,
 	Mesh,
 } from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer'
 
 function classNames(...classes) {
 	return classes.filter(Boolean).join(' ')
@@ -22,9 +23,10 @@ const Orientation = (props: {
 	renderer: WebGLRenderer
 	scene: Scene
 	camera: Camera
+	composer?: EffectComposer
 	featureData: any
 }) => {
-	const { content, scene, camera, renderer, featureData } = props
+	const { content, scene, camera, renderer, composer, featureData } = props
 
 	const [orientationsActive, setOrientationsActive] = useState(false)
 	const [showOrientationInfo, setShowOrientationInfo] = useState(false)
@@ -71,9 +73,9 @@ const Orientation = (props: {
 				}
 			})
 
-			renderer.render(scene, camera)
+			if (composer) composer.render()
 		}
-	}, [orientationsActive, content, scene, renderer, camera, nucleiVisibilityKey])
+	}, [orientationsActive, content, scene, composer, nucleiVisibilityKey])
 
 	// Draw orientations
 	useEffect(() => {
@@ -173,13 +175,12 @@ const Orientation = (props: {
 			})
 
 			setShowOrientationInfo(!hasOrientationData)
-			renderer.render(scene, camera)
+			if (composer) composer.render()
 		}
 	}, [
 		content,
-		renderer,
+		composer,
 		scene,
-		camera,
 		featureData,
 		orientationsActive,
 	])

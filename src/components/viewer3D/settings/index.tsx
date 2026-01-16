@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid';
 import { WebGLRenderer, Scene, Camera, Group } from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 
 import Clipping from './Clipping';
 import Explode from './Explode';
@@ -20,6 +21,7 @@ export default function Settings(props: {
 	scene: Scene;
 	camera: Camera;
 	content: Group;
+	composer?: EffectComposer;
 	featureData: any;
 	selected: any[];
 	setFeatureData: (data: any) => void;
@@ -33,6 +35,7 @@ export default function Settings(props: {
 		scene,
 		camera,
 		content,
+		composer,
 		featureData,
 		selected,
 		setFeatureData,
@@ -49,8 +52,8 @@ export default function Settings(props: {
 		if (renderer) {
 			setTimeout(() => {
 				resizeRendererToDisplaySize(renderer, camera);
-				if (scene && camera) {
-					renderer.render(scene, camera);
+				if (composer) {
+					composer.render();
 				}
 			}, 0);
 		}
@@ -78,18 +81,20 @@ export default function Settings(props: {
 						<ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
 					</button>
 					<SelectedIndices selected={selected} />
-					<Clipping renderer={renderer} scene={scene} camera={camera} />
+					<Clipping renderer={renderer} scene={scene} camera={camera} composer={composer} />
 					<Explode
 						renderer={renderer}
 						scene={scene}
 						camera={camera}
 						content={content}
+						composer={composer}
 					/>
 					<ColorMap
 						renderer={renderer}
 						scene={scene}
 						camera={camera}
 						content={content}
+						composer={composer}
 						featureData={featureData}
 						globalProperties={globalProperties}
 						globalPropertyTypes={globalPropertyTypes}
@@ -99,6 +104,7 @@ export default function Settings(props: {
 						scene={scene}
 						camera={camera}
 						content={content}
+						composer={composer}
 						featureData={featureData}
 						selected={selected}
 						globalProperties={globalProperties}
@@ -111,6 +117,7 @@ export default function Settings(props: {
 						scene={scene}
 						camera={camera}
 						content={content}
+						composer={composer}
 						featureData={featureData}
 					/>
 					<Properties

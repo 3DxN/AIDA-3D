@@ -4,6 +4,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass';
 import * as checkPointInPolygon from 'robust-point-in-polygon';
 
 import { generateMeshesFromVoxelData } from './algorithms/marchingCubes';
@@ -81,6 +84,8 @@ const Viewer3D = (props: {
 	const [renderer, setRenderer] = useState<WebGLRenderer | undefined>(
 		undefined
 	);
+	const [composer, setComposer] = useState<EffectComposer | undefined>(undefined);
+	const outlinePassRef = useRef<OutlinePass | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [featureData, setFeatureData] = useState<any>(null);
 	const { selectedNucleiIndices, setSelectedNucleiIndices } = useNucleusSelection();
@@ -266,10 +271,30 @@ const Viewer3D = (props: {
 			newCamera.aspect = canvas.clientWidth / canvas.clientHeight;
 			newCamera.updateProjectionMatrix();
 
-			resizeRendererToDisplaySize(newRenderer, newCamera);
-			window.addEventListener('resize', () =>
-				resizeRendererToDisplaySize(newRenderer, newCamera)
+			// Set up post-processing with OutlinePass for selection visualization
+			const newComposer = new EffectComposer(newRenderer);
+			const renderPass = new RenderPass(newScene, newCamera);
+			newComposer.addPass(renderPass);
+
+			const outlinePass = new OutlinePass(
+				new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
+				newScene,
+				newCamera
 			);
+			outlinePass.edgeStrength = 5;
+			outlinePass.edgeThickness = 2;
+			outlinePass.visibleEdgeColor.set(0xffffff);
+			outlinePass.hiddenEdgeColor.set(0xffffff);
+			outlinePass.edgeGlow = 0;
+			newComposer.addPass(outlinePass);
+			outlinePassRef.current = outlinePass;
+			setComposer(newComposer);
+
+			resizeRendererToDisplaySize(newRenderer, newCamera);
+			window.addEventListener('resize', () => {
+				resizeRendererToDisplaySize(newRenderer, newCamera);
+				newComposer.setSize(canvas.clientWidth, canvas.clientHeight);
+			});
 		}
 	}, []);
 
@@ -451,10 +476,10 @@ const Viewer3D = (props: {
 			axesHelper.scale.set(1, -1, -1);
 			scene.add(axesHelper);
 
-			renderer.render(scene, camera);
+			if (composer) composer.render();
 			setIsLoading(false);
 		}
-	}, [scene, camera, renderer, frameBoundCellposeMeshData, filterIncompleteNuclei, full3DMode, msInfo, frameSize, cellposeScale]);
+	}, [scene, camera, renderer, composer, frameBoundCellposeMeshData, filterIncompleteNuclei, full3DMode, msInfo, frameSize, cellposeScale]);
 
 	// Adjust selections
 	useEffect(() => {
@@ -529,27 +554,29 @@ const Viewer3D = (props: {
 
 	// Render selections
 	useEffect(() => {
-		if (renderer && scene && camera && content) {
+		if (renderer && scene && camera && content && composer) {
 			const selectedMeshesList: THREE.Mesh[] = [];
 			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as THREE.Mesh;
 					const nucleusIndex = Number(nucleus.name.split('_')[1]);
 					const isSelected = selectedNucleiIndices.includes(nucleusIndex);
-					(nucleus.material as THREE.MeshStandardMaterial).emissive.set(
-						isSelected ? 0xffffff : 0x000000
-					);
 					if (isSelected) {
 						selectedMeshesList.push(nucleus);
 					}
 				}
 			});
 
+			// Update OutlinePass with selected meshes
+			if (outlinePassRef.current) {
+				outlinePassRef.current.selectedObjects = selectedMeshesList;
+			}
+
 			selectedMeshes.current = selectedMeshesList;
 			setSelectedMeshesState(selectedMeshesList);
-			renderer.render(scene, camera);
+			composer.render();
 		}
-	}, [selectedNucleiIndices, renderer, scene, camera, content]);
+	}, [selectedNucleiIndices, renderer, scene, camera, content, composer]);
 
 	// Update cross-section plane when frame changes
 	useEffect(() => {
@@ -568,10 +595,10 @@ const Viewer3D = (props: {
 			crossSectionPlane.current.position.set(0, 0, 0);
 		}
 
-		if (renderer && scene && camera) {
-			renderer.render(scene, camera);
+		if (composer) {
+			composer.render();
 		}
-	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, frameBoundCellposeMeshData, full3DMode, msInfo]);
+	}, [frameCenter, frameSize, getFrameBounds, renderer, scene, camera, composer, frameBoundCellposeMeshData, full3DMode, msInfo]);
 
 	// Update cross-section plane Z position when currentZSlice changes (Full 3D Mode only)
 	// In full 3D mode, changing Z slice should move the plane without regenerating the mesh
@@ -594,10 +621,10 @@ const Viewer3D = (props: {
 
 		crossSectionPlane.current.position.setZ(planeZ);
 
-		if (renderer && scene && camera) {
-			renderer.render(scene, camera);
+		if (composer) {
+			composer.render();
 		}
-	}, [full3DMode, currentZSlice, cellposeScale, frameBoundCellposeMeshData, msInfo, renderer, scene, camera]);
+	}, [full3DMode, currentZSlice, cellposeScale, frameBoundCellposeMeshData, msInfo, renderer, scene, camera, composer]);
 
 	// Update colors based on labels (only as fallback when no ColorMaps are active)
 	useEffect(() => {
@@ -645,8 +672,8 @@ const Viewer3D = (props: {
 		// Update the nucleus color context
 		updateNucleusColors(colorMap);
 
-		renderer.render(scene, camera);
-	}, [featureData, content, renderer, scene, camera, updateNucleusColors, globalPropertyTypes]);
+		if (composer) composer.render();
+	}, [featureData, content, renderer, scene, camera, composer, updateNucleusColors, globalPropertyTypes]);
 
 	return (
 		<div className="w-full h-full border-l border-l-teal-500 overflow-hidden relative">
@@ -667,6 +694,7 @@ const Viewer3D = (props: {
 					camera={camera}
 					scene={scene}
 					renderer={renderer}
+					composer={composer}
 					content={content}
 					setSelect3D={setSelect3D}
 				/>
@@ -677,6 +705,7 @@ const Viewer3D = (props: {
 					scene={scene}
 					camera={camera}
 					content={content}
+					composer={composer}
 					featureData={featureData}
 					selected={selectedMeshesState}
 					setFeatureData={setFeatureData}
