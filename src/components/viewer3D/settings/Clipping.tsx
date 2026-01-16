@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 import { Camera, Scene, WebGLRenderer, Plane, Vector3 } from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer'
 import { Disclosure } from '@headlessui/react'
 
 import RangeSlider from '../../interaction/RangeSlider'
@@ -14,8 +15,9 @@ export default function Clipping(props: {
 	renderer: WebGLRenderer
 	scene: Scene
 	camera: Camera
+	composer?: EffectComposer
 }) {
-	const { renderer, scene, camera } = props
+	const { renderer, scene, camera, composer } = props
 
 	// PsuedoHNE generated from a particular substack. We want to automatically
 	// clip to this substack in the 3D.
@@ -48,8 +50,8 @@ export default function Clipping(props: {
 		)
 
 		renderer.clippingPlanes = planes
-		renderer.render(scene, camera)
-	}, [activeClippingPlanes, renderer, scene, camera])
+		if (composer) composer.render()
+	}, [activeClippingPlanes, renderer, composer])
 
 	useEffect(() => {
 		if (renderer) renderClippingPlanes()

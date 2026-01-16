@@ -196,11 +196,12 @@ export function useFrameInteraction(
     }, [frameInteraction.isDragging, tempFrameCenter, tempFrameSize, setFrameCenter, setFrameSize]);
 
     // Handle click events for frame interactions
+    // Note: Only intercept clicks on resize handles, NOT the move area
+    // Clicks on move area should fall through to nucleus selection
     const handleClick = useCallback((info: PickingInfo) => {
-        // Only intercept events that hit our specific pickable frame objects
+        // Only intercept events that hit resize handles (not move area - that's for dragging only)
         if (info.layer && info.viewport?.id === FRAME_VIEW_ID && info.object) {
-            if ((info.layer.id.includes('handle') && info.object.type?.startsWith('resize-')) ||
-                (info.layer.id.includes('move-area') && info.object.type === 'move')) {
+            if (info.layer.id.includes('handle') && info.object.type?.startsWith('resize-')) {
                 const handled = handleFrameInteraction(info);
                 if (handled) {
                     return true; // Stop propagation - we're handling this
@@ -257,8 +258,16 @@ export function useFrameInteraction(
     const handleSelectionBoxAreaSelection = useCallback((startCoord: [number, number], endCoord: [number, number]) => {
         if (!frameBoundCellposeData || !navigationState) return;
 
-        const frameStartX = Math.floor(frameCenter[0] - frameSize[0] / 2);
-        const frameStartY = Math.floor(frameCenter[1] - frameSize[1] / 2);
+        // In Full 3D Mode: use full image dimensions; otherwise use frame bounds
+        const effectiveFrameSize: [number, number] = full3DMode && msInfo?.shape.x && msInfo?.shape.y
+            ? [msInfo.shape.x, msInfo.shape.y]
+            : frameSize;
+        const effectiveFrameCenter: [number, number] = full3DMode && msInfo?.shape.x && msInfo?.shape.y
+            ? [msInfo.shape.x / 2, msInfo.shape.y / 2]
+            : frameCenter;
+
+        const frameStartX = Math.floor(effectiveFrameCenter[0] - effectiveFrameSize[0] / 2);
+        const frameStartY = Math.floor(effectiveFrameCenter[1] - effectiveFrameSize[1] / 2);
 
         // Convert screen coordinates to frame-relative coordinates
         const minX = Math.min(startCoord[0], endCoord[0]) - frameStartX;
@@ -267,32 +276,50 @@ export function useFrameInteraction(
         const maxY = Math.max(startCoord[1], endCoord[1]) - frameStartY;
 
         const { data, shape } = frameBoundCellposeData;
-        if (!shape || shape.length < 3) return;
-
-        const [zCount, height, width] = shape;
-        const { zSlice } = navigationState;
-        const startZ = Math.max(0, zSlice - frameZLayersBelow);
-        const zIndexInChunk = zSlice - startZ;
-
-        if (zIndexInChunk < 0 || zIndexInChunk >= zCount) return;
+        if (!shape || shape.length < 2) return;
 
         const selectedNuclei = new Set<number>();
 
-        // Iterate through the selection box area
-        for (let y = Math.max(0, Math.floor(minY)); y < Math.min(height, Math.ceil(maxY)); y++) {
-            for (let x = Math.max(0, Math.floor(minX)); x < Math.min(width, Math.ceil(maxX)); x++) {
-                const index = zIndexInChunk * height * width + y * width + x;
-                const nucleusIndex = (data as any)[index];
+        if (shape.length === 2) {
+            // 2D data: [height, width]
+            const [height, width] = shape;
 
-                if (nucleusIndex > 0) {
-                    selectedNuclei.add(nucleusIndex);
+            // Iterate through the selection box area
+            for (let y = Math.max(0, Math.floor(minY)); y < Math.min(height, Math.ceil(maxY)); y++) {
+                for (let x = Math.max(0, Math.floor(minX)); x < Math.min(width, Math.ceil(maxX)); x++) {
+                    const index = y * width + x;
+                    const nucleusIndex = (data as any)[index];
+
+                    if (nucleusIndex > 0) {
+                        selectedNuclei.add(nucleusIndex);
+                    }
+                }
+            }
+        } else {
+            // 3D data: [z, height, width]
+            const [zCount, height, width] = shape;
+            const { zSlice } = navigationState;
+            const startZ = Math.max(0, zSlice - frameZLayersBelow);
+            const zIndexInChunk = zSlice - startZ;
+
+            if (zIndexInChunk < 0 || zIndexInChunk >= zCount) return;
+
+            // Iterate through the selection box area
+            for (let y = Math.max(0, Math.floor(minY)); y < Math.min(height, Math.ceil(maxY)); y++) {
+                for (let x = Math.max(0, Math.floor(minX)); x < Math.min(width, Math.ceil(maxX)); x++) {
+                    const index = zIndexInChunk * height * width + y * width + x;
+                    const nucleusIndex = (data as any)[index];
+
+                    if (nucleusIndex > 0) {
+                        selectedNuclei.add(nucleusIndex);
+                    }
                 }
             }
         }
 
         // Update selection
         setSelectedNucleiIndices(Array.from(selectedNuclei));
-    }, [frameBoundCellposeData, navigationState, frameCenter, frameSize, frameZLayersAbove, frameZLayersBelow, setSelectedNucleiIndices]);
+    }, [frameBoundCellposeData, navigationState, frameCenter, frameSize, frameZLayersBelow, setSelectedNucleiIndices, full3DMode, msInfo]);
 
     // Complete onDragStart handler combining frame and view interactions
     const onDragStart = useCallback((info: PickingInfo) => {
@@ -466,62 +493,92 @@ export function useFrameInteraction(
             return true;
         }
 
-        if (info.viewport && info.viewport.id === DETAIL_VIEW_ID && info.coordinate && frameBoundCellposeData && navigationState) {
+        // Allow nucleus selection from both DETAIL_VIEW_ID and FRAME_VIEW_ID (frame overlays the detail view)
+        if (info.viewport && (info.viewport.id === DETAIL_VIEW_ID || info.viewport.id === FRAME_VIEW_ID) && info.coordinate && frameBoundCellposeData && navigationState) {
             const [clickX, clickY] = info.coordinate;
 
-            const frameStartX = Math.floor(frameCenter[0] - frameSize[0] / 2);
-            const frameStartY = Math.floor(frameCenter[1] - frameSize[1] / 2);
+            // In Full 3D Mode: use full image dimensions; otherwise use frame bounds
+            const effectiveFrameSize: [number, number] = full3DMode && msInfo?.shape.x && msInfo?.shape.y
+                ? [msInfo.shape.x, msInfo.shape.y]
+                : frameSize;
+            const effectiveFrameCenter: [number, number] = full3DMode && msInfo?.shape.x && msInfo?.shape.y
+                ? [msInfo.shape.x / 2, msInfo.shape.y / 2]
+                : frameCenter;
+
+            const frameStartX = Math.floor(effectiveFrameCenter[0] - effectiveFrameSize[0] / 2);
+            const frameStartY = Math.floor(effectiveFrameCenter[1] - effectiveFrameSize[1] / 2);
 
             const localX = Math.floor(clickX - frameStartX);
             const localY = Math.floor(clickY - frameStartY);
 
             const { data, shape } = frameBoundCellposeData;
-            if (!shape || shape.length < 3) return false;
+            if (!shape || shape.length < 2) return false;
 
-            const [zCount, height, width] = shape;
-            const { zSlice } = navigationState;
-            const startZ = Math.max(0, zSlice - frameZLayersBelow);
-            const zIndexInChunk = zSlice - startZ;
+            // Handle both 2D [height, width] and 3D [z, height, width] data
+            let height: number, width: number, nucleusIndex: number;
 
-            if (
-                localX >= 0 && localX < width &&
-                localY >= 0 && localY < height &&
-                zIndexInChunk >= 0 && zIndexInChunk < zCount
-            ) {
-                const index = zIndexInChunk * height * width + localY * width + localX;
-                const nucleusIndex = (data as any)[index];
+            if (shape.length === 2) {
+                // 2D data: [height, width]
+                height = shape[0];
+                width = shape[1];
 
-                const originalEvent = (info as any).srcEvent || (info as any).originalEvent || {};
-                const shiftKey = originalEvent.shiftKey || false;
-                const ctrlKey = originalEvent.ctrlKey || false;
-
-                if (nucleusIndex > 0) {
-                    if (shiftKey) {
-                        if (selectedNucleiIndices.includes(nucleusIndex)) {
-                            removeSelectedNucleus(nucleusIndex);
-                        } else {
-                            addSelectedNucleus(nucleusIndex);
-                        }
-                    } else if (ctrlKey) {
-                        const lastSelected = selectedNucleiIndices.length > 0 ? selectedNucleiIndices[selectedNucleiIndices.length - 1] : null;
-                        const newSelection = [];
-                        if (lastSelected !== null) {
-                            newSelection.push(lastSelected);
-                        }
-                        if (nucleusIndex !== lastSelected) {
-                            newSelection.push(nucleusIndex);
-                        }
-                        setSelectedNucleiIndices(newSelection);
-                    } else {
-                        setSelectedNucleiIndices([nucleusIndex]);
-                    }
+                if (localX >= 0 && localX < width && localY >= 0 && localY < height) {
+                    const index = localY * width + localX;
+                    nucleusIndex = (data as any)[index];
                 } else {
-                    if (!shiftKey && !ctrlKey) {
-                        clearSelection();
-                    }
+                    return false;
                 }
-                return true;
+            } else {
+                // 3D data: [z, height, width]
+                const [zCount, h, w] = shape;
+                height = h;
+                width = w;
+                const { zSlice } = navigationState;
+                const startZ = Math.max(0, zSlice - frameZLayersBelow);
+                const zIndexInChunk = zSlice - startZ;
+
+                if (
+                    localX >= 0 && localX < width &&
+                    localY >= 0 && localY < height &&
+                    zIndexInChunk >= 0 && zIndexInChunk < zCount
+                ) {
+                    const index = zIndexInChunk * height * width + localY * width + localX;
+                    nucleusIndex = (data as any)[index];
+                } else {
+                    return false;
+                }
             }
+
+            const originalEvent = (info as any).srcEvent || (info as any).originalEvent || {};
+            const shiftKey = originalEvent.shiftKey || false;
+            const ctrlKey = originalEvent.ctrlKey || false;
+
+            if (nucleusIndex > 0) {
+                if (shiftKey) {
+                    if (selectedNucleiIndices.includes(nucleusIndex)) {
+                        removeSelectedNucleus(nucleusIndex);
+                    } else {
+                        addSelectedNucleus(nucleusIndex);
+                    }
+                } else if (ctrlKey) {
+                    const lastSelected = selectedNucleiIndices.length > 0 ? selectedNucleiIndices[selectedNucleiIndices.length - 1] : null;
+                    const newSelection = [];
+                    if (lastSelected !== null) {
+                        newSelection.push(lastSelected);
+                    }
+                    if (nucleusIndex !== lastSelected) {
+                        newSelection.push(nucleusIndex);
+                    }
+                    setSelectedNucleiIndices(newSelection);
+                } else {
+                    setSelectedNucleiIndices([nucleusIndex]);
+                }
+            } else {
+                if (!shiftKey && !ctrlKey) {
+                    clearSelection();
+                }
+            }
+            return true;
         }
 
         return false;
@@ -529,7 +586,8 @@ export function useFrameInteraction(
         handleClick, setFrameCenter, frameBoundCellposeData, frameCenter,
         frameSize, navigationState, frameZLayersAbove, frameZLayersBelow, selectedNucleiIndices,
         addSelectedNucleus, removeSelectedNucleus, clearSelection, setSelectedNucleiIndices,
-        drawingState.isDrawing, drawingState.currentVertices, addVertex, setShowLabelModal, detailViewStateRef
+        drawingState.isDrawing, drawingState.currentVertices, addVertex, setShowLabelModal, detailViewStateRef,
+        full3DMode, msInfo
     ]);
 
     // Handle double-click for finishing ROI polygon

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { Disclosure } from '@headlessui/react'
 import { XIcon } from '@heroicons/react/outline'
 import { Camera, Scene, WebGLRenderer, Group } from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer'
 
 import NumberField from '../../interaction/NumberField'
 
@@ -14,8 +15,9 @@ const Explode = (props: {
 	renderer: WebGLRenderer
 	scene: Scene
 	camera: Camera
+	composer?: EffectComposer
 }) => {
-	const { content, scene, camera, renderer } = props
+	const { content, scene, camera, renderer, composer } = props
 
 	const [value, setValue] = useState(0)
 	const cache = useRef(0)
@@ -32,9 +34,9 @@ const Explode = (props: {
 					child.translateOnAxis(direction, (length * magnitude) / 10)
 				}
 			})
-			renderer.render(scene, camera)
+			if (composer) composer.render()
 		},
-		[camera, content, renderer, scene]
+		[content, composer]
 	)
 
 	useEffect(() => {

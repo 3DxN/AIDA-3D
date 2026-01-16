@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer'
 import { useNucleusSelection } from '../../../lib/contexts/NucleusSelectionContext'
 
 // FIX: Added missing types and the setSelected prop definition
@@ -9,9 +10,10 @@ const Tools = (props: {
 	renderer: THREE.WebGLRenderer
 	scene: THREE.Scene
 	camera: THREE.Camera
+	composer?: EffectComposer
 	setSelect3D: (select3D: boolean) => void
 }) => {
-	const { renderer, scene, camera, content, setSelect3D } = props
+	const { renderer, scene, camera, content, composer, setSelect3D } = props
 
 	const [orbitControls, setOrbitControls] = useState<OrbitControls | null>(null)
 	const { selectedNucleiIndices, setSelectedNucleiIndices, addSelectedNucleus, removeSelectedNucleus, clearSelection } = useNucleusSelection();
@@ -22,7 +24,11 @@ const Tools = (props: {
 		if (!renderer || !scene || !camera) return
 
 		function render() {
-			renderer.render(scene, camera)
+			if (composer) {
+				composer.render()
+			} else {
+				renderer.render(scene, camera)
+			}
 		}
 
 		const newControls = new OrbitControls(camera, renderer.domElement)
@@ -53,7 +59,7 @@ const Tools = (props: {
 			canvas.removeEventListener('wheel', preventPageZoom)
 			newControls.dispose()
 		}
-	}, [renderer, scene, camera])
+	}, [renderer, scene, camera, composer])
 
 	// Update controls to orbit around the center of the object
 	useEffect(() => {

@@ -77,11 +77,14 @@ const colorScales = [
 	},
 ];
 
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+
 const ColorMaps = (props: {
 	content: THREE.Group;
 	renderer: THREE.WebGLRenderer;
 	scene: THREE.Scene;
 	camera: THREE.Camera;
+	composer?: EffectComposer;
 	featureData: any;
 	globalPropertyTypes: React.MutableRefObject<
 		{ id: number; name: string; count: number; readOnly: boolean; dimensions?: number[] }[]
@@ -95,6 +98,7 @@ const ColorMaps = (props: {
 		scene,
 		camera,
 		renderer,
+		composer,
 		featureData,
 		globalPropertyTypes,
 		globalProperties,
@@ -171,7 +175,7 @@ const ColorMaps = (props: {
 				}
 			});
 			updateNucleusColors(colorMap);
-			renderer.render(scene, camera);
+			if (composer) composer.render();
 			return;
 		}
 
@@ -182,7 +186,7 @@ const ColorMaps = (props: {
 
 		if (allValues.length === 0) {
 			updateNucleusColors(colorMap);
-			renderer.render(scene, camera);
+			if (composer) composer.render();
 			return;
 		}
 
@@ -223,15 +227,13 @@ const ColorMaps = (props: {
 		});
 
 		updateNucleusColors(colorMap);
-		renderer.render(scene, camera);
+		if (composer) composer.render();
 	}, [
 		colorMaps,
 		activeColorMapIndex,
 		globalProperties,
 		content,
-		renderer,
-		scene,
-		camera,
+		composer,
 		updateNucleusColors,
 	]);
 

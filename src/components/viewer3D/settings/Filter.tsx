@@ -4,6 +4,7 @@ import { Fragment, useState, useEffect, useCallback } from 'react';
 import { Disclosure, Listbox, Transition } from '@headlessui/react';
 import { CheckIcon, SelectorIcon } from '@heroicons/react/solid';
 import { Camera, Scene, WebGLRenderer, Group, Mesh } from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 
 import RangeSlider from '../../interaction/RangeSlider';
 
@@ -16,6 +17,7 @@ const Filter = (props: {
 	renderer: WebGLRenderer;
 	scene: Scene;
 	camera: Camera;
+	composer?: EffectComposer;
 	featureData: any;
 	selected: Mesh[];
 	globalProperties: React.MutableRefObject<{ nucleus_index: number;[key: string]: any }[]>;
@@ -23,7 +25,7 @@ const Filter = (props: {
 	filterIncompleteNuclei: boolean;
 	setFilterIncompleteNuclei: (value: boolean) => void;
 }) => {
-	const { content, scene, camera, renderer, featureData, selected, globalProperties, globalPropertyTypes, filterIncompleteNuclei, setFilterIncompleteNuclei } = props;
+	const { content, scene, camera, renderer, composer, featureData, selected, globalProperties, globalPropertyTypes, filterIncompleteNuclei, setFilterIncompleteNuclei } = props;
 
 	const [featureMap, setFeatureMap] = useState<{ name: string, value: string } | null>(null);
 	const [features, setFeatures] = useState<{ name: string, value: string }[]>([]);
@@ -68,10 +70,10 @@ const Filter = (props: {
 					}
 				});
 
-				renderer.render(scene, camera);
+				if (composer) composer.render();
 			}
 		},
-		[renderer, content, featureMap, camera, scene, featureData, globalProperties]
+		[composer, content, featureMap, featureData, globalProperties]
 	);
 
 
@@ -92,9 +94,9 @@ const Filter = (props: {
 				}
 			});
 
-			renderer.render(scene, camera);
+			if (composer) composer.render();
 		}
-	}, [content, renderer, scene, camera, selected]);
+	}, [content, composer, selected]);
 
 	// Hide selected meshes
 	const onSelectedHide = useCallback(() => {
@@ -106,9 +108,9 @@ const Filter = (props: {
 				}
 			});
 
-			renderer.render(scene, camera);
+			if (composer) composer.render();
 		}
-	}, [content, renderer, scene, camera, selected]);
+	}, [content, composer, selected]);
 
 	// Reset all meshes to visible
 	const onReset = useCallback(() => {
@@ -116,18 +118,17 @@ const Filter = (props: {
 			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as Mesh;
-					(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0x000000);
 					nucleus.visible = true;
 				}
 			});
-			renderer.render(scene, camera);
+			if (composer) composer.render();
 		}
 
 		// Reset slider values to min max by forcing a re-render of the component with a new key
 		if (featureMap) {
 			setFeatureMap(JSON.parse(JSON.stringify(featureMap)));
 		}
-	}, [content, renderer, scene, camera, featureMap]);
+	}, [content, composer, featureMap]);
 
 	// Set slider min/max based on the selected property
 	useEffect(() => {

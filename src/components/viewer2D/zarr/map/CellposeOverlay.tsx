@@ -75,10 +75,10 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
             const sliceData = data;
             const imageData = new Uint8ClampedArray(width * height * 4);
 
+            // First pass: render all nuclei with their colors (same opacity for selected/unselected)
             for (let i = 0; i < sliceData.length; i++) {
                 const nucleusIndex = sliceData[i];
                 const isNucleus = nucleusIndex > 0;
-                const isSelected = selectedNucleiIndices.includes(nucleusIndex);
 
                 if (isNucleus) {
                     // Get color from 3D viewer, fallback to default colors
@@ -93,23 +93,61 @@ export const CellposeOverlay: React.FC<CellposeOverlayProps> = ({ viewState, con
                         imageData[i * 4] = r;       // R
                         imageData[i * 4 + 1] = g;   // G
                         imageData[i * 4 + 2] = b;   // B
-                        imageData[i * 4 + 3] = isSelected ? 255 : 178; // A (100% if selected, 70% if not)
+                        imageData[i * 4 + 3] = 178; // A (70% opacity for all)
                     } else {
-                        // Fallback to original colors if no 3D color available
-                        if (isSelected) {
-                            imageData[i * 4] = 255;     // R (Yellow)
-                            imageData[i * 4 + 1] = 255; // G
-                            imageData[i * 4 + 2] = 0;   // B
-                            imageData[i * 4 + 3] = 255; // A (100% opacity)
-                        } else {
-                            imageData[i * 4] = 0;       // R (Black)
-                            imageData[i * 4 + 1] = 0;   // G
-                            imageData[i * 4 + 2] = 0;   // B
-                            imageData[i * 4 + 3] = 178; // A (70% opacity)
-                        }
+                        // Fallback to default color
+                        imageData[i * 4] = 128;     // R (Grey)
+                        imageData[i * 4 + 1] = 128; // G
+                        imageData[i * 4 + 2] = 128; // B
+                        imageData[i * 4 + 3] = 178; // A (70% opacity)
                     }
                 } else {
                     imageData[i * 4 + 3] = 0; // Transparent
+                }
+            }
+
+            // Second pass: draw white outlines OUTSIDE selected nuclei
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = y * width + x;
+                    const nucleusIndex = sliceData[i];
+
+                    // Only draw outline on pixels that are NOT part of a selected nucleus
+                    if (!selectedNucleiIndices.includes(nucleusIndex)) {
+                        // Check if any immediate neighbor is a selected nucleus
+                        let adjacentToSelected = false;
+
+                        // Check 4-connected neighbors (up, down, left, right)
+                        const neighbors = [
+                            { dx: 0, dy: -1 },  // up
+                            { dx: 0, dy: 1 },   // down
+                            { dx: -1, dy: 0 },  // left
+                            { dx: 1, dy: 0 },   // right
+                        ];
+
+                        for (const { dx, dy } of neighbors) {
+                            const nx = x + dx;
+                            const ny = y + dy;
+
+                            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                const neighborIdx = ny * width + nx;
+                                const neighborNucleus = sliceData[neighborIdx];
+
+                                if (selectedNucleiIndices.includes(neighborNucleus)) {
+                                    adjacentToSelected = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (adjacentToSelected) {
+                            // Draw white outline pixel
+                            imageData[i * 4] = 255;     // R
+                            imageData[i * 4 + 1] = 255; // G
+                            imageData[i * 4 + 2] = 255; // B
+                            imageData[i * 4 + 3] = 255; // A (fully opaque)
+                        }
+                    }
                 }
             }
 
