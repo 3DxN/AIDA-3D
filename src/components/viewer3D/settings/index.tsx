@@ -13,6 +13,7 @@ import Orientation from './Orientation';
 import Properties from './Properties';
 import Export from './Export';
 import SelectedIndices from './SelectedIndices';
+import Appearance from './Appearance';
 
 import { resizeRendererToDisplaySize } from '../utils';
 
@@ -81,6 +82,13 @@ export default function Settings(props: {
 						<ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
 					</button>
 					<SelectedIndices selected={selected} />
+					<Appearance
+						renderer={renderer}
+						scene={scene}
+						camera={camera}
+						content={content}
+						composer={composer}
+					/>
 					<Clipping renderer={renderer} scene={scene} camera={camera} composer={composer} />
 					<Explode
 						renderer={renderer}

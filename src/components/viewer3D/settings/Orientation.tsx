@@ -1,5 +1,5 @@
 /* eslint-disable max-len */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Disclosure } from '@headlessui/react'
 import {
 	Camera,
@@ -11,6 +11,8 @@ import {
 	BufferGeometry,
 	Line,
 	Mesh,
+	MeshStandardMaterial,
+	Object3D,
 } from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer'
 
@@ -31,6 +33,8 @@ const Orientation = (props: {
 	const [orientationsActive, setOrientationsActive] = useState(false)
 	const [showOrientationInfo, setShowOrientationInfo] = useState(false)
 	const [nucleiVisibilityKey, setNucleiVisibilityKey] = useState(0)
+	// Store original opacity values to restore when orientations are disabled
+	const originalOpacities = useRef<Map<string, number>>(new Map())
 
 	// Monitor nucleus visibility changes to update axes
 	useEffect(() => {
@@ -63,13 +67,27 @@ const Orientation = (props: {
 				}
 			})
 
-			// Make nuclei transparent when axes are shown
+			// Make nuclei transparent when axes are shown, preserve original opacity when disabled
 			content.traverse((object) => {
-				if ((object as THREE.Mesh).isMesh && object.name.includes('nucleus')) {
-					const mesh = object as THREE.Mesh
-					const material = mesh.material as THREE.MeshStandardMaterial
-					material.transparent = orientationsActive
-					material.opacity = orientationsActive ? 0.2 : 1.0
+				if ((object as Mesh).isMesh && object.name.includes('nucleus')) {
+					const mesh = object as Mesh
+					const material = mesh.material as MeshStandardMaterial
+					if (orientationsActive) {
+						// Store original opacity before making transparent
+						if (!originalOpacities.current.has(mesh.name)) {
+							originalOpacities.current.set(mesh.name, material.opacity)
+						}
+						material.transparent = true
+						material.opacity = 0.2
+					} else {
+						// Restore original opacity (or keep current if no stored value)
+						const storedOpacity = originalOpacities.current.get(mesh.name)
+						if (storedOpacity !== undefined) {
+							material.opacity = storedOpacity
+							material.transparent = storedOpacity < 1
+							originalOpacities.current.delete(mesh.name)
+						}
+					}
 				}
 			})
 
@@ -81,7 +99,7 @@ const Orientation = (props: {
 	useEffect(() => {
 		if (featureData && content && featureData.labels) {
 			// Remove previous orientation lines from the SCENE
-			const toRemove: THREE.Object3D[] = []
+			const toRemove: Object3D[] = []
 			scene.traverse((object) => {
 				if (object.name.includes('orientation')) {
 					toRemove.push(object)
@@ -139,7 +157,7 @@ const Orientation = (props: {
 					if (c && a && r) {
 						const addLine = (
 							axisIndex: number,
-							material: THREE.LineBasicMaterial,
+							material: LineBasicMaterial,
 							axisLabel: string
 						) => {
 							const points = []
