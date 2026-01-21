@@ -17,6 +17,7 @@ import { useZarrStore } from '../../lib/contexts/ZarrStoreContext';
 
 import Settings from './settings';
 import Toolbar from './toolbar';
+import GlobalViewer3D from './GlobalViewer3D';
 import { padToTwo, resizeRendererToDisplaySize } from './utils';
 
 const cleanMaterial = (material: THREE.Material) => {
@@ -224,16 +225,23 @@ const Viewer3D = (props: {
 			const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
 			newScene.add(dirLight);
 
-			newCamera.aspect = canvas.clientWidth / canvas.clientHeight;
-			newCamera.updateProjectionMatrix();
-
-			resizeRendererToDisplaySize(newRenderer, newCamera);
-			window.addEventListener('resize', () =>
-				resizeRendererToDisplaySize(newRenderer, newCamera)
-			);
-		}
-	}, []);
-
+			                                              newCamera.aspect = canvas.clientWidth / canvas.clientHeight;
+			                                              newCamera.updateProjectionMatrix();
+			                       
+			                                              resizeRendererToDisplaySize(newRenderer, newCamera);
+			                                              
+			                                               const resizeObserver = new ResizeObserver(() => {
+			                                                   const didResize = resizeRendererToDisplaySize(newRenderer, newCamera);
+			                                                   if (didResize) {
+			                                                       newRenderer.render(newScene, newCamera);
+			                                                   }
+			                                               });
+			                                               resizeObserver.observe(canvas);
+			                       
+			                                               return () => {
+			                                                   resizeObserver.disconnect();
+			                                               };			               }
+			       }, []);
 	// Generate and render mesh from voxel data
 	useEffect(() => {
 		if (scene && camera && renderer && frameBoundCellposeMeshData) {
@@ -629,44 +637,55 @@ const Viewer3D = (props: {
 
 	return (
 		<div className="w-full h-full border-l border-l-teal-500 overflow-hidden relative">
-			<div className="w-full h-full flex items-center justify-center bg-gray-100 overflow-hidden">
-				{!tile && !content && (
-					<div className="absolute text-gray-500">
-						Generating 3D model from voxel data...
-					</div>
-				)}
-				{isLoading && (
-					<div className="absolute">{/* SVG Loading Spinner */}</div>
-				)}
-				<canvas className="w-full h-full" ref={viewerRef} tabIndex={-1} />
-			</div>
+            {/* Viewers Container */}
+            <div className="w-full h-full flex flex-col overflow-hidden">
+                {/* Top Half: Local Mesh Viewer */}
+                <div className="w-full h-1/2 relative border-b border-gray-300">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 overflow-hidden">
+                        {!tile && !content && (
+                            <div className="absolute text-gray-500">
+                                Generating 3D model from voxel data...
+                            </div>
+                        )}
+                        {isLoading && (
+                            <div className="absolute">{/* SVG Loading Spinner */}</div>
+                        )}
+                        <canvas className="w-full h-full" ref={viewerRef} tabIndex={-1} />
+                    </div>
 
-			{content && (
-				<Toolbar
-					camera={camera}
-					scene={scene}
-					renderer={renderer}
-					content={content}
-					setSelect3D={setSelect3D}
-				/>
-			)}
-			<div className="absolute top-0 right-0 h-full">
-				<Settings
-					renderer={renderer}
-					scene={scene}
-					camera={camera}
-					content={content}
-					featureData={featureData}
-					selected={selectedMeshesState}
-					setFeatureData={setFeatureData}
-					globalProperties={globalProperties}
-					globalPropertyTypes={globalPropertyTypes}
-					transientProperties={transientProperties}
-					transientPropertyTypes={transientPropertyTypes}
-					filterIncompleteNuclei={filterIncompleteNuclei}
-					setFilterIncompleteNuclei={setFilterIncompleteNuclei}
-				/>
-			</div>
+                    {content && (
+                        <Toolbar
+                            camera={camera}
+                            scene={scene}
+                            renderer={renderer}
+                            content={content}
+                            setSelect3D={setSelect3D}
+                        />
+                    )}
+                </div>
+
+                {/* Bottom Half: Global Context Viewer */}
+                <div className="w-full h-1/2 relative">
+                    <GlobalViewer3D />
+                </div>
+            </div>
+
+            {/* Sidebar: Settings (Overlay) */}
+            <div className="absolute top-0 right-0 h-full z-20">
+                <Settings
+                    renderer={renderer}
+                    scene={scene}
+                    camera={camera}
+                    content={content}
+                    featureData={featureData}
+                    selected={selectedMeshesState}
+                    setFeatureData={setFeatureData}
+                    globalProperties={globalProperties}
+                    globalPropertyTypes={globalPropertyTypes}
+                    filterIncompleteNuclei={filterIncompleteNuclei}
+                    setFilterIncompleteNuclei={setFilterIncompleteNuclei}
+                />
+            </div>
 		</div>
 	);
 };
