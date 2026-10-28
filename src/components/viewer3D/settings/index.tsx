@@ -108,6 +108,7 @@ export default function Settings(props: {
 						content={content}
 					/>
 					<ColorMap
+						activeLayerId={layers[layers.length - 1]?.id}
 						renderer={renderer}
 						scene={scene}
 						camera={camera}

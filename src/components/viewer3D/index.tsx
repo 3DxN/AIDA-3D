@@ -22,6 +22,9 @@ import {
 } from './layers/sceneLayers';
 import { loadGltfGroup } from './layers/loadGltfLayer';
 import { joinStorePath, storeFileUrl } from '../../lib/utils/discoverSources';
+import {
+	type LabelProperties, type PropertyType, mergeProperties, fromLabelValueFormat, ensureLabels
+} from '../../lib/utils/properties';
 
 const Viewer3D = (props: {
 	tile: [number, number];
@@ -61,23 +64,35 @@ const Viewer3D = (props: {
 
 
 	// New label storage refs
-	const globalProperties = useRef<{ nucleus_index: number;[key: string]: number }[]>(
-		[]
-	);
-	const globalPropertyTypes = useRef<{ id: number; name: string; count: number }[]>(
-		[]
-	);
+	const globalProperties = useRef<LabelProperties[]>([]);
+	const globalPropertyTypes = useRef<PropertyType[]>([]);
 
 	const viewerRef: React.RefObject<HTMLCanvasElement> = useRef(null);
 
 	const { frameBoundCellposeMeshData, frameBoundCellposeMeshInfo, frameCenter, frameSize, currentZSlice, cellposeScale, full3DMode } = useViewer2DData();
 	const {
-		msInfo, store, cellposePath, setPropertiesCallback, loadCellposeData, unloadCellposeData
+		msInfo, store, cellposePath, availableMeshes, setPropertiesCallback, loadCellposeData, unloadCellposeData
 	} = useZarrStore();
 
 	const updateLayers = useCallback((update: (prev: SceneLayer[]) => SceneLayer[]) => {
 		layersRef.current = update(layersRef.current);
 		setLayers(layersRef.current);
+	}, []);
+
+	// Merge properties in the `label-value` format into the active layer
+	const mergeIntoActiveLayer = useCallback((properties: any[]) => {
+		const merged = mergeProperties(
+			globalProperties.current,
+			globalPropertyTypes.current,
+			fromLabelValueFormat(properties)
+		);
+		globalProperties.current = merged.properties;
+		globalPropertyTypes.current = merged.types;
+
+		setFeatureData((prevData: any) => ({
+			...prevData,
+			labels: [...merged.properties],
+		}));
 	}, []);
 
 	// Function to handle automatic properties loading from Cellpose zarr.json
@@ -90,107 +105,14 @@ const Viewer3D = (props: {
 				return;
 			}
 
-			// Transform properties to match the internal format (same logic as Export.tsx)
-			const importedData = properties.map(item => {
-				const { 'label-value': labelValue, ...rest } = item;
-				const nucleus_index = labelValue !== undefined ? labelValue : item.nucleus_index;
-				return { nucleus_index, ...rest };
-			});
-
-			// Helper function to get dimensions (from Export.tsx)
-			const getDimensions = (arr: any): number[] => {
-				if (!Array.isArray(arr)) return [];
-				const dims: number[] = [];
-				let current = arr;
-				while (Array.isArray(current)) {
-					dims.push(current.length);
-					current = current[0];
-				}
-				return dims;
-			};
-
-			// Merge property types
-			const newPropertyTypesMap = new Map(
-				globalPropertyTypes.current.map((attr) => [attr.name, attr])
-			);
-
-			if (importedData.length > 0) {
-				const sample = importedData[0];
-				Object.keys(sample).forEach(key => {
-					if (key !== 'nucleus_index' && !newPropertyTypesMap.has(key)) {
-						const value = sample[key];
-						const isArray = Array.isArray(value);
-						const dimensions = isArray ? getDimensions(value) : undefined;
-						const isMultiDimensional = isArray && (dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1));
-
-						newPropertyTypesMap.set(key, {
-							id: newPropertyTypesMap.size,
-							name: key,
-							count: 0,
-							readOnly: false,
-							dimensions: isMultiDimensional ? dimensions : undefined
-						});
-					}
-				});
-			}
-
-			globalPropertyTypes.current = Array.from(newPropertyTypesMap.values());
-
-			// Create a map for quick lookup of imported properties
-			const importedPropertiesMap = new Map(
-				importedData.map((item) => [item.nucleus_index, item])
-			);
-
-			// Create a map for quick lookup of existing properties
-			const existingPropertiesMap = new Map(
-				globalProperties.current.map((item) => [item.nucleus_index, item])
-			);
-
-			// Merge properties (same logic as Export.tsx)
-			const maxNucleusIndex = Math.max(
-				globalProperties.current.length > 0 ? globalProperties.current[globalProperties.current.length - 1].nucleus_index : -1,
-				importedData.reduce((max, nucleus) => Math.max(max, nucleus.nucleus_index), -1)
-			);
-
-			const newGlobalProperties = Array.from({ length: maxNucleusIndex + 1 }, (_, i) => {
-				const existingNucleus = existingPropertiesMap.get(i) || { nucleus_index: i };
-				const importedNucleus = importedPropertiesMap.get(i) || { nucleus_index: i };
-
-				const mergedNucleus = { ...existingNucleus, ...importedNucleus };
-
-				for (const attrType of globalPropertyTypes.current) {
-					if (!(attrType.name in mergedNucleus)) {
-						if (attrType.dimensions) {
-							const createNestedArray = (dims: number[]): any => {
-								if (dims.length === 1) {
-									return Array(dims[0]).fill(0);
-								}
-								const dim = dims[0];
-								const rest = dims.slice(1);
-								return Array(dim).fill(0).map(() => createNestedArray(rest));
-							};
-							mergedNucleus[attrType.name] = createNestedArray(attrType.dimensions);
-						} else {
-							mergedNucleus[attrType.name] = 0;
-						}
-					}
-				}
-				return mergedNucleus;
-			});
-
-			globalProperties.current = newGlobalProperties;
-
-			setFeatureData((prevData: any) => ({
-				...prevData,
-				labels: [...newGlobalProperties],
-			}));
+			mergeIntoActiveLayer(properties);
 
 			console.log('✅ Successfully loaded properties from Cellpose zarr.json');
 
 		} catch (error) {
 			console.error('❌ Error loading properties from zarr.json:', error);
 		}
-	}, [setFeatureData]);
+	}, [mergeIntoActiveLayer]);
 
 	// Register properties callback with ZarrStore
 	useEffect(() => {
@@ -265,30 +187,16 @@ const Viewer3D = (props: {
 		}
 	}, []);
 
-	// Extend the dense property array to cover the active layer's labels and recompute measurements
+	// Make sure every label of the active layer has properties and recompute measurements
 	const updateFeatureData = useCallback((meshes: THREE.Mesh[]) => {
-		const maxNewIndex = meshes.reduce(
-			(max, mesh) => Math.max(max, Number(mesh.name.split('_')[1])),
-			-1
+		globalProperties.current = ensureLabels(
+			globalProperties.current,
+			globalPropertyTypes.current,
+			meshes.map((mesh) => Number(mesh.name.split('_')[1]))
 		);
-		const maxExistingIndex =
-			globalProperties.current.length > 0
-				? globalProperties.current[globalProperties.current.length - 1].nucleus_index
-				: -1;
-
-		if (maxNewIndex > maxExistingIndex) {
-			const currentLabelNames = globalPropertyTypes.current.map((lt) => lt.name);
-			for (let i = maxExistingIndex + 1; i <= maxNewIndex; i++) {
-				const defaultLabelState: { [key: string]: number } = {};
-				currentLabelNames.forEach((name) => {
-					defaultLabelState[name] = 0;
-				});
-				globalProperties.current.push({ nucleus_index: i, ...defaultLabelState });
-			}
-		}
 
 		setFeatureData({
-			labels: globalProperties.current, // Always use the persistent, dense global array
+			labels: globalProperties.current, // Sparse, sorted by label value
 			segmentationConfidence: Array.from(
 				{ length: meshes.length + 1 },
 				() => Math.random()
@@ -359,17 +267,40 @@ const Viewer3D = (props: {
 		loadCellposeData(groupPath);
 	}, [startLayer, loadCellposeData]);
 
+	// Mesh attributes are given inline or as a JSON file in the mesh index
+	const loadMeshProperties = async (properties?: string | any[]): Promise<any[]> => {
+		if (!properties || !store) return [];
+		if (Array.isArray(properties)) return properties;
+		const response = await fetch(storeFileUrl(store, properties));
+		if (!response.ok) throw new Error(`properties ${properties}: HTTP ${response.status}`);
+		const data = await response.json();
+		if (!Array.isArray(data)) throw new Error(`properties ${properties}: expected an array of objects`);
+		return data;
+	};
+
 	const addMeshLayer = async (path: string) => {
 		if (!store) return;
 		const meshPath = joinStorePath(path);
 		setLayerError(null);
 		setIsLoading(true);
 		try {
-			const group = await loadGltfGroup(storeFileUrl(store, meshPath));
+			const entry = availableMeshes.find((mesh) => mesh.path === meshPath);
+			let propertiesError: string | null = null;
+			const [group, properties] = await Promise.all([
+				loadGltfGroup(storeFileUrl(store, meshPath)),
+				// A broken attribute file should not prevent showing the mesh
+				loadMeshProperties(entry?.properties).catch((error) => {
+					console.error('❌ Failed to load mesh properties:', error);
+					propertiesError = `Mesh loaded without attributes: ${error instanceof Error ? error.message : error}`;
+					return [];
+				}),
+			]);
 			// The newest layer drives the 2D overlay, and a mesh has no label image to outline
 			unloadCellposeData();
 			startLayer('gltf', meshPath, group);
+			if (properties.length > 0) mergeIntoActiveLayer(properties);
 			updateFeatureData(nucleusMeshes(group));
+			setLayerError(propertiesError);
 			fitCamera();
 			if (renderer && scene && camera) renderer.render(scene, camera);
 		} catch (error) {

@@ -6,7 +6,10 @@ import * as zarrita from 'zarrita'
  * Plain HTTP stores cannot be listed, so discovery relies on index metadata:
  * - label images: NGFF `labels/zarr.json` with `ome.labels` (v0.5) or `labels` (v0.4)
  * - meshes: `meshes/zarr.json`, a zarr group whose attributes hold
- *   `{"meshes": [{"name": "nuclei", "path": "nuclei.glb"}]}` (paths relative to `meshes/`)
+ *   `{"meshes": [{"name": "nuclei", "path": "nuclei.glb", "properties": "nuclei.json"}]}`
+ *   (paths relative to `meshes/`). `properties` is optional and holds per-mesh attributes in the
+ *   NGFF `image-label.properties` format, keyed by `label-value` = mesh ID; it is either a JSON
+ *   file path or, as in `image-label`, the inline array.
  *
  * Both are looked up inside the image group first, then at the store root
  * (bioformats2raw layout). All returned paths are relative to the store root.
@@ -15,6 +18,7 @@ import * as zarrita from 'zarrita'
 export interface MeshIndexEntry {
 	name: string
 	path: string
+	properties?: string | any[]
 }
 
 export const joinStorePath = (...parts: string[]) =>
@@ -60,6 +64,9 @@ export async function listMeshes(store: zarrita.FetchStore, imagePath: string): 
 				.map((entry) => ({
 					name: typeof entry.name === 'string' ? entry.name : entry.path,
 					path: joinStorePath(dir, entry.path),
+					properties: typeof entry.properties === 'string'
+						? joinStorePath(dir, entry.properties)
+						: Array.isArray(entry.properties) ? entry.properties : undefined,
 				}))
 		}
 	}

@@ -3,23 +3,11 @@ import { Disclosure } from '@headlessui/react';
 import { SaveIcon, UploadIcon } from '@heroicons/react/solid';
 import { WebGLRenderer, Group } from 'three';
 
+import { mergeProperties, fromLabelValueFormat } from '../../../lib/utils/properties';
+
 function classNames(...classes: any[]) {
 	return classes.filter(Boolean).join(' ');
 }
-
-const getDimensions = (arr: any): number[] => {
-	if (!Array.isArray(arr)) {
-		return [];
-	}
-	const dims: number[] = [];
-	let current = arr;
-	while (Array.isArray(current)) {
-		dims.push(current.length);
-		current = current[0];
-	}
-	return dims;
-};
-
 
 const Export = (props: {
 	renderer: WebGLRenderer;
@@ -88,83 +76,13 @@ const Export = (props: {
 					return;
 				}
 
-				// Transform label-value to nucleus_index for internal use
-				const importedData = rawImportedData.map(item => {
-					const { 'label-value': labelValue, ...rest } = item;
-					// Use label-value if present, otherwise fall back to nucleus_index for backward compatibility
-					const nucleus_index = labelValue !== undefined ? labelValue : item.nucleus_index;
-					return { nucleus_index, ...rest };
-				});
-
-				// Merge property types
-				const newPropertyTypesMap = new Map(
-					globalPropertyTypes.current.map((attr) => [attr.name, attr])
+				const merged = mergeProperties(
+					globalProperties.current,
+					globalPropertyTypes.current,
+					fromLabelValueFormat(rawImportedData)
 				);
-
-				if (importedData.length > 0) {
-					const sample = importedData[0];
-					Object.keys(sample).forEach(key => {
-						if (key !== 'nucleus_index' && !newPropertyTypesMap.has(key)) {
-							const value = sample[key];
-							const isArray = Array.isArray(value);
-							const dimensions = isArray ? getDimensions(value) : undefined;
-							const isMultiDimensional = isArray && (dimensions.length > 1 || (dimensions.length === 1 && dimensions[0] > 1));
-
-							newPropertyTypesMap.set(key, {
-								id: newPropertyTypesMap.size,
-								name: key,
-								count: 0,
-								readOnly: false,
-								dimensions: isMultiDimensional ? dimensions : undefined
-							});
-						}
-					});
-				}
-
-				globalPropertyTypes.current = Array.from(newPropertyTypesMap.values());
-
-
-				// Create a map for quick lookup of imported properties
-				const importedPropertiesMap = new Map(
-					importedData.map((item) => [item.nucleus_index, item])
-				);
-
-				// Create a map for quick lookup of existing properties
-				const existingPropertiesMap = new Map(
-					globalProperties.current.map((item) => [item.nucleus_index, item])
-				);
-
-				// Directly use the imported properties, ensuring all nuclei are represented
-				const maxNucleusIndex = Math.max(
-					globalProperties.current.length > 0 ? globalProperties.current[globalProperties.current.length - 1].nucleus_index : -1,
-					importedData.reduce((max, nucleus) => Math.max(max, nucleus.nucleus_index), -1)
-				);
-
-				const newGlobalProperties = Array.from({ length: maxNucleusIndex + 1 }, (_, i) => {
-					const existingNucleus = existingPropertiesMap.get(i) || { nucleus_index: i };
-					const importedNucleus = importedPropertiesMap.get(i) || { nucleus_index: i };
-
-					const mergedNucleus = { ...existingNucleus, ...importedNucleus };
-
-					for (const attrType of globalPropertyTypes.current) {
-						if (!(attrType.name in mergedNucleus)) {
-							if (attrType.dimensions) {
-								const createNestedArray = (dims: number[]): any => {
-									if (dims.length === 1) {
-										return Array(dims[0]).fill(0);
-									}
-									const dim = dims[0];
-									const rest = dims.slice(1);
-									return Array(dim).fill(0).map(() => createNestedArray(rest));
-								};
-								mergedNucleus[attrType.name] = createNestedArray(attrType.dimensions);
-							} else {
-								mergedNucleus[attrType.name] = 0;
-							}
-						}
-					}
-					return mergedNucleus;
-				});
+				globalPropertyTypes.current = merged.types;
+				const newGlobalProperties = merged.properties;
 
 				globalProperties.current = newGlobalProperties;
 
