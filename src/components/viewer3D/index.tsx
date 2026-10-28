@@ -23,7 +23,7 @@ import {
 import { loadGltfGroup } from './layers/loadGltfLayer';
 import { joinStorePath, storeFileUrl } from '../../lib/utils/discoverSources';
 import {
-	type LabelProperties, type PropertyType, mergeProperties, fromLabelValueFormat, ensureLabels
+	type LabelProperties, type PropertyType, mergeProperties, fromLabelValueFormat, ensureLabels, indexByLabel
 } from '../../lib/utils/properties';
 
 const Viewer3D = (props: {
@@ -541,15 +541,14 @@ const Viewer3D = (props: {
 		const redPropertyName = redpropertyType ? redpropertyType.name : undefined;
 
 		const colorMap = new Map<number, THREE.Color>();
+		const propertiesByLabel = indexByLabel<LabelProperties>(featureData.labels);
 
 		content.children.forEach((child) => {
 			if (child.isMesh && child.name.includes('nucleus')) {
 				const nucleus = child as THREE.Mesh;
 				const material = nucleus.material as THREE.MeshStandardMaterial;
 				const nucleusIndex = parseInt(child.name.split('_')[1], 10);
-				const nucleusPropertyData = featureData.labels.find(
-					(l: any) => l.nucleus_index === nucleusIndex
-				);
+				const nucleusPropertyData = propertiesByLabel.get(nucleusIndex);
 
 				const targetColorHex =
 					redPropertyName && nucleusPropertyData && nucleusPropertyData[redPropertyName] === 1

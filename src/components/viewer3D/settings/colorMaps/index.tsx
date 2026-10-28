@@ -7,6 +7,7 @@ import * as d3 from 'd3';
 import ColorMap from './ColorMap';
 import FooterToolbar from './FooterToolbar';
 import { useNucleusColor } from '../../../../lib/contexts/NucleusColorContext';
+import { indexByLabel } from '../../../../lib/utils/properties';
 
 function classNames(...classes: string[]) {
 	return classes.filter(Boolean).join(' ');
@@ -196,15 +197,14 @@ const ColorMaps = (props: {
 
 		const mapMin = allValues.reduce((a, b) => Math.min(a, b), Infinity);
 		const mapMax = allValues.reduce((a, b) => Math.max(a, b), -Infinity);
+		const propertiesByLabel = indexByLabel(globalProperties.current);
 
 		content.children.forEach((child) => {
 			if (child.isMesh && child.name.includes('nucleus')) {
 				const nucleus = child as THREE.Mesh;
 				const material = nucleus.material as THREE.MeshStandardMaterial;
 				const nucleusIndex = parseInt(child.name.split('_')[1], 10);
-				const nucleusPropertyData = globalProperties.current.find(
-					(l) => l.nucleus_index === nucleusIndex
-				);
+				const nucleusPropertyData = propertiesByLabel.get(nucleusIndex);
 
 				if (!nucleusPropertyData) {
 					material.color.set(0x808080); // Default grey

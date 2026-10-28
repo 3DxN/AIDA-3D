@@ -38,6 +38,10 @@ const withDefaults = (entry: LabelProperties, types: PropertyType[]) => {
 	return entry;
 };
 
+/** Lookup by label value; build once per pass instead of searching the array per mesh */
+export const indexByLabel = <T extends { nucleus_index: number }>(entries: T[]) =>
+	new Map(entries.map((entry) => [entry.nucleus_index, entry]));
+
 /** Convert the external `label-value` format to internal entries */
 export const fromLabelValueFormat = (items: any[]): LabelProperties[] =>
 	items
