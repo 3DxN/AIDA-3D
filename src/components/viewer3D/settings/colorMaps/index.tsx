@@ -7,6 +7,7 @@ import * as d3 from 'd3';
 import ColorMap from './ColorMap';
 import FooterToolbar from './FooterToolbar';
 import { useNucleusColor } from '../../../../lib/contexts/NucleusColorContext';
+import { indexByLabel } from '../../../../lib/utils/properties';
 
 function classNames(...classes: string[]) {
 	return classes.filter(Boolean).join(' ');
@@ -89,8 +90,10 @@ const ColorMaps = (props: {
 	globalProperties: React.MutableRefObject<
 		{ nucleus_index: number;[key: string]: any }[]
 	>;
+	activeLayerId?: number;
 }) => {
 	const {
+		activeLayerId,
 		content,
 		scene,
 		camera,
@@ -125,6 +128,12 @@ const ColorMaps = (props: {
 			setFeatures(propertyFeatures);
 		}
 	}, [featureData, globalPropertyTypes]);
+
+	// A new layer starts with the default color map; the effect below re-creates it once its properties are loaded
+	useEffect(() => {
+		setColorMaps([]);
+		setActiveColorMapIndex(0);
+	}, [activeLayerId]);
 
 	// Separate effect to initialize default color map when features are available and properties are loaded
 	useEffect(() => {
@@ -188,15 +197,14 @@ const ColorMaps = (props: {
 
 		const mapMin = allValues.reduce((a, b) => Math.min(a, b), Infinity);
 		const mapMax = allValues.reduce((a, b) => Math.max(a, b), -Infinity);
+		const propertiesByLabel = indexByLabel(globalProperties.current);
 
 		content.children.forEach((child) => {
 			if (child.isMesh && child.name.includes('nucleus')) {
 				const nucleus = child as THREE.Mesh;
 				const material = nucleus.material as THREE.MeshStandardMaterial;
 				const nucleusIndex = parseInt(child.name.split('_')[1], 10);
-				const nucleusPropertyData = globalProperties.current.find(
-					(l) => l.nucleus_index === nucleusIndex
-				);
+				const nucleusPropertyData = propertiesByLabel.get(nucleusIndex);
 
 				if (!nucleusPropertyData) {
 					material.color.set(0x808080); // Default grey
