@@ -24,13 +24,14 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
     const [cellposeStoreDir, setCellposeStoreDir] = useState('');
 
     const handleLoadStore = () => {
-        if (!server || !defaultStoreDir || !cellposeStoreDir) return;
+        if (!server || !defaultStoreDir) return;
 
         // Update URL with all parameters and trigger full page reload
         const params = new URLSearchParams();
         params.set('server', server);
         params.set('default_store_dir', defaultStoreDir);
-        params.set('cellpose_store_dir', cellposeStoreDir);
+        // Optional: label groups can also be added later from the 3D settings
+        if (cellposeStoreDir) params.set('cellpose_store_dir', cellposeStoreDir);
 
         // Navigate to the page with URL params (full page load, not shallow)
         router.push(`/zarr?${params.toString()}`);
@@ -110,7 +111,7 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                                 />
                             </div>
                             <div>
-                                <label className="block mb-2 font-bold text-base text-gray-700">Labels Store Directory (e.g. Cellpose):</label>
+                                <label className="block mb-2 font-bold text-base text-gray-700">Labels Store Directory (optional, e.g. Cellpose):</label>
                                 <input
                                     type="text"
                                     value={cellposeStoreDir}
@@ -125,8 +126,8 @@ export default function StoreLoader({ onClose }: { onClose: () => void }) {
                         <div className="flex gap-4 mb-5">
                             <button
                                 onClick={handleLoadStore}
-                                disabled={isLoading || !server || !defaultStoreDir || !cellposeStoreDir}
-                                className={`flex-1 px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold shadow-lg flex items-center justify-center ${isLoading || !server || !defaultStoreDir || !cellposeStoreDir ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
+                                disabled={isLoading || !server || !defaultStoreDir}
+                                className={`flex-1 px-6 py-3 text-white border-none rounded-md cursor-pointer text-base font-bold shadow-lg flex items-center justify-center ${isLoading || !server || !defaultStoreDir ? 'bg-gray-500 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700'}`}
                             >
                                 {isLoading ? (<><RefreshIcon className="h-5 w-5 mr-2 animate-spin" /> Loading...</>) : (<><PlayIcon className="h-5 w-5 mr-2" /> Load Store</>)}
                             </button>

@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 
 import type OMEAttrs from "./metadata/ome"
 import type { IMultiscaleInfo } from "./metadata/loader"
+import type { MeshIndexEntry } from "../lib/utils/discoverSources"
 
 
 export enum ZarrStoreSuggestionType {
@@ -133,6 +134,14 @@ export interface ZarrStoreState {
    * Properties loaded from Cellpose metadata (stored for when callback is registered)
    */
   cellposeProperties: any[] | null
+  /**
+   * Label groups listed in the NGFF labels index (paths relative to the store root)
+   */
+  availableLabelGroups: string[]
+  /**
+   * glTF meshes listed in the meshes index (paths relative to the store root)
+   */
+  availableMeshes: MeshIndexEntry[]
 }
 
 export interface ZarrStoreContextType extends ZarrStoreState {
@@ -145,6 +154,8 @@ export interface ZarrStoreContextType extends ZarrStoreState {
   loadFromUrlParams: (serverUrl: string, zarrPath: string, cellposePath: string) => Promise<void>
   navigateToSuggestion: (suggestionPath: string) => void
   refreshCellposeData: () => Promise<void>
+  unloadCellposeData: () => void
+  refreshAvailableSources: () => Promise<void>
   setPropertiesCallback: (callback: (properties: any[]) => void) => void
   setSelectedCellposeOverlayResolution: (index: number) => void
   setSelectedCellposeMeshResolution: (index: number) => void

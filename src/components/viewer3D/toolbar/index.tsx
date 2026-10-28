@@ -59,6 +59,8 @@ const Tools = (props: {
 	useEffect(() => {
 		if (content && orbitControls) {
 			const box = new THREE.Box3().setFromObject(content)
+			// A newly added label layer is empty until its meshes are generated
+			if (box.isEmpty()) return
 			const size = box.getSize(new THREE.Vector3()).length()
 			const center = box.getCenter(new THREE.Vector3())
 

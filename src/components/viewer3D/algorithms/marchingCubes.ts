@@ -133,11 +133,9 @@ const march = (
 
 export const generateMeshesFromVoxelData = (
 	input: Chunk<Uint32>,
-	currentZSlice?: number,
 	filterIncompleteNuclei: boolean = true,
-	voxelScale?: number[], // [z_scale, y_scale, x_scale] from OME metadata
-	full3DMode: boolean = false, // When true, centers mesh around volume center instead of currentZSlice
-	totalZLayers?: number // Total Z layers in full resolution (for centering in full 3D mode)
+	voxelScale?: number[], // [z_scale, y_scale, x_scale] from OME metadata, relative to level 0
+	origin: number[] = [0, 0, 0] // [z, y, x] index of the chunk's first voxel within its resolution level
 ) => {
 	const totalStart = performance.now();
 	const meshDataArray = [];
@@ -227,35 +225,13 @@ export const generateMeshesFromVoxelData = (
 			const yScale = voxelScale?.[1] ?? 1.0;
 			const xScale = voxelScale?.[2] ?? 1.0;
 
-			// Transform vertices to global coordinate system relative to origin
-			const transformedVertices = vertices.map(vertex => {
-				// Center x and y around origin (same as plane positioning)
-				const centeredX = vertex.x - dims[2] / 2;
-				const centeredY = vertex.y - dims[1] / 2;
-
-				// Transform z based on mode:
-				// - Frame mode: z=0 is at currentZSlice (plane stays at origin, mesh moves)
-				// - Full 3D mode: z=0 is at volume center (mesh stays centered, plane moves)
-				let transformedZ: number;
-				if (full3DMode) {
-					// In Full 3D Mode: center mesh around middle of entire volume
-					// Use totalZLayers if provided, otherwise use dims[0]
-					const volumeCenter = (totalZLayers ?? dims[0]) / 2;
-					transformedZ = vertex.z - volumeCenter;
-				} else {
-					// In Frame Mode: z=0 is at currentZSlice
-					const currentZ = currentZSlice !== undefined ? currentZSlice : dims[0] / 2;
-					transformedZ = vertex.z - currentZ;
-				}
-
-				// Apply voxel scale factors to correct for anisotropic voxels
-				// This ensures proper proportions when X/Y resolution changes but Z stays the same
-				const scaledX = centeredX * xScale;
-				const scaledY = centeredY * yScale;
-				const scaledZ = transformedZ * zScale;
-
-				return new THREE.Vector3(scaledX, scaledY, scaledZ);
-			});
+			// Transform vertices to absolute level-0 voxel coordinates (voxel centres at integers).
+			// A voxel i at a level with scale s covers level-0 voxels [i*s, (i+1)*s), so its centre is i*s + (s-1)/2.
+			const transformedVertices = vertices.map(vertex => new THREE.Vector3(
+				(vertex.x + origin[2]) * xScale + (xScale - 1) / 2,
+				(vertex.y + origin[1]) * yScale + (yScale - 1) / 2,
+				(vertex.z + origin[0]) * zScale + (zScale - 1) / 2
+			));
 			meshDataArray.push({ label, vertices: transformedVertices, indices });
 		}
 	}

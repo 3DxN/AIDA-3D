@@ -12,6 +12,8 @@ import Orientation from './Orientation';
 import Properties from './Properties';
 import Export from './Export';
 import SelectedIndices from './SelectedIndices';
+import Sources from './Sources';
+import type { SceneLayer } from '../layers/sceneLayers';
 
 import { resizeRendererToDisplaySize } from '../utils';
 
@@ -27,6 +29,12 @@ export default function Settings(props: {
 	globalPropertyTypes: any;
 	filterIncompleteNuclei: boolean;
 	setFilterIncompleteNuclei: (value: boolean) => void;
+	layers: SceneLayer[];
+	layerError: string | null;
+	isLoading: boolean;
+	onAddLabels: (path: string) => void;
+	onAddMesh: (path: string) => void;
+	onClear: () => void;
 }) {
 	const {
 		renderer,
@@ -40,6 +48,12 @@ export default function Settings(props: {
 		globalPropertyTypes,
 		filterIncompleteNuclei,
 		setFilterIncompleteNuclei,
+		layers,
+		layerError,
+		isLoading,
+		onAddLabels,
+		onAddMesh,
+		onClear,
 	} = props;
 
 	const [isOpen, setIsOpen] = useState(true);
@@ -77,6 +91,14 @@ export default function Settings(props: {
 						Settings
 						<ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
 					</button>
+					<Sources
+						layers={layers}
+						layerError={layerError}
+						isLoading={isLoading}
+						onAddLabels={onAddLabels}
+						onAddMesh={onAddMesh}
+						onClear={onClear}
+					/>
 					<SelectedIndices selected={selected} />
 					<Clipping renderer={renderer} scene={scene} camera={camera} />
 					<Explode

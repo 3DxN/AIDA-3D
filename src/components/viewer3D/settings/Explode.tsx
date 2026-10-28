@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Disclosure } from '@headlessui/react'
 import { XIcon } from '@heroicons/react/outline'
-import { Camera, Scene, WebGLRenderer, Group } from 'three'
+import { Camera, Scene, WebGLRenderer, Group, Mesh, Vector3 } from 'three'
 
 import NumberField from '../../interaction/NumberField'
 
@@ -22,10 +22,23 @@ const Explode = (props: {
 
 	const explode = useCallback(
 		(magnitude) => {
+			// Explode away from the centroid of the layer (meshes are in absolute coordinates)
+			const centroid = new Vector3()
+			let count = 0
+			content.traverse((child) => {
+				const { geometry } = child as Mesh
+				if ((child as Mesh).isMesh) {
+					if (!geometry.boundingSphere) geometry.computeBoundingSphere()
+					centroid.add(geometry.boundingSphere!.center)
+					count++
+				}
+			})
+			if (count > 0) centroid.divideScalar(count)
+
 			content.traverse((child) => {
 				if (child.isMesh) {
 					const { center } = child.geometry.boundingSphere
-					const direction = center.clone()
+					const direction = center.clone().sub(centroid)
 					const length = direction.length()
 					direction.normalize()
 
@@ -36,6 +49,11 @@ const Explode = (props: {
 		},
 		[camera, content, renderer, scene]
 	)
+
+	// New content (e.g. a new active layer) starts unexploded; the effect below applies the current value
+	useEffect(() => {
+		cache.current = 0
+	}, [content])
 
 	useEffect(() => {
 		const diff = value - cache.current
