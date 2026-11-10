@@ -22,6 +22,7 @@ import {
 } from './layers/sceneLayers';
 import { loadGltfGroup } from './layers/loadGltfLayer';
 import { joinStorePath, storeFileUrl } from '../../lib/utils/discoverSources';
+import { openEmbeddingSource } from '../../lib/utils/embeddings';
 import {
 	type LabelProperties, type PropertyType, mergeProperties, fromLabelValueFormat, ensureLabels, indexByLabel
 } from '../../lib/utils/properties';
@@ -244,7 +245,12 @@ const Viewer3D = (props: {
 
 	// Freeze the active layer and make `group` the new active layer.
 	// Label-specific state is reset so that the UI controls only act on the new layer.
-	const startLayer = useCallback((kind: SceneLayer['kind'], sourcePath: string, group: THREE.Group) => {
+	const startLayer = useCallback((
+		kind: SceneLayer['kind'],
+		sourcePath: string,
+		group: THREE.Group,
+		details: Pick<SceneLayer, 'name' | 'embeddings'> = {}
+	) => {
 		const previous = layersRef.current[layersRef.current.length - 1];
 		if (previous) clearHighlight(previous.group);
 
@@ -254,7 +260,7 @@ const Viewer3D = (props: {
 		setSelectedNucleiIndices([]);
 
 		worldRoot.current?.add(group);
-		updateLayers((prev) => [...prev, { id: nextLayerId.current++, kind, sourcePath, group }]);
+		updateLayers((prev) => [...prev, { id: nextLayerId.current++, kind, sourcePath, group, ...details }]);
 		setContent(group);
 	}, [updateLayers, setSelectedNucleiIndices]);
 
@@ -297,7 +303,11 @@ const Viewer3D = (props: {
 			]);
 			// The newest layer drives the 2D overlay, and a mesh has no label image to outline
 			unloadCellposeData();
-			startLayer('gltf', meshPath, group);
+			startLayer('gltf', meshPath, group, {
+				name: entry?.name,
+				// Opened lazily on the first "Show embedding" and then cached with the layer
+				embeddings: entry?.embeddings && openEmbeddingSource(store, entry.embeddings),
+			});
 			if (properties.length > 0) mergeIntoActiveLayer(properties);
 			updateFeatureData(nucleusMeshes(group));
 			setLayerError(propertiesError);

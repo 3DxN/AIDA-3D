@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+import type { EmbeddingSource } from '../../../lib/utils/embeddings';
+
 /**
  * A block of 3D data in the scene. The most recently added layer is active:
  * it receives all label-specific UI controls. Older layers are frozen and stay static.
@@ -11,6 +13,10 @@ export interface SceneLayer {
 	/** Label group or mesh file path, relative to the store root */
 	sourcePath: string;
 	group: THREE.Group;
+	/** Display name from the mesh index */
+	name?: string;
+	/** Per-glyph embedding vectors, if the mesh index lists them */
+	embeddings?: EmbeddingSource;
 }
 
 export const NUCLEUS_PREFIX = 'nucleus_';

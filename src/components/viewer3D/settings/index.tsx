@@ -99,7 +99,11 @@ export default function Settings(props: {
 						onAddMesh={onAddMesh}
 						onClear={onClear}
 					/>
-					<SelectedIndices selected={selected} />
+					<SelectedIndices
+						selected={selected}
+						activeLayer={layers[layers.length - 1]}
+						globalProperties={globalProperties}
+					/>
 					<Clipping renderer={renderer} scene={scene} camera={camera} />
 					<Explode
 						renderer={renderer}
