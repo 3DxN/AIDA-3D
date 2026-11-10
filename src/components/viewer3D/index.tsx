@@ -18,7 +18,7 @@ import Settings from './settings';
 import Toolbar from './toolbar';
 import { resizeRendererToDisplaySize } from './utils';
 import {
-	type SceneLayer, createNucleusMaterial, disposeObject, clearHighlight, nucleusMeshes
+	type SceneLayer, createNucleusMaterial, disposeObject, clearHighlight, nucleusMeshes, isSelectable
 } from './layers/sceneLayers';
 import { loadGltfGroup } from './layers/loadGltfLayer';
 import { joinStorePath, storeFileUrl } from '../../lib/utils/discoverSources';
@@ -468,7 +468,7 @@ const Viewer3D = (props: {
 					});
 				}
 
-				if (!nucleus.visible) match = false;
+				if (!isSelectable(nucleus)) match = false;
 
 				if (match) selectedNuclei.push(nucleus);
 			}

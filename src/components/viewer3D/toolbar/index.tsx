@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { useNucleusSelection } from '../../../lib/contexts/NucleusSelectionContext'
+import { isSelectable } from '../layers/sceneLayers'
 
 // FIX: Added missing types and the setSelected prop definition
 const Tools = (props: {
@@ -97,7 +98,8 @@ const Tools = (props: {
 						return dot && !intersectsPlane
 					})
 
-					return mesh.isMesh && mesh.visible && !isClipped
+					// Unselectable meshes (e.g. hidden by adjacency) let the click through to the objects behind them
+					return mesh.isMesh && isSelectable(mesh) && !isClipped
 				})
 				return firstMesh
 			}

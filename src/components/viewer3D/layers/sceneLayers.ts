@@ -64,3 +64,43 @@ export const clearHighlight = (group: THREE.Group) => {
 		(mesh.material as THREE.MeshStandardMaterial).emissive?.set(0x000000)
 	);
 };
+
+/**
+ * Visibility and selectability are shared by several controls (Filter, Adjacency), each with its
+ * own reason, so that one control does not undo another. A mesh is visible while no control hides it.
+ */
+const toggleReason = (object: THREE.Object3D, key: 'hiddenBy' | 'unselectableBy', reason: string, active: boolean) => {
+	const reasons: string[] = object.userData[key] ?? [];
+	const next = active
+		? (reasons.includes(reason) ? reasons : [...reasons, reason])
+		: reasons.filter((existing) => existing !== reason);
+	if (next.length > 0) object.userData[key] = next;
+	else delete object.userData[key];
+	return next.length;
+};
+
+export const setHiddenBy = (object: THREE.Object3D, reason: string, hidden: boolean) => {
+	object.visible = toggleReason(object, 'hiddenBy', reason, hidden) === 0;
+};
+
+export const setUnselectableBy = (object: THREE.Object3D, reason: string, unselectable: boolean) => {
+	toggleReason(object, 'unselectableBy', reason, unselectable);
+};
+
+/** Whether picking and polygon selection may select this mesh */
+export const isSelectable = (object: THREE.Object3D) =>
+	object.visible && !(object.userData.unselectableBy?.length > 0);
+
+/**
+ * Centre of each object of a layer (meshes with the same name form one object, e.g. a two-part glyph),
+ * in the layer's absolute level-0 voxel coordinates. Uses the geometry, so Explode offsets are ignored.
+ */
+export const objectCentres = (group: THREE.Group) => {
+	const boxes = new Map<string, THREE.Box3>();
+	for (const mesh of nucleusMeshes(group)) {
+		if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+		const box = boxes.get(mesh.name) ?? new THREE.Box3();
+		boxes.set(mesh.name, box.union(mesh.geometry.boundingBox!));
+	}
+	return new Map([...boxes].map(([name, box]) => [name, box.getCenter(new THREE.Vector3())]));
+};

@@ -6,6 +6,9 @@ import { CheckIcon, SelectorIcon } from '@heroicons/react/solid';
 import { Camera, Scene, WebGLRenderer, Group, Mesh } from 'three';
 
 import RangeSlider from '../../interaction/RangeSlider';
+import { setHiddenBy } from '../layers/sceneLayers';
+
+const FILTER = 'filter';
 
 function classNames(...classes: any[]) {
 	return classes.filter(Boolean).join(' ');
@@ -62,9 +65,9 @@ const Filter = (props: {
 						const nucleusIndex = parseInt(child.name.split('_')[1], 10);
 						const value = propertyValues[nucleusIndex];
 						if (value < rangeValues[0] || value > rangeValues[1])
-							nucleus.visible = false;
+							setHiddenBy(nucleus, FILTER, true);
 						else
-							nucleus.visible = true;
+							setHiddenBy(nucleus, FILTER, false);
 					}
 				});
 
@@ -81,14 +84,14 @@ const Filter = (props: {
 			content.children.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as Mesh;
-					nucleus.visible = false;
+					setHiddenBy(nucleus, FILTER, true);
 				}
 			});
 
 			selected.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as Mesh;
-					nucleus.visible = true;
+					setHiddenBy(nucleus, FILTER, false);
 				}
 			});
 
@@ -102,7 +105,7 @@ const Filter = (props: {
 			selected.forEach((child) => {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as Mesh;
-					nucleus.visible = false;
+					setHiddenBy(nucleus, FILTER, true);
 				}
 			});
 
@@ -117,7 +120,7 @@ const Filter = (props: {
 				if (child.isMesh && child.name.includes('nucleus')) {
 					const nucleus = child as Mesh;
 					(nucleus.material as THREE.MeshStandardMaterial).emissive.set(0x000000);
-					nucleus.visible = true;
+					setHiddenBy(nucleus, FILTER, false);
 				}
 			});
 			renderer.render(scene, camera);

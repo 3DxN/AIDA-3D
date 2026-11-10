@@ -8,6 +8,7 @@ import Clipping from './Clipping';
 import Explode from './Explode';
 import ColorMap from './colorMaps';
 import Filter from './Filter';
+import Adjacency from './Adjacency';
 import Orientation from './Orientation';
 import Properties from './Properties';
 import Export from './Export';
@@ -133,6 +134,7 @@ export default function Settings(props: {
 						filterIncompleteNuclei={filterIncompleteNuclei}
 						setFilterIncompleteNuclei={setFilterIncompleteNuclei}
 					/>
+					<Adjacency renderer={renderer} scene={scene} camera={camera} content={content} />
 					<Orientation
 						renderer={renderer}
 						scene={scene}
