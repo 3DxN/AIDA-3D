@@ -1,17 +1,33 @@
 
+import { useState } from 'react'
 import { Disclosure } from '@headlessui/react'
 import { Mesh } from 'three'
+
+import EmbeddingModal from './EmbeddingModal'
+import type { SceneLayer } from '../layers/sceneLayers'
 
 function classNames(...classes: string[]) {
 	return classes.filter(Boolean).join(' ')
 }
 
-const SelectedIndices = (props: { selected: Mesh[] }) => {
-	const { selected } = props
+const SelectedIndices = (props: {
+	selected: Mesh[]
+	activeLayer?: SceneLayer
+	globalProperties: React.MutableRefObject<{ nucleus_index: number;[key: string]: any }[]>
+}) => {
+	const { selected, activeLayer, globalProperties } = props
+	const [embeddingFor, setEmbeddingFor] = useState<number | null>(null)
 
-	const selectedIndices = selected.map((mesh) => {
-		return Number(mesh.name.split('_')[1])
-	})
+	// A glyph drawn as several meshes with the same nucleus_<n> name is one selection
+	const selectedIndices = [...new Set(selected.map((mesh) => Number(mesh.name.split('_')[1])))]
+
+	// Embeddings are offered for a single selected glyph of a mesh layer
+	const single = selectedIndices.length === 1 ? selectedIndices[0] : null
+	const isMeshLayer = activeLayer?.kind === 'gltf'
+	const embeddings = isMeshLayer ? activeLayer?.embeddings : undefined
+	const featureId = embeddingFor === null
+		? undefined
+		: globalProperties.current.find((entry) => entry.nucleus_index === embeddingFor)?.feature_id
 
 	return (
 		<Disclosure className="shadow-sm" as="div">
@@ -44,6 +60,18 @@ const SelectedIndices = (props: { selected: Mesh[] }) => {
 										</li>
 									))}
 								</ul>
+								{single !== null && embeddings && (
+									<button
+										type="button"
+										onClick={() => setEmbeddingFor(single)}
+										className="mt-2 text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+									>
+										Show embedding
+									</button>
+								)}
+								{single !== null && isMeshLayer && !embeddings && (
+									<p className="mt-2 text-xs text-gray-500">No embedding stored for this mesh.</p>
+								)}
 							</div>
 						) : (
 							<div className="text-sm text-gray-500">
@@ -51,6 +79,15 @@ const SelectedIndices = (props: { selected: Mesh[] }) => {
 							</div>
 						)}
 					</Disclosure.Panel>
+					{embeddingFor !== null && embeddings && (
+						<EmbeddingModal
+							onClose={() => setEmbeddingFor(null)}
+							meshName={activeLayer?.name ?? activeLayer?.sourcePath ?? ''}
+							labelValue={embeddingFor}
+							featureId={typeof featureId === 'string' ? featureId : undefined}
+							embeddings={embeddings}
+						/>
+					)}
 				</>
 			)}
 		</Disclosure>

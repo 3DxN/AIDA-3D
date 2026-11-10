@@ -6,7 +6,8 @@
 		"dev": "concurrently \"next dev\" \"node ./local/local.js\"",
 		"build": "concurrently \"next build\" \"tsc -p ./local\"",
 		"start": "concurrently \"next start\" \"node ./local/local.js\"",
-		"lint": "next lint"
+		"lint": "next lint",
+		"test": "node --import ./test/register.mjs --test test/*.test.ts"
 	},
 	"dependencies": {
 		"@headlessui/react": "^2.0.0",

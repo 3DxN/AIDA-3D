@@ -10,16 +10,40 @@ import * as zarrita from 'zarrita'
  *   (paths relative to `meshes/`). `properties` is optional and holds per-mesh attributes in the
  *   NGFF `image-label.properties` format, keyed by `label-value` = mesh ID; it is either a JSON
  *   file path or, as in `image-label`, the inline array.
+ *   `embeddings` is optional: `{"path": "<name>.embeddings.zarr", "model", "sha256", "sha256_kind"}`,
+ *   a (glyphs, dim) zarr array whose row `label-value - 1` is the glyph's embedding vector.
  *
  * Both are looked up inside the image group first, then at the store root
  * (bioformats2raw layout). All returned paths are relative to the store root.
  */
 
+export interface MeshEmbeddings {
+	/** Zarr array of shape (glyphs, dim), relative to the store root */
+	path: string
+	model?: string
+	sha256?: string
+	/** `weights_sha256` (pinned model weights) or `output_fingerprint` (model outputs) */
+	sha256_kind?: string
+}
+
 export interface MeshIndexEntry {
 	name: string
 	path: string
 	properties?: string | any[]
+	embeddings?: MeshEmbeddings
 }
+
+const optionalString = (value: unknown) => (typeof value === 'string' ? value : undefined)
+
+const parseEmbeddings = (dir: string, embeddings: any): MeshEmbeddings | undefined =>
+	typeof embeddings?.path === 'string'
+		? {
+			path: joinStorePath(dir, embeddings.path),
+			model: optionalString(embeddings.model),
+			sha256: optionalString(embeddings.sha256),
+			sha256_kind: optionalString(embeddings.sha256_kind),
+		}
+		: undefined
 
 export const joinStorePath = (...parts: string[]) =>
 	parts
@@ -67,6 +91,7 @@ export async function listMeshes(store: zarrita.FetchStore, imagePath: string): 
 					properties: typeof entry.properties === 'string'
 						? joinStorePath(dir, entry.properties)
 						: Array.isArray(entry.properties) ? entry.properties : undefined,
+					embeddings: parseEmbeddings(dir, entry.embeddings),
 				}))
 		}
 	}
