@@ -7,6 +7,13 @@ import type { VivViewState } from './vivViewer'
 import type { ViewerSize } from './dimensions'
 
 
+export interface CellposeMeshChunkInfo {
+  /** [z, y, x] index of the chunk's first voxel within its resolution level */
+  origin: [number, number, number]
+  /** Absolute store path of the resolution array the chunk was read from */
+  arrayPath: string
+}
+
 export interface Viewer2DDataContextType {
   // Frame state (replaces FrameStateContext)
   frameCenter: [number, number]
@@ -47,6 +54,7 @@ export interface Viewer2DDataContextType {
   // Data access
   frameBoundCellposeData: zarrita.Chunk<zarrita.DataType> | null // High-res single Z layer for 2D overlay
   frameBoundCellposeMeshData: zarrita.Chunk<zarrita.DataType> | null // Low-res all Z layers for mesh creation
+  frameBoundCellposeMeshInfo: CellposeMeshChunkInfo | null // Where frameBoundCellposeMeshData was cut from
   isDataLoading: boolean
   dataError: string | null
 

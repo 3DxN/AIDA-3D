@@ -7,6 +7,7 @@ import React, {
 import * as zarrita from 'zarrita'
 
 import * as omeUtils from '../utils/ome'
+import { listLabelGroups, listMeshes } from '../utils/discoverSources'
 
 import { 
   ZarrStoreSuggestionType, type ZarrStoreSuggestedPath,
@@ -60,7 +61,9 @@ export function ZarrStoreProvider({
     suggestedPaths: [],
     suggestionType: ZarrStoreSuggestionType.NO_OME,
     onPropertiesFound: undefined,
-    cellposeProperties: null
+    cellposeProperties: null,
+    availableLabelGroups: [],
+    availableMeshes: []
   })
 
   const setSource = useCallback((url: string) => {
@@ -463,6 +466,9 @@ export function ZarrStoreProvider({
 
     try {
       const { arrays, resolutions, scales, defaultArray } = await detectCellposeArray(cellposePath)
+      if (arrays.length === 0) {
+        throw new Error(`No label image found at ${cellposePath}`)
+      }
 
       setState(prev => ({
         ...prev,
@@ -490,6 +496,36 @@ export function ZarrStoreProvider({
       }))
     }
   }, [state.store, detectCellposeArray])
+
+  // Detach the active label group, e.g. when a glTF layer becomes the most recent 3D data
+  const unloadCellposeData = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      cellposePath: '',
+      cellposeArray: null,
+      cellposeArrays: [],
+      cellposeResolutions: [],
+      cellposeScales: [],
+      cellposeProperties: null,
+      isCellposeLoading: false,
+      cellposeError: null
+    }))
+  }, [])
+
+  // Look up label groups and meshes listed in the store's index metadata
+  const refreshAvailableSources = useCallback(async () => {
+    if (!state.store) return
+    const [availableLabelGroups, availableMeshes] = await Promise.all([
+      listLabelGroups(state.store, state.zarrPath),
+      listMeshes(state.store, state.zarrPath)
+    ])
+    console.log('🔍 Discovered label groups:', availableLabelGroups, 'meshes:', availableMeshes)
+    setState(prev => ({ ...prev, availableLabelGroups, availableMeshes }))
+  }, [state.store, state.zarrPath])
+
+  useEffect(() => {
+    if (state.hasLoadedArray) refreshAvailableSources()
+  }, [state.hasLoadedArray, refreshAvailableSources])
 
   // Refresh Cellpose data (re-load from current cellposePath)
   const refreshCellposeData = useCallback(async () => {
@@ -547,7 +583,7 @@ export function ZarrStoreProvider({
         cellposeArrays: [],
         cellposeResolutions: [],
         cellposeScales: [],
-        isCellposeLoading: true,
+        isCellposeLoading: !!cellposePath,
         cellposeError: null
       }))
 
@@ -581,8 +617,10 @@ export function ZarrStoreProvider({
           await processGroup(targetGroup)
         })(),
 
-        // Load cellpose
+        // Load cellpose (optional - label groups can also be added later from the 3D settings)
         (async () => {
+          if (!cellposePath) return null
+
           const cellposeGroup = await zarrita.open(rootGroup.resolve(cellposePath))
 
           if (!(cellposeGroup instanceof zarrita.Group)) {
@@ -652,8 +690,10 @@ export function ZarrStoreProvider({
       }
 
       // Handle cellpose result
-      if (cellposeResult.status === 'fulfilled') {
-        const { arrays, resolutions, scales, defaultArray, properties } = cellposeResult.value
+      if (cellposeResult.status === 'fulfilled' && cellposeResult.value === null) {
+        setState(prev => ({ ...prev, isLoading: false }))
+      } else if (cellposeResult.status === 'fulfilled') {
+        const { arrays, resolutions, scales, defaultArray, properties } = cellposeResult.value!
         setState(prev => {
           // Invoke callback immediately if it's registered and we have properties
           if (properties && properties.length > 0 && prev.onPropertiesFound) {
@@ -746,6 +786,8 @@ export function ZarrStoreProvider({
     loadFromUrlParams,
     navigateToSuggestion,
     refreshCellposeData,
+    unloadCellposeData,
+    refreshAvailableSources,
     setPropertiesCallback,
     setSelectedCellposeOverlayResolution,
     setSelectedCellposeMeshResolution

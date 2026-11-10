@@ -10,7 +10,7 @@ import { useZarrStore } from './ZarrStoreContext'
 
 import type { VivViewState } from '../../types/viewer2D/vivViewer'
 import type { 
-    Viewer2DDataContextType, Viewer2DDataProviderProps
+    Viewer2DDataContextType, Viewer2DDataProviderProps, CellposeMeshChunkInfo
 } from '../../types/viewer2D/viewerContext'
 import type { NavigationState } from '../../types/viewer2D/navState'
 import type { ViewerSize } from '../../types/viewer2D/dimensions'
@@ -60,6 +60,8 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     = useState<zarrita.Chunk<zarrita.DataType> | null>(null)
   const [frameBoundCellposeMeshData, setFrameBoundCellposeMeshData]
     = useState<zarrita.Chunk<zarrita.DataType> | null>(null)
+  const [frameBoundCellposeMeshInfo, setFrameBoundCellposeMeshInfo]
+    = useState<CellposeMeshChunkInfo | null>(null)
   
   // Frame bounds calculation
   const getFrameBounds = useCallback(() => {
@@ -272,6 +274,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
 
       if (!cellposeMeshArray) {
         setFrameBoundCellposeMeshData(null)
+        setFrameBoundCellposeMeshInfo(null)
         return
       }
 
@@ -324,6 +327,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
         const selection: (number | zarrita.Slice | null)[] = []
 
         const hasZ = cellposeMeshArray.shape.length > 2 && msInfo?.shape.z && msInfo.shape.z >= 1
+        let originZ = 0
         if (hasZ) {
           let clampedStartZ: number, clampedEndZ: number
 
@@ -346,6 +350,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
             console.log(`   Getting Z layers ${clampedStartZ}:${clampedEndZ} (original: ${startZ}:${endZ})`)
           }
           selection.push(zarrita.slice(clampedStartZ, clampedEndZ))
+          originZ = clampedStartZ
         }
         selection.push(zarrita.slice(y1, y2))
         selection.push(zarrita.slice(x1, x2))
@@ -354,12 +359,14 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
         const fetchEnd = performance.now()
         console.log(`⏱️ Zarr MESH fetch: ${(fetchEnd - fetchStart).toFixed(1)}ms`)
         console.log(`✅ Frame-bound Cellpose MESH data loaded, chunk shape: ${result?.shape.join(' × ') || 'null'}`)
+        setFrameBoundCellposeMeshInfo({ origin: [originZ, y1, x1], arrayPath: cellposeMeshArray.path })
         setFrameBoundCellposeMeshData(result)
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error'
         console.error('❌ Error getting frame-bound Cellpose MESH data:', errorMsg)
         setDataError(errorMsg)
         setFrameBoundCellposeMeshData(null)
+        setFrameBoundCellposeMeshInfo(null)
       } finally {
         setIsDataLoading(false)
       }
@@ -408,6 +415,7 @@ export function Viewer2DDataProvider({ children }: Viewer2DDataProviderProps) {
     // Data access
     frameBoundCellposeData,
     frameBoundCellposeMeshData,
+    frameBoundCellposeMeshInfo,
     isDataLoading: isDataLoading || isCellposeLoading,
     dataError: dataError || cellposeError,
 

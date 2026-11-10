@@ -13,6 +13,8 @@ import {
 	Mesh,
 } from 'three'
 
+import { indexByLabel } from '../../../lib/utils/properties'
+
 function classNames(...classes) {
 	return classes.filter(Boolean).join(' ')
 }
@@ -47,14 +49,14 @@ const Orientation = (props: {
 	// Toggle nucleus visibility and update axes visibility based on nucleus visibility
 	useEffect(() => {
 		if (content) {
+			const nucleiByName = new Map(content.children.map((child) => [child.name, child]))
+
 			// Lines are now direct children of the scene
 			scene.traverse((object) => {
 				if (object.name.includes('orientation')) {
 					// Check if this axis belongs to a visible nucleus
 					const nucleusIndex = object.name.split('-')[0]
-					const nucleus = content.children.find(child => 
-						child.name === `nucleus_${nucleusIndex}`
-					) as Mesh
+					const nucleus = nucleiByName.get(`nucleus_${nucleusIndex}`) as Mesh
 					
 					// Axis is visible only if orientationsActive is true AND the nucleus is visible
 					object.visible = orientationsActive && nucleus && nucleus.visible
@@ -96,6 +98,7 @@ const Orientation = (props: {
 			) as Mesh[]
 
 			let hasOrientationData = false
+			const labelsByIndex = indexByLabel<{ nucleus_index: number }>(featureData.labels)
 
 			nuclei.forEach((nucleus) => {
 				// Skip drawing for nuclei that have been filtered out by other controls
@@ -104,9 +107,7 @@ const Orientation = (props: {
 				}
 
 				const nucleusIndex = parseInt(nucleus.name.split('_')[1], 10)
-				const nucleusData = featureData.labels.find(
-					(d: any) => d.nucleus_index === nucleusIndex
-				)
+				const nucleusData: any = labelsByIndex.get(nucleusIndex)
 
 				if (nucleusData && nucleusData.axes && nucleusData.orientation) {
 					hasOrientationData = true
