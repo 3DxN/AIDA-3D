@@ -8,7 +8,7 @@ import type { MeshEmbeddings } from './discoverSources'
  */
 
 export interface EmbeddingSource extends MeshEmbeddings {
-	/** Fetch the vector of one glyph; only its row is requested */
+	/** The vector of one glyph; read from the cached chunk holding its row, fetching that chunk if needed */
 	readRow: (labelValue: number) => Promise<Float32Array>
 }
 
@@ -19,9 +19,17 @@ export const embeddingRow = (labelValue: number) => {
 	return labelValue - 1
 }
 
-/** One source per mesh layer: the array metadata is opened once and reused for every selection */
+// Recently read row chunks kept per source; a chunk can hold every row of the array (several MB)
+const MAX_CACHED_CHUNKS = 4
+
+/**
+ * One source per mesh layer: the array metadata is opened once, and each chunk of rows is fetched once
+ * and reused for every selection of a glyph in it.
+ */
 export function openEmbeddingSource(store: zarrita.FetchStore, info: MeshEmbeddings): EmbeddingSource {
 	let opened: Promise<zarrita.Array<zarrita.DataType, zarrita.FetchStore>> | null = null
+	// Row-chunk index → all rows of that chunk, C order; Map order is least to most recently used
+	const chunks = new Map<number, Promise<Float32Array>>()
 
 	const open = () => {
 		opened ??= zarrita.open(zarrita.root(store).resolve(info.path), { kind: 'array' })
@@ -39,16 +47,41 @@ export function openEmbeddingSource(store: zarrita.FetchStore, info: MeshEmbeddi
 		return opened
 	}
 
+	const readChunk = (array: zarrita.Array<zarrita.DataType, zarrita.FetchStore>, chunk: number) => {
+		let rows = chunks.get(chunk)
+		if (rows) {
+			chunks.delete(chunk)
+		} else {
+			const start = chunk * array.chunks[0]
+			const end = Math.min(start + array.chunks[0], array.shape[0])
+			// Spans all column chunks of these rows
+			rows = zarrita.get(array, [zarrita.slice(start, end), null]).then(
+				({ data }) => (data instanceof Float32Array ? data : Float32Array.from(data as ArrayLike<number>)),
+				(error) => {
+					chunks.delete(chunk)
+					throw error
+				}
+			)
+		}
+		chunks.set(chunk, rows)
+		if (chunks.size > MAX_CACHED_CHUNKS) chunks.delete(chunks.keys().next().value!)
+		return rows
+	}
+
 	return {
 		...info,
 		readRow: async (labelValue) => {
 			const row = embeddingRow(labelValue)
 			const array = await open()
-			if (row >= array.shape[0]) {
-				throw new Error(`label-value ${labelValue} has no row in ${info.path} (${array.shape[0]} rows)`)
+			const [rowCount, dim] = array.shape
+			if (row >= rowCount) {
+				throw new Error(`label-value ${labelValue} has no row in ${info.path} (${rowCount} rows)`)
 			}
-			const { data } = await zarrita.get(array, [row, null])
-			return data instanceof Float32Array ? data : Float32Array.from(data as ArrayLike<number>)
+			const chunk = Math.floor(row / array.chunks[0])
+			const rows = await readChunk(array, chunk)
+			const offset = (row - chunk * array.chunks[0]) * dim
+			// A copy, so callers cannot change the cached chunk
+			return rows.slice(offset, offset + dim)
 		},
 	}
 }

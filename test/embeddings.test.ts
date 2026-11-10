@@ -15,22 +15,29 @@ const SHA = '6e077eda234bebc595868d918d3458d9dd32a050199b0ff04443b2f46a0a3b1e';
 const group = (attributes: Record<string, unknown>) =>
 	JSON.stringify({ zarr_format: 3, node_type: 'group', attributes });
 
-// (3 glyphs, dim 4) float32 array without compressor, chunked by rows; row r holds r*10 + [1.5, 2.5, 3.5, 4.5]
-const ROWS = [0, 1, 2].map((r) => Float32Array.from([1.5, 2.5, 3.5, 4.5], (v) => r * 10 + v));
-const embeddingArray = (path: string): Record<string, Uint8Array | string> => ({
-	[`${path}/zarr.json`]: JSON.stringify({
+// (5 glyphs, dim 4) float32 array without compressor, chunked by rows; row r holds r*10 + [1.5, 2.5, 3.5, 4.5]
+const ROWS = [0, 1, 2, 3, 4].map((r) => Float32Array.from([1.5, 2.5, 3.5, 4.5], (v) => r * 10 + v));
+const embeddingArray = (path: string, rowsPerChunk = 1): Record<string, Uint8Array | string> => {
+	const files: Record<string, Uint8Array | string> = {};
+	files[`${path}/zarr.json`] = JSON.stringify({
 		zarr_format: 3,
 		node_type: 'array',
-		shape: [3, 4],
+		shape: [ROWS.length, 4],
 		data_type: 'float32',
-		chunk_grid: { name: 'regular', configuration: { chunk_shape: [1, 4] } },
+		chunk_grid: { name: 'regular', configuration: { chunk_shape: [rowsPerChunk, 4] } },
 		chunk_key_encoding: { name: 'default', configuration: { separator: '/' } },
 		fill_value: 0,
 		codecs: [{ name: 'bytes', configuration: { endian: 'little' } }],
 		attributes: {},
-	}),
-	...Object.fromEntries(ROWS.map((row, r) => [`${path}/c/${r}/0`, new Uint8Array(row.buffer)])),
-});
+	});
+	// Edge chunks are stored at full chunk size, padded with the fill value
+	for (let chunk = 0; chunk * rowsPerChunk < ROWS.length; chunk++) {
+		const data = new Float32Array(rowsPerChunk * 4);
+		ROWS.slice(chunk * rowsPerChunk, (chunk + 1) * rowsPerChunk).forEach((row, i) => data.set(row, i * 4));
+		files[`${path}/c/${chunk}/0`] = new Uint8Array(data.buffer);
+	}
+	return files;
+};
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -84,7 +91,7 @@ test('listMeshes resolves embeddings inside the image group as well', async () =
 	assert.equal(mesh.embeddings?.path, '0/meshes/clusters_a.embeddings.zarr');
 });
 
-test('label-value n reads row n - 1, fetching only that row', async () => {
+test('label-value n reads row n - 1, fetching each chunk once', async () => {
 	const requests = serve(embeddingArray('meshes/clusters_a.embeddings.zarr'));
 	const source = openEmbeddingSource(new zarrita.FetchStore(STORE), {
 		path: 'meshes/clusters_a.embeddings.zarr', model: 'uni2_h', sha256: SHA, sha256_kind: 'weights_sha256',
@@ -100,15 +107,48 @@ test('label-value n reads row n - 1, fetching only that row', async () => {
 	assert.deepEqual(
 		requests.filter((key) => key.includes('/c/')),
 		['meshes/clusters_a.embeddings.zarr/c/0/0', 'meshes/clusters_a.embeddings.zarr/c/2/0',
-			'meshes/clusters_a.embeddings.zarr/c/1/0', 'meshes/clusters_a.embeddings.zarr/c/0/0']
+			'meshes/clusters_a.embeddings.zarr/c/1/0'],
+		'reading row 0 again uses the cached chunk'
 	);
 	assert.equal(source.model, 'uni2_h');
+});
+
+test('rows of a multi-row chunk come from one fetch, including the short last chunk', async () => {
+	const requests = serve(embeddingArray('e.zarr', 2));
+	const source = openEmbeddingSource(new zarrita.FetchStore(STORE), { path: 'e.zarr' });
+
+	for (const labelValue of [2, 1, 5, 3, 4, 2]) {
+		assert.deepEqual(await source.readRow(labelValue), ROWS[labelValue - 1], `label-value ${labelValue}`);
+	}
+	assert.deepEqual(requests.filter((key) => key.includes('/c/')), ['e.zarr/c/0/0', 'e.zarr/c/2/0', 'e.zarr/c/1/0']);
+
+	// Selections run concurrently share one fetch
+	const concurrent = serve(embeddingArray('f.zarr', 5));
+	const shared = openEmbeddingSource(new zarrita.FetchStore(STORE), { path: 'f.zarr' });
+	const vectors = await Promise.all([1, 2, 3, 4, 5].map((labelValue) => shared.readRow(labelValue)));
+	assert.deepEqual(vectors, ROWS);
+	assert.equal(concurrent.filter((key) => key.includes('/c/')).length, 1);
+
+	// Returned vectors are copies; changing one does not change the cache
+	vectors[0][0] = -1;
+	assert.equal((await shared.readRow(1))[0], ROWS[0][0]);
+});
+
+test('keeps only the most recent chunks', async () => {
+	const requests = serve(embeddingArray('g.zarr', 1));
+	const source = openEmbeddingSource(new zarrita.FetchStore(STORE), { path: 'g.zarr' });
+	// Five chunks with a cache of four: chunk 0 is evicted after reading 1..5, then refetched
+	for (const labelValue of [1, 2, 3, 4, 5, 2, 1]) await source.readRow(labelValue);
+	assert.deepEqual(
+		requests.filter((key) => key.includes('/c/')).map((key) => key.split('/')[2]),
+		['0', '1', '2', '3', '4', '0']
+	);
 });
 
 test('rejects label-values without a row, and recovers after a failed open', async () => {
 	serve(embeddingArray('e.zarr'));
 	const source = openEmbeddingSource(new zarrita.FetchStore(STORE), { path: 'e.zarr' });
-	await assert.rejects(source.readRow(4), /label-value 4 has no row in e\.zarr \(3 rows\)/);
+	await assert.rejects(source.readRow(6), /label-value 6 has no row in e\.zarr \(5 rows\)/);
 	await assert.rejects(source.readRow(0), /integer ≥ 1/);
 	assert.throws(() => embeddingRow(1.5), /integer ≥ 1/);
 	assert.equal(embeddingRow(7), 6);
@@ -118,6 +158,19 @@ test('rejects label-values without a row, and recovers after a failed open', asy
 	await assert.rejects(missing.readRow(1));
 	serve(embeddingArray('missing.zarr'));
 	assert.deepEqual(await missing.readRow(1), ROWS[0], 'a later selection retries the open');
+
+	// A failed chunk fetch (network error) is not cached either.
+	// (A 404 is not a failure: zarr reads a missing chunk as fill values.)
+	serve(embeddingArray('h.zarr'));
+	const working = globalThis.fetch;
+	globalThis.fetch = (async (input: string | URL | Request) => {
+		if (String(input).endsWith('h.zarr/c/0/0')) throw new TypeError('network error');
+		return working(input);
+	}) as typeof fetch;
+	const flaky = openEmbeddingSource(new zarrita.FetchStore(STORE), { path: 'h.zarr' });
+	await assert.rejects(flaky.readRow(1), /network error/);
+	globalThis.fetch = working;
+	assert.deepEqual(await flaky.readRow(1), ROWS[0], 'the next selection fetches the chunk again');
 });
 
 test('formats the vector as a fixed-width block', () => {
